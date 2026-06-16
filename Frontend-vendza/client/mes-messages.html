@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base href="/client/">
+  <title>Mes messages – Vendza</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../theme-vendza.css">
+  <link rel="stylesheet" href="../vendeur/messagerie-v2.css">
+  <script src="/vendza-fix-assets.js"></script>
+</head>
+<body class="page-messagerie-v2 page-messagerie-client">
+
+  <nav>
+    <a class="nav-back" href="tableau-de-bord-client.html">← Tableau de bord</a>
+    <div class="nav-title">💬 Mes messages <span class="nav-badge" id="nav-unread" hidden>0</span></div>
+    <a class="nav-logo" href="../index.html">Vendza</a>
+  </nav>
+
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-search">
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="search-conv" placeholder="Rechercher un vendeur ou produit…" autocomplete="off" />
+        </div>
+      </div>
+      <div class="sidebar-tabs" id="sidebar-tabs">
+        <button type="button" class="stab active" data-tab="all">Tout <span class="tc" id="tc-all">0</span></button>
+        <button type="button" class="stab" data-tab="unread">Non lus <span class="tc" id="tc-unread">0</span></button>
+        <button type="button" class="stab" data-tab="commandes">Commandes</button>
+      </div>
+      <div class="conv-list" id="conv-list"></div>
+    </aside>
+
+    <main class="chat-area" id="chat-area">
+      <div class="chat-empty" id="chat-empty">
+        <div class="ce-icon">💬</div>
+        <div class="ce-title">Messagerie</div>
+        <div class="ce-sub">Sélectionnez une conversation pour échanger avec un vendeur.</div>
+      </div>
+
+      <header class="chat-header" id="chat-header" hidden>
+        <button type="button" class="ch-btn mobile-back" id="btn-back-inbox" hidden aria-label="Retour aux conversations">←</button>
+        <div class="ch-avatar" id="ch-avatar"></div>
+        <div class="ch-info">
+          <div class="ch-name" id="ch-name">—</div>
+          <div class="ch-status" id="ch-status">Vendeur</div>
+        </div>
+        <div class="ch-product" id="ch-product"></div>
+        <a class="ch-btn" id="btn-open-product" href="#" title="Voir le produit" hidden>📦</a>
+        <button type="button" class="ch-btn" id="btn-refresh-chat" title="Actualiser">↻</button>
+      </header>
+
+      <div class="chat-status" id="chatStatus" role="status"></div>
+      <div class="messages" id="messages" hidden></div>
+
+      <div class="input-zone" id="input-zone" hidden>
+        <div class="input-actions">
+          <button type="button" class="ia-btn" id="btn-pick-image">🖼️ Image</button>
+          <input type="file" id="img-input" accept="image/*" hidden />
+        </div>
+        <div class="input-row">
+          <textarea class="msg-input" id="msg-input" placeholder="Écrire un message…" rows="1"></textarea>
+          <button type="button" class="btn-send" id="btn-send" disabled>➤</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="msg-toast" id="msg-toast"></div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="../config.js"></script>
+  <script src="../supabaseclient.js"></script>
+  <script src="../vendza-messaging.js"></script>
+  <script src="mes-messages.js"></script>
+  <script src="vendza-urls.js"></script>
+  <script src="../vendza-loading.js"></script>
+  <script src="../dynamic-runtime.js"></script>
+</body>
+</html>

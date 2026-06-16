@@ -1,0 +1,28 @@
+﻿<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Historique des commandes | Vendza</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="theme-vendza.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+  <main class="container" style="padding:26px 20px;">
+    <section class="card" style="padding:18px;border-radius:14px;">
+      <h1 style="margin-bottom:8px;">Redirection en cours...</h1>
+      <p class="muted">Ouverture de l'historique des commandes.</p>
+      <p><a href="client/historique-des-commandes.html" class="btn btn-primary"><i class="fas fa-clock-rotate-left"></i> Ouvrir maintenant</a></p>
+    </section>
+  </main>
+  <script src="vendza-urls.js"></script>
+  <script src="dynamic-runtime.js"></script>
+  <script>
+    (function () {
+      var target = window.VendzaUrls ? window.VendzaUrls.page('clientOrders') : 'client/historique-des-commandes.html';
+      window.location.replace(target);
+    })();
+  </script>
+</body>
+</html>

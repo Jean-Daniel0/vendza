@@ -1,0 +1,1 @@
+module.exports = require('./Users/HP/netlify/functions/bunny-list.js')

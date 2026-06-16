@@ -1,0 +1,4 @@
+﻿/* Styles de base pour la page commandes recues (fallback si inline retire). */
+.orders-wrap { max-width: 1100px; margin: 0 auto; }
+.orders-grid { display: grid; gap: 12px; }
+.order-card { border: 1px solid #dbe3ef; border-radius: 12px; background: #fff; }

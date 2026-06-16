@@ -1,0 +1,8 @@
+{
+  "name": "Vendza",
+  "description": "La marketplace haïtienne de confiance avec paiement sécurisé (séquestre) et validation par QR Code.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

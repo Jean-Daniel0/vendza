@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base href="/vendeur/">
+  <title>Mes produits — Vendza Vendeur</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,700;1,400&family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="mes-produits-v2.css">
+  <link rel="stylesheet" href="../theme-vendza.css">
+  <script src="/vendza-fix-assets.js"></script>
+</head>
+<body class="page-mes-produits">
+
+<div class="page">
+
+  <header class="page-header">
+    <div class="header-grid"></div>
+    <div class="header-top">
+      <div>
+        <h1 class="header-title">Mes produits</h1>
+        <p class="header-sub">Gérez votre catalogue</p>
+      </div>
+      <a class="btn-create" href="produit.html">+ Créer</a>
+    </div>
+    <div class="header-stats">
+      <div class="hstat"><div class="hv" id="hs-total">0</div><div class="hl">Total</div></div>
+      <div class="hstat"><div class="hv" id="hs-actifs">0</div><div class="hl">Actifs</div></div>
+      <div class="hstat"><div class="hv" id="hs-stock">0</div><div class="hl">En stock</div></div>
+      <div class="hstat"><div class="hv" id="hs-ventes">0</div><div class="hl">Ventes</div></div>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <div class="search-wrap">
+      <span class="search-icon" aria-hidden="true">🔍</span>
+      <input type="search" id="search-input" placeholder="Rechercher un produit…" autocomplete="off">
+    </div>
+    <div class="toolbar-row">
+      <select class="tb-select" id="filter-cat" aria-label="Catégorie">
+        <option value="">Toutes catégories</option>
+        <option value="Électronique">Électronique</option>
+        <option value="Audio">Audio</option>
+        <option value="Wearable">Wearable</option>
+        <option value="Mode">Mode</option>
+        <option value="Maison">Maison</option>
+        <option value="Beauté">Beauté</option>
+        <option value="Gaming">Gaming</option>
+        <option value="Accessoires">Accessoires</option>
+        <option value="Sport">Sport</option>
+        <option value="Alimentaire">Alimentaire</option>
+        <option value="Photo">Photo</option>
+        <option value="Autre">Autre</option>
+      </select>
+      <select class="tb-select" id="filter-sort" aria-label="Tri">
+        <option value="recent">Plus récents</option>
+        <option value="prix-asc">Prix croissant</option>
+        <option value="prix-desc">Prix décroissant</option>
+        <option value="stock">Stock faible</option>
+      </select>
+      <div class="view-toggle" role="group" aria-label="Affichage">
+        <button type="button" class="vt-btn active" id="vt-list" title="Liste">☰</button>
+        <button type="button" class="vt-btn" id="vt-grid" title="Grille">⊞</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="status-tabs" role="tablist">
+    <button type="button" class="stab active" data-tab="">Tous <span class="sc" id="tab-all">0</span></button>
+    <button type="button" class="stab" data-tab="actif">Actifs <span class="sc" id="tab-actif">0</span></button>
+    <button type="button" class="stab" data-tab="brouillon">Brouillons <span class="sc" id="tab-brouillon">0</span></button>
+    <button type="button" class="stab" data-tab="epuise">Épuisés <span class="sc" id="tab-epuise">0</span></button>
+  </div>
+
+  <div id="products-container" aria-live="polite"></div>
+
+</div>
+
+<a class="fab" href="produit.html" title="Créer un produit">+</a>
+
+<div class="modal-overlay" id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+  <div class="modal">
+    <div class="modal-icon" aria-hidden="true">🗑️</div>
+    <h3 id="confirm-title">Supprimer ce produit ?</h3>
+    <p>Cette action est irréversible. Le produit sera définitivement supprimé de votre catalogue.</p>
+    <div class="modal-btns">
+      <button type="button" class="modal-btn modal-cancel" id="btn-cancel-delete">Annuler</button>
+      <button type="button" class="modal-btn modal-confirm" id="confirm-btn">Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="../config.js"></script>
+<script src="../supabaseclient.js"></script>
+<script src="../vendza-product-save.js"></script>
+<script src="/vendza-urls.js"></script>
+<script src="../vendza-auth.js"></script>
+<script src="../vendza-top-bar.js"></script>
+<script src="../vendza-site-config.js"></script>
+<script src="../vendza-share.js"></script>
+<script src="../vendza-loading.js"></script>
+<script src="mes-produit.js"></script>
+<script src="../guest-drawer.js"></script>
+<script src="../dynamic-runtime.js"></script>
+</body>
+</html>

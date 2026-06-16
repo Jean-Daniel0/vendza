@@ -1,0 +1,90 @@
+/* Badge vendeur vérifié — petite étoile bleue à côté du nom (sans coche) */
+.vendza-verified {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--vz-badge-size, 16px);
+  height: var(--vz-badge-size, 16px);
+  min-width: var(--vz-badge-size, 16px);
+  min-height: var(--vz-badge-size, 16px);
+  vertical-align: middle;
+  margin-left: 4px;
+  position: relative;
+  top: -1px;
+  line-height: 0;
+}
+
+.vendza-verified .vz-badge-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  vertical-align: middle;
+}
+
+.vendza-verified--inline {
+  margin-left: 5px;
+}
+
+.p-card-shop-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+}
+
+.p-card-shop-name {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted, #64748b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.p-card-shop-line .vendza-verified {
+  --vz-badge-size: 16px;
+  margin-left: 0;
+  flex: 0 0 auto;
+}
+
+.p-card-vendor .p-card-shop-line {
+  align-items: center;
+}
+
+.p-card-vendor .p-card-shop-name {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted, #64748b);
+}
+
+.p-card-vendor {
+  overflow: visible;
+}
+
+.profile-name .vendza-verified {
+  --vz-badge-size: 18px;
+  top: 1px;
+}
+
+.page-detail-produit .vendeur-name .vendza-verified {
+  --vz-badge-size: 16px;
+}
+
+.cover-verified .vendza-verified {
+  --vz-badge-size: 16px;
+  top: 0;
+  margin-right: 6px;
+}
+
+.vendeur-name .p-card-shop-line,
+.profile-name .p-card-shop-line,
+#info-boutique .p-card-shop-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}

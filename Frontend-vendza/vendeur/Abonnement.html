@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base href="/vendeur/">
+  <title>Abonnements – Vendza Vendeur</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="abonnement-v2.css">
+  <script src="/vendza-fix-assets.js"></script>
+</head>
+<body class="page-abonnement-v2">
+
+  <nav class="abo-nav">
+    <a class="abo-nav-back" href="tableau-de-bord-vendeur.html">← Dashboard</a>
+    <a class="abo-nav-logo" href="../index.html">Vendza</a>
+    <a class="abo-nav-cart" href="/client/panier" aria-label="Panier">🛒<span class="cart-dot" id="nav-cart-count">0</span></a>
+  </nav>
+
+  <div class="abo-hero">
+    <div class="abo-hero-grid"></div>
+    <div class="abo-hero-content">
+      <div class="hero-eyebrow">Devenez vendeur premium</div>
+      <h1>Choisissez votre<br><em>abonnement</em></h1>
+      <p class="hero-sub">Développez votre portée, renforcez la confiance et augmentez vos ventes grâce aux avantages Vendza.</p>
+      <div class="billing-toggle">
+        <span class="bt-label">Mensuel</span>
+        <button type="button" class="bt-switch" id="billing-switch" aria-label="Basculer facturation annuelle">
+          <div class="bt-knob"></div>
+        </button>
+        <span class="bt-label">Annuel</span>
+        <span class="bt-badge">-20%</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="plans-wrap">
+    <div class="plans-grid">
+
+      <div class="plan-card gratuit">
+        <div class="plan-header">
+          <div class="plan-badge-wrap">
+            <span class="plan-name-gratuit">Plan Gratuit</span>
+            <span class="plan-badge pb-gratuit">Gratuit</span>
+          </div>
+          <div class="plan-price-wrap">
+            <span class="plan-price dark">0</span>
+            <span class="plan-period">Gdes / mois</span>
+          </div>
+          <div class="plan-sub dark">Idéal pour commencer</div>
+        </div>
+        <div class="plan-features">
+          <div class="feature-item"><span class="fi-icon">✅</span><span class="fi-text">Présence de base sur la plateforme</span></div>
+          <div class="feature-item"><span class="fi-icon">✅</span><span class="fi-text">1 département de couverture</span></div>
+          <div class="feature-item"><span class="fi-icon">✅</span><span class="fi-text">Système QR code inclus</span></div>
+          <div class="feature-item"><span class="fi-icon">—</span><span class="fi-text disabled">Badge Vérifié non inclus</span></div>
+          <div class="feature-item"><span class="fi-icon">—</span><span class="fi-text disabled">Pas de mise en avant dans le catalogue</span></div>
+          <button type="button" class="btn-plan btn-gratuit" data-choose-plan="Gratuit">Rester sur le plan gratuit</button>
+        </div>
+      </div>
+
+      <div class="plan-card local">
+        <div class="plan-header">
+          <div class="plan-badge-wrap">
+            <span class="plan-name">Pro Local</span>
+            <span class="plan-badge pb-verifie">✓ Vérifié</span>
+          </div>
+          <div class="plan-price-wrap">
+            <span class="plan-price light" id="price-local">350</span>
+            <span class="plan-period light" id="period-local">Gdes / mois</span>
+          </div>
+          <div class="plan-sub light" id="sub-local">Couverture régionale — jusqu'à 5 dép.</div>
+          <div class="annual-box local-box" id="annual-local">
+            <div class="ab-row"><span class="ab-label">Prix mensuel</span><span class="ab-val">280 Gdes</span></div>
+            <div class="ab-row"><span class="ab-label">× 12 mois</span><span class="ab-val" id="local-total-calc">3 360 Gdes</span></div>
+            <div class="ab-sep"></div>
+            <div class="ab-total-row"><span class="ab-total-label">Total à payer</span><span class="ab-total-val local-val" id="local-annual-total">3 360 Gdes</span></div>
+            <span class="ab-saving">✓ Vous économisez 840 Gdes/an</span>
+          </div>
+        </div>
+        <div class="plan-features">
+          <div class="feature-item"><span class="fi-icon">🛡️</span><span class="fi-text">Badge <strong>Vendeur Vérifié</strong> sur votre boutique</span></div>
+          <div class="feature-item"><span class="fi-icon">📈</span><span class="fi-text">Meilleur référencement dans les résultats</span></div>
+          <div class="feature-item"><span class="fi-icon">🗺️</span><span class="fi-text">+5 départements en couverture <span class="fi-highlight fh-blue">5 dép.</span></span></div>
+          <div class="feature-item"><span class="fi-icon">📊</span><span class="fi-text">Statistiques de vente avancées</span></div>
+          <div class="feature-item"><span class="fi-icon">💬</span><span class="fi-text">Support prioritaire par WhatsApp</span></div>
+          <button type="button" class="btn-plan btn-local" data-choose-plan="Pro Local">Choisir Pro Local →</button>
+        </div>
+      </div>
+
+      <div class="plan-card national">
+        <div class="plan-header">
+          <div class="plan-badge-wrap">
+            <span class="plan-name">Pro National</span>
+            <span class="plan-badge pb-meilleur">⭐ Meilleur choix</span>
+          </div>
+          <div class="plan-price-wrap">
+            <span class="plan-price gold" id="price-national">499</span>
+            <span class="plan-period light" id="period-national">Gdes / mois</span>
+          </div>
+          <div class="plan-sub light" id="sub-national">Couverture nationale — 10 départements</div>
+          <div class="annual-box national-box" id="annual-national">
+            <div class="ab-row"><span class="ab-label">Prix mensuel</span><span class="ab-val">399 Gdes</span></div>
+            <div class="ab-row"><span class="ab-label">× 12 mois</span><span class="ab-val" id="national-total-calc">4 788 Gdes</span></div>
+            <div class="ab-sep"></div>
+            <div class="ab-total-row"><span class="ab-total-label">Total à payer</span><span class="ab-total-val national-val" id="national-annual-total">4 788 Gdes</span></div>
+            <span class="ab-saving">✓ Vous économisez 1 200 Gdes/an</span>
+          </div>
+        </div>
+        <div class="plan-features">
+          <div class="feature-item"><span class="fi-icon">🌍</span><span class="fi-text">Couverture nationale <span class="fi-highlight fh-gold">10 dép.</span></span></div>
+          <div class="feature-item"><span class="fi-icon">⚡</span><span class="fi-text">Référencement <strong>premium + prioritaire</strong> dans le catalogue</span></div>
+          <div class="feature-item"><span class="fi-icon">🛡️</span><span class="fi-text">Badge Vérifié + avantages avancés</span></div>
+          <div class="feature-item"><span class="fi-icon">🎯</span><span class="fi-text">Mise en avant sur la page d'accueil <span class="fi-highlight fh-green">Nouveau</span></span></div>
+          <div class="feature-item"><span class="fi-icon">📊</span><span class="fi-text">Tableau de bord analytics complet</span></div>
+          <div class="feature-item"><span class="fi-icon">💬</span><span class="fi-text">Support dédié 7j/7 · Réponse en 1h</span></div>
+          <button type="button" class="btn-plan btn-national" data-choose-plan="Pro National">⭐ Choisir Pro National →</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="compare-wrap">
+    <button type="button" class="compare-toggle" id="compare-toggle"><span id="compare-btn-txt">📊 Voir le comparatif détaillé</span> ▾</button>
+    <div class="compare-table" id="compare-table">
+      <div class="ct-head">
+        <div class="ct-col feature">Fonctionnalité</div>
+        <div class="ct-col">Gratuit</div>
+        <div class="ct-col" style="color:var(--blue)">Pro Local</div>
+        <div class="ct-col" style="color:var(--gold)">National</div>
+      </div>
+      <div class="ct-row"><div class="ct-cell feature">Départements couverts</div><div class="ct-cell"><span class="ct-val">1</span></div><div class="ct-cell"><span class="ct-val">5</span></div><div class="ct-cell"><span class="ct-val">10</span></div></div>
+      <div class="ct-row"><div class="ct-cell feature">Badge Vérifié</div><div class="ct-cell"><span class="ct-no">—</span></div><div class="ct-cell"><span class="ct-yes">✓</span></div><div class="ct-cell"><span class="ct-yes">✓</span></div></div>
+      <div class="ct-row"><div class="ct-cell feature">Système QR code</div><div class="ct-cell"><span class="ct-yes">✓</span></div><div class="ct-cell"><span class="ct-yes">✓</span></div><div class="ct-cell"><span class="ct-yes">✓</span></div></div>
+      <div class="ct-row"><div class="ct-cell feature">Référencement boosté</div><div class="ct-cell"><span class="ct-no">—</span></div><div class="ct-cell"><span class="ct-yes">✓</span></div><div class="ct-cell"><span class="ct-yes">✓✓</span></div></div>
+      <div class="ct-row"><div class="ct-cell feature">Mise en avant accueil</div><div class="ct-cell"><span class="ct-no">—</span></div><div class="ct-cell"><span class="ct-no">—</span></div><div class="ct-cell"><span class="ct-yes">✓</span></div></div>
+      <div class="ct-row"><div class="ct-cell feature">Analytics avancés</div><div class="ct-cell"><span class="ct-no">—</span></div><div class="ct-cell"><span class="ct-yes">✓</span></div><div class="ct-cell"><span class="ct-yes">✓</span></div></div>
+      <div class="ct-row"><div class="ct-cell feature">Support</div><div class="ct-cell"><span style="font-size:11px;color:var(--faint)">Email</span></div><div class="ct-cell"><span style="font-size:11px;color:var(--blue)">WhatsApp</span></div><div class="ct-cell"><span style="font-size:11px;color:var(--gold)">Dédié 7j/7</span></div></div>
+    </div>
+  </div>
+
+  <div class="how-wrap">
+    <div class="how-card">
+      <div class="how-title">💡 Comment s'abonner ?</div>
+      <div class="how-steps">
+        <div class="how-step"><div class="hs-num">1</div><div class="hs-text">Choisissez le plan qui correspond à vos besoins et cliquez sur le bouton correspondant.</div></div>
+        <div class="how-step"><div class="hs-num">2</div><div class="hs-text">Confirmez votre abonnement — le paiement se fera bientôt via MonCash ou en espèces.</div></div>
+        <div class="how-step"><div class="hs-num">3</div><div class="hs-text">Vos avantages s'activent automatiquement sur votre boutique dès validation.</div></div>
+      </div>
+      <div class="notice"><span>⚠️</span><span>Les paiements se font via MonCash / escrow (bientôt disponible). Pour l'instant, l'activation est simulée à des fins de test.</span></div>
+    </div>
+  </div>
+
+  <div class="faq-wrap">
+    <div class="faq-title">Questions fréquentes</div>
+    <div class="faq-item">
+      <div class="faq-q">Puis-je changer de plan à tout moment ?<span class="faq-arrow">▾</span></div>
+      <div class="faq-a">Oui, vous pouvez passer d'un plan à l'autre à tout moment. La mise à niveau est immédiate. En cas de rétrogradation, le changement prend effet à la fin du cycle de facturation en cours.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">Le plan gratuit est-il vraiment sans frais ?<span class="faq-arrow">▾</span></div>
+      <div class="faq-a">Oui, le plan gratuit est entièrement sans frais. Vendza prélève uniquement une commission sur chaque vente réalisée. Aucun abonnement mensuel requis sur ce plan.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">Comment fonctionne le badge « Vérifié » ?<span class="faq-arrow">▾</span></div>
+      <div class="faq-a">Le badge Vérifié est affiché sur votre boutique et vos produits dans le catalogue. Il signale aux acheteurs que votre compte a été contrôlé par Vendza.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">Qu'est-ce que la réduction annuelle de -20% ?<span class="faq-arrow">▾</span></div>
+      <div class="faq-a">En choisissant la facturation annuelle, vous payez l'équivalent de 10 mois pour 12 — soit 20% d'économie.</div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-steps">
+        <div class="mstep active" id="mstep-1"><div class="mstep-num">1</div><span>Départements</span></div>
+        <div class="mstep-line" id="mline-1"></div>
+        <div class="mstep" id="mstep-2"><div class="mstep-num">2</div><span>Récapitulatif</span></div>
+        <div class="mstep-line" id="mline-2"></div>
+        <div class="mstep" id="mstep-3"><div class="mstep-num">3</div><span>Paiement</span></div>
+      </div>
+      <div class="modal-body">
+        <div id="modal-step-1">
+          <div class="modal-title">Choisissez vos départements</div>
+          <div class="modal-sub">Sélectionnez les zones où vous souhaitez livrer</div>
+          <div class="plan-mini">
+            <div class="pm-icon" id="pm-icon">🗺️</div>
+            <div><div class="pm-name" id="pm-name">—</div><div class="pm-price" id="pm-price">—</div></div>
+            <div class="pm-badge" id="pm-badge">—</div>
+          </div>
+          <div class="dept-quota-info">
+            <span>Départements sélectionnés :</span>
+            <span class="dq-count" id="dept-selected-count">0</span><span>/</span><span class="dq-count" id="dept-max">5</span>
+          </div>
+          <div class="dept-grid" id="dept-grid"></div>
+          <div class="modal-btns" style="margin-top:20px;">
+            <button type="button" class="btn-modal-back" id="btn-close-modal">Annuler</button>
+            <button type="button" class="btn-modal-next" id="btn-next-1" disabled>Continuer →</button>
+          </div>
+        </div>
+        <div id="modal-step-2" style="display:none;">
+          <div class="modal-title">Récapitulatif</div>
+          <div class="modal-sub">Vérifiez votre commande avant de payer</div>
+          <div class="recap-section">
+            <div class="recap-label">Votre abonnement</div>
+            <div class="recap-lines">
+              <div class="recap-line"><span class="rl">Plan</span><span class="rv" id="recap-plan">—</span></div>
+              <div class="recap-line"><span class="rl">Facturation</span><span class="rv" id="recap-billing">Mensuelle</span></div>
+              <div class="recap-line" style="flex-direction:column;gap:5px;"><span class="rl">Départements couverts</span><div class="dept-recap" id="recap-depts"></div></div>
+              <div class="recap-line"><span class="rl">Prix unitaire</span><span class="rv" id="recap-prix-unit">—</span></div>
+              <div class="recap-line" id="recap-promo-line" style="display:none;"><span class="rl">Réduction annuelle</span><span class="rv green" id="recap-promo">—</span></div>
+              <div class="recap-sep"></div>
+              <div class="recap-total-line"><span class="rtl">Total à payer</span><span class="rtv" id="recap-total">—</span></div>
+            </div>
+          </div>
+          <div class="modal-btns">
+            <button type="button" class="btn-modal-back" data-go-step="1">← Retour</button>
+            <button type="button" class="btn-modal-next" data-go-step="3">💳 Choisir le paiement →</button>
+          </div>
+        </div>
+        <div id="modal-step-3" style="display:none;">
+          <div class="modal-title">Mode de paiement</div>
+          <div class="modal-sub">Choisissez comment vous souhaitez payer</div>
+          <div class="payment-methods">
+            <div class="pm-method" data-payment="moncash">
+              <div class="pm-radio"><div class="pm-radio-dot"></div></div>
+              <div class="pm-method-icon">📱</div>
+              <div><div class="pm-method-name">MonCash</div><div class="pm-method-sub">Paiement mobile instantané</div></div>
+              <div class="pm-method-badge soon">Bientôt</div>
+            </div>
+            <div class="pm-method" data-payment="especes">
+              <div class="pm-radio"><div class="pm-radio-dot"></div></div>
+              <div class="pm-method-icon">💵</div>
+              <div><div class="pm-method-name">Espèces</div><div class="pm-method-sub">Paiement en personne à Vendza</div></div>
+              <div class="pm-method-badge ok">Disponible</div>
+            </div>
+            <div class="pm-method selected" data-payment="simulation">
+              <div class="pm-radio"><div class="pm-radio-dot"></div></div>
+              <div class="pm-method-icon">🧪</div>
+              <div><div class="pm-method-name">Mode test (simulation)</div><div class="pm-method-sub">Activer sans paiement réel</div></div>
+              <div class="pm-method-badge ok">Test</div>
+            </div>
+          </div>
+          <div class="modal-btns">
+            <button type="button" class="btn-modal-back" data-go-step="2">← Retour</button>
+            <button type="button" class="btn-modal-next" id="btn-pay">✅ Confirmer l'abonnement</button>
+          </div>
+        </div>
+        <div id="modal-step-success" style="display:none;">
+          <div class="modal-success">
+            <div class="ms-icon">🎉</div>
+            <div class="ms-title">Abonnement activé !</div>
+            <p class="ms-sub" id="ms-sub-text">Votre plan est maintenant actif. Vos avantages sont disponibles immédiatement sur votre boutique.</p>
+            <a class="btn-modal-done" href="tableau-de-bord-vendeur.html">🏪 Voir mon tableau de bord</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="abo-toast" id="toast" role="status"></div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="../config.js"></script>
+  <script src="../supabaseclient.js"></script>
+  <script src="Abonnement.js"></script>
+  <script src="/vendza-urls.js"></script>
+  <script src="../vendza-loading.js"></script>
+  <script src="../dynamic-runtime.js"></script>
+</body>
+</html>

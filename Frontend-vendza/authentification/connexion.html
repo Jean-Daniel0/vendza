@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base href="/authentification/">
+  <title>Connexion – Vendza</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,700;1,400&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="auth-v2.css">
+  <link rel="stylesheet" href="../theme-vendza.css">
+  <script src="vendza-fix-assets.js"></script>
+</head>
+<body class="page-auth-v2">
+
+  <nav class="auth-nav">
+    <a class="auth-nav-logo" href="../index.html">Vendza</a>
+    <a class="auth-nav-link" href="inscription.html">Créer un compte →</a>
+  </nav>
+
+  <div class="auth-hero">
+    <div class="auth-hero-blob"></div>
+    <div class="auth-hero-content">
+      <div class="auth-hero-logo">Vendza</div>
+      <div class="auth-hero-sub">Connectez-vous à votre compte</div>
+      <div class="auth-hero-badges">
+        <div class="hbadge">🔒 Connexion sécurisée</div>
+        <div class="hbadge">🇭🇹 Marketplace haïtienne</div>
+      </div>
+    </div>
+  </div>
+
+  <form class="auth-card" id="loginForm" novalidate>
+    <div class="login-tabs" role="tablist">
+      <button type="button" class="ltab active" id="tab-client" data-tab="client">🛍️ Client</button>
+      <button type="button" class="ltab" id="tab-vendeur" data-tab="vendeur">🏪 Vendeur</button>
+    </div>
+
+    <div class="field">
+      <div class="field-label">
+        Email
+        <span style="font-size:11px;color:var(--faint);font-weight:400" id="tab-hint">Accès boutique client</span>
+      </div>
+      <div class="input-wrap">
+        <span class="input-icon">📧</span>
+        <input type="email" id="email" name="email" placeholder="votre@email.com" autocomplete="email" required>
+      </div>
+      <div class="field-error" id="err-email">Email invalide</div>
+    </div>
+
+    <div class="field">
+      <div class="field-label">
+        Mot de passe
+        <a href="#" id="openForgotLink">Mot de passe oublié ?</a>
+      </div>
+      <div class="input-wrap">
+        <span class="input-icon">🔒</span>
+        <input type="password" id="password" name="password" placeholder="Votre mot de passe" autocomplete="current-password" required>
+        <button type="button" class="eye-btn" id="togglePassword" aria-label="Afficher le mot de passe">👁️</button>
+      </div>
+      <div class="field-error" id="err-password">Mot de passe incorrect</div>
+    </div>
+
+    <div class="remember-row">
+      <label class="check-wrap" id="rememberWrap">
+        <input type="checkbox" id="remember" name="remember">
+        <div class="custom-check" id="cc-remember"></div>
+        <span class="check-label">Se souvenir de moi</span>
+      </label>
+    </div>
+
+    <button type="submit" class="btn-auth-primary login-btn" id="btn-login">
+      <span class="btn-text">🔐 Se connecter</span>
+      <span class="btn-loader" aria-hidden="true"></span>
+    </button>
+
+    <div class="or-row">
+      <div class="or-line"></div>
+      <div class="or-text">ou continuer avec</div>
+      <div class="or-line"></div>
+    </div>
+
+    <div class="social-btns">
+      <button type="button" class="btn-social" id="googleLogin">
+        <svg width="17" height="17" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+        Continuer avec Google
+      </button>
+      <button type="button" class="btn-social btn-facebook" id="facebookLogin">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="#1877f2" aria-hidden="true"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+        Continuer avec Facebook
+      </button>
+    </div>
+
+    <div class="card-footer">
+      Pas encore de compte ? <a href="inscription.html">S'inscrire gratuitement →</a>
+    </div>
+  </form>
+
+  <a class="back-link" href="../index.html">← Retour à l'accueil</a>
+
+  <div class="modal-overlay" id="forgotPasswordModal">
+    <div class="modal-sheet">
+      <div class="modal-handle"></div>
+      <div class="modal-title">🔑 Mot de passe oublié</div>
+      <p class="modal-sub">Entrez votre adresse email. Nous vous enverrons un lien pour réinitialiser votre mot de passe.</p>
+      <form id="forgotPasswordForm">
+        <div class="field">
+          <div class="field-label">Email</div>
+          <div class="input-wrap">
+            <span class="input-icon">📧</span>
+            <input type="email" id="recoveryEmail" placeholder="votre@email.com" required>
+          </div>
+        </div>
+        <button type="submit" class="btn-send-reset">📧 Envoyer le lien</button>
+        <button type="button" class="btn-cancel-modal" id="closeModal">Annuler</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="notifications" id="notifications"></div>
+  <div class="auth-toast" id="auth-toast" role="status" aria-live="polite"></div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="../config.js"></script>
+  <script src="../supabaseclient.js"></script>
+  <script src="vendza-urls.js"></script>
+  <script src="../vendza-loading.js"></script>
+  <script src="../vendza-auth-redirect.js"></script>
+  <script src="../vendza-auth.js"></script>
+  <script src="connexion.js"></script>
+  <script src="../dynamic-runtime.js"></script>
+</body>
+</html>

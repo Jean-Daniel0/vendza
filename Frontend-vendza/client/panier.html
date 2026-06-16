@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Mon Panier – Vendza</title>
+  <base href="/client/">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,700;1,400&family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/theme-vendza.css">
+  <link rel="stylesheet" href="/client/panier.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+:root{
+  --blue:#2563eb;--blue-dk:#1e40af;--blue-lt:#eff6ff;
+  --teal:#0d9488;--teal-lt:#f0fdfa;
+  --green:#16a34a;--green-lt:#f0fdf4;
+  --amber:#f59e0b;--amber-lt:#fffbeb;
+  --red:#ef4444;--red-lt:#fef2f2;
+  --text:#0c1445;--muted:#5a6480;--faint:#9aa3bf;
+  --border:#e4e9f5;--bg:#f0f2fa;--white:#fff;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding-bottom:100px;}
+
+/* ── Nav ── */
+nav{
+  background:linear-gradient(90deg,var(--blue-dk),var(--teal));
+  height:56px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 16px;position:sticky;top:0;z-index:200;
+  box-shadow:0 2px 12px rgba(0,0,0,.18);
+}
+.nav-logo{font-family:'Fraunces',serif;font-size:1.2rem;font-weight:700;color:white;text-decoration:none;}
+.nav-back{font-size:12px;color:rgba(255,255,255,.8);text-decoration:none;display:flex;align-items:center;gap:5px;}
+.nav-back:hover{color:white;}
+
+/* ── Page ── */
+.page{max-width:600px;margin:0 auto;padding:20px 16px;}
+
+/* ── Header ── */
+.page-header{margin-bottom:20px;animation:fadeUp .4s ease both;}
+.page-header h1{
+  font-family:'Fraunces',serif;
+  font-size:1.6rem;font-weight:700;letter-spacing:-.02em;margin-bottom:4px;
+}
+.page-header .sub{font-size:13px;color:var(--muted);}
+.item-count{
+  display:inline-flex;align-items:center;gap:5px;
+  background:var(--blue-lt);color:var(--blue);
+  font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;
+  margin-left:10px;
+}
+
+/* ── Cart items ── */
+.cart-items{display:flex;flex-direction:column;gap:12px;margin-bottom:20px;}
+
+.cart-item{
+  background:var(--white);border:1px solid var(--border);
+  border-radius:16px;overflow:hidden;
+  animation:fadeUp .4s ease both;transition:all .2s;
+}
+.cart-item:hover{box-shadow:0 4px 16px rgba(0,0,0,.07);}
+
+.ci-inner{display:flex;gap:0;align-items:stretch;}
+.ci-img{
+  width:100px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--blue-lt),var(--teal-lt));
+  display:flex;align-items:center;justify-content:center;font-size:2.5rem;
+  position:relative;overflow:hidden;
+}
+.ci-img img{width:100%;height:100%;object-fit:cover;}
+.ci-body{flex:1;padding:14px 14px 12px;}
+.ci-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:4px;}
+.ci-name{font-size:14px;font-weight:700;line-height:1.3;flex:1;}
+.btn-remove{
+  width:28px;height:28px;border-radius:7px;border:none;cursor:pointer;
+  background:var(--red-lt);color:var(--red);font-size:14px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;transition:all .15s;
+}
+.btn-remove:hover{background:var(--red);color:white;}
+.ci-vendor{font-size:11px;color:var(--faint);margin-bottom:8px;}
+.ci-variants{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;}
+.ci-variant{font-size:10px;font-weight:600;padding:2px 8px;border-radius:5px;background:var(--bg);color:var(--muted);border:1px solid var(--border);}
+
+.ci-bottom{display:flex;align-items:center;justify-content:space-between;}
+.ci-price{
+  font-family:'JetBrains Mono',monospace;
+  font-size:15px;font-weight:700;color:var(--blue);
+}
+.ci-price small{font-family:'Outfit',sans-serif;font-size:10px;font-weight:400;color:var(--faint);margin-left:2px;}
+.ci-price-old{font-size:11px;color:var(--faint);text-decoration:line-through;margin-left:5px;}
+
+.qty-ctrl{
+  display:flex;align-items:center;gap:0;
+  border:1.5px solid var(--border);border-radius:9px;overflow:hidden;background:var(--white);
+}
+.qty-btn{
+  width:32px;height:32px;border:none;background:none;cursor:pointer;
+  font-size:16px;font-weight:700;color:var(--text);transition:background .15s;
+  display:flex;align-items:center;justify-content:center;
+}
+.qty-btn:hover{background:var(--bg);}
+.qty-val{
+  min-width:32px;text-align:center;font-size:13px;font-weight:700;
+  border-left:1px solid var(--border);border-right:1px solid var(--border);
+  padding:0 4px;height:32px;display:flex;align-items:center;justify-content:center;
+  font-family:'JetBrains Mono',monospace;
+}
+
+/* ── Empty state ── */
+.cart-empty{
+  text-align:center;padding:48px 24px;
+  background:var(--white);border:1.5px dashed var(--border);border-radius:18px;
+  margin-bottom:20px;display:none;
+}
+.cart-empty .ei{font-size:3.5rem;margin-bottom:14px;opacity:.3;}
+.cart-empty h3{font-size:1rem;font-weight:700;margin-bottom:6px;}
+.cart-empty p{font-size:13px;color:var(--muted);margin-bottom:20px;}
+.btn-shop{
+  display:inline-flex;align-items:center;gap:7px;
+  background:linear-gradient(90deg,var(--blue),var(--teal));color:white;
+  font-size:13px;font-weight:700;padding:12px 24px;border-radius:10px;
+  text-decoration:none;box-shadow:0 4px 14px rgba(37,99,235,.3);
+  transition:all .15s;
+}
+.btn-shop:hover{opacity:.9;transform:translateY(-1px);}
+
+/* ── Livraison ── */
+.livraison-card{
+  background:var(--white);border:1px solid var(--border);
+  border-radius:16px;padding:16px;margin-bottom:16px;
+  animation:fadeUp .4s .1s ease both;
+}
+.lc-head{display:flex;align-items:center;gap:8px;margin-bottom:14px;}
+.lc-icon{
+  width:32px;height:32px;border-radius:9px;
+  background:var(--teal-lt);display:flex;align-items:center;justify-content:center;font-size:15px;
+}
+.lc-title{font-size:13px;font-weight:700;}
+.lc-sub{font-size:11px;color:var(--faint);}
+.lc-select{
+  width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:10px;
+  font-family:'Outfit',sans-serif;font-size:13px;color:var(--text);
+  background:var(--bg);outline:none;transition:all .15s;margin-bottom:8px;
+  appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239aa3bf' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;cursor:pointer;
+}
+.lc-select:focus{border-color:var(--teal);background:var(--white);}
+.livraison-info{
+  display:flex;align-items:center;gap:8px;
+  background:var(--teal-lt);border:1px solid #99f6e4;
+  border-radius:9px;padding:9px 12px;font-size:12px;font-weight:600;color:var(--teal);
+  display:none;
+}
+
+/* ── Promo code ── */
+.promo-card{
+  background:var(--white);border:1px solid var(--border);
+  border-radius:16px;padding:14px 16px;margin-bottom:16px;
+  animation:fadeUp .4s .15s ease both;
+}
+.promo-row{display:flex;gap:8px;}
+.promo-input{
+  flex:1;padding:10px 14px;border:1.5px solid var(--border);border-radius:10px;
+  font-family:'Outfit',sans-serif;font-size:13px;color:var(--text);
+  background:var(--bg);outline:none;transition:all .15s;
+}
+.promo-input:focus{border-color:var(--blue);background:var(--white);}
+.promo-input::placeholder{color:var(--faint);}
+.btn-promo{
+  padding:10px 16px;background:var(--blue-lt);color:var(--blue);
+  border:none;border-radius:10px;font-family:'Outfit',sans-serif;
+  font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.btn-promo:hover{background:var(--blue);color:white;}
+.promo-result{margin-top:8px;font-size:12px;font-weight:600;display:none;}
+.promo-ok  {color:var(--green);}
+.promo-err {color:var(--red);}
+
+/* ── Récapitulatif ── */
+.recap-card{
+  background:var(--white);border:1px solid var(--border);
+  border-radius:16px;padding:20px;margin-bottom:16px;
+  animation:fadeUp .4s .2s ease both;
+}
+.recap-title{font-family:'Fraunces',serif;font-size:1rem;font-weight:700;margin-bottom:16px;}
+.recap-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;
+}
+.recap-row:last-of-type{border-bottom:none;}
+.recap-row .label{color:var(--muted);}
+.recap-row .val{font-weight:600;font-family:'JetBrains Mono',monospace;font-size:12px;}
+.recap-row .val.green{color:var(--green);}
+.recap-total{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:14px 0 0;margin-top:4px;border-top:2px solid var(--border);
+}
+.recap-total .tl{font-size:15px;font-weight:800;}
+.recap-total .tv{
+  font-family:'JetBrains Mono',monospace;
+  font-size:1.2rem;font-weight:800;color:var(--blue);
+}
+
+/* ── Garanties ── */
+.guarantees{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;
+  animation:fadeUp .4s .25s ease both;
+}
+.guarantee{
+  background:var(--white);border:1px solid var(--border);
+  border-radius:12px;padding:12px 8px;text-align:center;
+}
+.guarantee .gi{font-size:1.3rem;margin-bottom:5px;}
+.guarantee .gt{font-size:10px;font-weight:700;color:var(--text);line-height:1.3;}
+.guarantee .gs{font-size:9px;color:var(--faint);margin-top:2px;}
+
+/* ── CTA buttons ── */
+.cta-section{animation:fadeUp .4s .3s ease both;}
+.btn-checkout{
+  width:100%;padding:16px;border-radius:14px;border:none;cursor:pointer;
+  font-family:'Outfit',sans-serif;font-size:15px;font-weight:800;
+  background:linear-gradient(90deg,var(--blue),var(--teal));color:white;
+  box-shadow:0 4px 20px rgba(37,99,235,.3);
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:all .15s;margin-bottom:10px;
+}
+.btn-checkout:hover{opacity:.9;transform:translateY(-1px);box-shadow:0 8px 28px rgba(37,99,235,.4);}
+.btn-checkout:disabled{opacity:.5;transform:none;cursor:not-allowed;}
+.btn-row{display:flex;gap:10px;}
+.btn-secondary{
+  flex:1;padding:13px;border-radius:12px;cursor:pointer;
+  font-family:'Outfit',sans-serif;font-size:13px;font-weight:700;
+  background:var(--white);color:var(--text);border:1.5px solid var(--border);
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  transition:all .15s;text-decoration:none;
+}
+.btn-secondary:hover{border-color:var(--blue);color:var(--blue);}
+.btn-clear{color:var(--red);}
+.btn-clear:hover{border-color:var(--red);color:var(--red);}
+
+/* ── Produits suggérés ── */
+.suggests{margin-top:24px;animation:fadeUp .4s .35s ease both;}
+.sec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.sec-head h2{font-family:'Fraunces',serif;font-size:1rem;font-weight:700;}
+.sec-head a{font-size:12px;font-weight:600;color:var(--blue);text-decoration:none;}
+.suggest-scroll{
+  display:flex;gap:12px;overflow-x:auto;padding-bottom:6px;
+  scrollbar-width:none;margin:0 -16px;padding:0 16px 6px;
+}
+.suggest-scroll::-webkit-scrollbar{display:none;}
+.sug-card{
+  flex:0 0 140px;background:var(--white);border:1.5px solid var(--border);
+  border-radius:12px;overflow:hidden;cursor:pointer;text-decoration:none;
+  transition:all .18s;
+}
+.sug-card:hover{transform:translateY(-3px);box-shadow:0 8px 20px rgba(0,0,0,.1);border-color:transparent;}
+.sug-img{width:100%;aspect-ratio:1;background:linear-gradient(135deg,var(--blue-lt),var(--teal-lt));display:flex;align-items:center;justify-content:center;font-size:2.2rem;position:relative;}
+.sug-badge{position:absolute;top:6px;left:6px;font-size:9px;font-weight:700;background:var(--red);color:white;padding:2px 6px;border-radius:5px;}
+.sug-body{padding:9px 11px;}
+.sug-name{font-size:11px;font-weight:600;line-height:1.35;margin-bottom:4px;color:var(--text);}
+.sug-price{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:var(--blue);}
+
+/* ── Toast ── */
+.toast{
+  position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(16px);
+  background:#0c1445;color:white;padding:11px 22px;border-radius:12px;
+  font-size:13px;font-weight:600;z-index:999;opacity:0;
+  transition:all .3s;white-space:nowrap;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+</style>
+<script src="../vendza-fix-assets.js"></script>
+</head>
+<body>
+
+<!-- Nav -->
+<nav>
+  <a class="nav-back" href="../index.html">← Continuer mes achats</a>
+  <a class="nav-logo" href="../index.html">Vendza</a>
+  <a class="nav-back" href="profil-client.html" style="margin-left:auto;margin-right:8px;">Mon profil</a>
+</nav>
+
+<div class="page">
+
+  <!-- Header -->
+  <div class="page-header">
+    <h1>Mon Panier <span class="item-count" id="item-count">0 article</span></h1>
+    <div class="sub">Vérifiez vos articles avant de passer commande</div>
+  </div>
+
+  <!-- Articles -->
+  <div class="cart-items" id="cart-items"></div>
+
+  <!-- Empty state -->
+  <div class="cart-empty" id="cart-empty">
+    <div class="ei">🛒</div>
+    <h3>Votre panier est vide</h3>
+    <p>Découvrez nos produits et ajoutez vos articles préférés.</p>
+    <a class="btn-shop" href="../index.html">🛍️ Explorer le catalogue</a>
+  </div>
+
+  <!-- Livraison -->
+  <div class="livraison-card" id="livraison-card">
+    <div class="lc-head">
+      <div class="lc-icon">🚚</div>
+      <div>
+        <div class="lc-title">Zone de livraison</div>
+        <div class="lc-sub">Choisissez votre département et commune</div>
+      </div>
+    </div>
+    <select class="lc-select" id="dept-select">
+      <option value="">Sélectionnez votre département…</option>
+    </select>
+    <select class="lc-select" id="commune-select" disabled>
+      <option value="">Sélectionnez votre commune…</option>
+    </select>
+    <div class="livraison-info" id="livraison-info">
+      🚚 <span id="livraison-msg">Livraison disponible · Délai estimé : 24-48h</span>
+    </div>
+  </div>
+
+  <!-- Code promo -->
+  <div class="promo-card">
+    <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+      🏷️ Code promotionnel
+    </div>
+    <div class="promo-row">
+      <input class="promo-input" id="promo-input" type="text" placeholder="Entrez votre code promo…"/>
+      <button class="btn-promo" id="btn-promo" type="button">Appliquer</button>
+    </div>
+    <div class="promo-result" id="promo-result"></div>
+  </div>
+
+  <!-- Récapitulatif -->
+  <div class="recap-card">
+    <div class="recap-title">Récapitulatif</div>
+    <div class="recap-row">
+      <span class="label">Sous-total</span>
+      <span class="val" id="recap-subtotal">HTG 0</span>
+    </div>
+    <div class="recap-row">
+      <span class="label">Livraison</span>
+      <span class="val" id="recap-livraison">HTG 0</span>
+    </div>
+    <div class="recap-row" id="recap-promo-row" style="display:none;">
+      <span class="label">🏷️ Code promo</span>
+      <span class="val green" id="recap-promo-val">- HTG 0</span>
+    </div>
+    <div class="recap-total">
+      <span class="tl">Total</span>
+      <span class="tv" id="recap-total">HTG 0</span>
+    </div>
+  </div>
+
+  <!-- Garanties -->
+  <div class="guarantees">
+    <div class="guarantee">
+      <div class="gi">🔒</div>
+      <div class="gt">Paiement sécurisé</div>
+      <div class="gs">Via Vendza</div>
+    </div>
+    <div class="guarantee">
+      <div class="gi">✅</div>
+      <div class="gt">Argent protégé</div>
+      <div class="gs">Libéré à la livraison</div>
+    </div>
+    <div class="guarantee">
+      <div class="gi">↩️</div>
+      <div class="gt">Retour facile</div>
+      <div class="gs">Sous 7 jours</div>
+    </div>
+  </div>
+
+  <!-- CTA -->
+  <div class="cta-section">
+    <button class="btn-checkout" id="btn-checkout" type="button" data-vz-loading>
+      ⚡ Procéder au paiement
+    </button>
+    <div class="btn-row">
+      <a class="btn-secondary" href="../index.html">🛍️ Continuer</a>
+      <a class="btn-secondary" href="historique-des-commandes.html">🕐 Historique</a>
+      <button class="btn-secondary btn-clear" id="clear-cart" type="button">🗑️ Vider</button>
+    </div>
+  </div>
+
+  <!-- Suggestions (Supabase) -->
+  <div class="suggests" id="suggest-section" style="display:none;">
+    <div class="sec-head">
+      <h2>Vous pourriez aussi aimer</h2>
+      <a href="../index.html">Voir tout →</a>
+    </div>
+    <div class="suggest-scroll" id="suggest-list">
+      <a class="sug-card" href="#">
+        <div class="sug-img">👗<span class="sug-badge">-33%</span></div>
+        <div class="sug-body"><div class="sug-name">Outfit rouge et noir</div><div class="sug-price">2 000 <span style="font-size:9px;font-weight:400;color:var(--faint)">Gdes</span></div></div>
+      </a>
+      <a class="sug-card" href="#">
+        <div class="sug-img">🎧</div>
+        <div class="sug-body"><div class="sug-name">Écouteurs Bluetooth Pro</div><div class="sug-price">1 900 <span style="font-size:9px;font-weight:400;color:var(--faint)">Gdes</span></div></div>
+      </a>
+      <a class="sug-card" href="#">
+        <div class="sug-img">🔌<span class="sug-badge">Nouveau</span></div>
+        <div class="sug-body"><div class="sug-name">Chargeur USB-C 65W</div><div class="sug-price">1 200 <span style="font-size:9px;font-weight:400;color:var(--faint)">Gdes</span></div></div>
+      </a>
+      <a class="sug-card" href="#">
+        <div class="sug-img">⌚</div>
+        <div class="sug-body"><div class="sug-name">Montre FitPro 3</div><div class="sug-price">3 200 <span style="font-size:9px;font-weight:400;color:var(--faint)">Gdes</span></div></div>
+      </a>
+      <a class="sug-card" href="#">
+        <div class="sug-img">🔋</div>
+        <div class="sug-body"><div class="sug-name">Batterie 20 000mAh</div><div class="sug-price">2 100 <span style="font-size:9px;font-weight:400;color:var(--faint)">Gdes</span></div></div>
+      </a>
+    </div>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="../config.js"></script>
+<script src="../supabaseclient.js"></script>
+<script src="../cart-guard.js"></script>
+<script src="../qr-utils.js"></script>
+<script src="../vendza-messaging.js"></script>
+<script src="/client/panier.js"></script>
+<script src="../vendza-urls.js"></script>
+<script src="../guest-drawer.js"></script>
+<script src="../dynamic-runtime.js"></script>
+<!-- ancien script démo retiré ; logique dans panier.js -->
+<!--
+const COMMUNES_DISABLED = {
+  'Ouest':['Port-au-Prince','Pétionville','Delmas','Croix-des-Bouquets','Léogâne','Carrefour'],
+  'Nord':['Cap-Haïtien','Limbé','Plaisance','Grande-Rivière du Nord'],
+  'Sud':['Les Cayes','Jacmel','Saint-Louis du Sud','Aquin'],
+  'Artibonite':['Gonaïves','Saint-Marc','Gros-Morne','Dessalines'],
+  'Centre':['Hinche','Mirebalais','Lascahobas'],
+  'Nord-Est':['Fort-Liberté','Ouanaminthe','Trou-du-Nord'],
+  'Nord-Ouest':['Port-de-Paix','Saint-Louis du Nord','Môle Saint-Nicolas'],
+  'Nippes':['Miragoâne','Petit-Goâve','Grand-Goâve'],
+  'Sud-Est':['Jacmel','Bainet','Belle-Anse'],
+  "Grand'Anse":['Jérémie','Moron',"Anse-d'Hainault"],
+};
+
+const PROMOS = { 'VENDZA10': 10, 'BIENVENUE': 15, 'HAITI20': 20 };
+
+/* ══════════════════════════════════════
+   DONNÉES — remplace par localStorage ou Supabase
+   const panier = JSON.parse(localStorage.getItem('panier')) || []
+══════════════════════════════════════ */
+let PANIER = [];
+
+let fraisLivraison = 0;
+let promoReduction = 0;
+
+/* ── Render ── */
+function render(){
+  const list = document.getElementById('cart-items');
+  const empty = document.getElementById('cart-empty');
+  const livraisonCard = document.getElementById('livraison-card');
+
+  if(!PANIER.length){
+    list.style.display = 'none';
+    empty.style.display = 'block';
+    livraisonCard.style.display = 'none';
+    document.getElementById('btn-checkout').disabled = true;
+  } else {
+    list.style.display = 'flex';
+    empty.style.display = 'none';
+    livraisonCard.style.display = 'block';
+    document.getElementById('btn-checkout').disabled = false;
+  }
+
+  // Item count
+  const total = PANIER.reduce((a,p)=>a+p.qte,0);
+  document.getElementById('item-count').textContent = total + ' article' + (total>1?'s':'');
+
+  // Cards
+  list.innerHTML = PANIER.map((p,i) => `
+    <div class="cart-item" style="animation-delay:${i*.07}s">
+      <div class="ci-inner">
+        <div class="ci-img">
+          ${p.img ? `<img src="${p.img}"/>` : p.emoji}
+        </div>
+        <div class="ci-body">
+          <div class="ci-top">
+            <div class="ci-name">${p.nom}</div>
+            <button class="btn-remove" onclick="removeItem(${p.id})">✕</button>
+          </div>
+          <div class="ci-vendor">par ${p.vendeur}</div>
+          <div class="ci-variants">
+            ${p.couleur ? `<span class="ci-variant">🎨 ${p.couleur}</span>` : ''}
+            ${p.taille  ? `<span class="ci-variant">📐 ${p.taille}</span>`  : ''}
+          </div>
+          <div class="ci-bottom">
+            <div>
+              <span class="ci-price">${fmt(p.prix * p.qte)}<small>Gdes</small></span>
+              ${p.old ? `<span class="ci-price-old">${fmt(p.old)}</span>` : ''}
+            </div>
+            <div class="qty-ctrl">
+              <button class="qty-btn" onclick="changeQty(${p.id},-1)">−</button>
+              <div class="qty-val">${p.qte}</div>
+              <button class="qty-btn" onclick="changeQty(${p.id},1)">+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`).join('');
+
+  updateRecap();
+}
+
+/* ── Helpers ── */
+function fmt(n){ return 'HTG ' + n.toLocaleString('fr-FR'); }
+
+function updateRecap(){
+  const sub = PANIER.reduce((a,p)=>a+p.prix*p.qte, 0);
+  const red = Math.round(sub * promoReduction / 100);
+  const tot = sub + fraisLivraison - red;
+
+  document.getElementById('recap-subtotal').textContent  = fmt(sub);
+  document.getElementById('recap-livraison').textContent = fraisLivraison ? fmt(fraisLivraison) : 'HTG 0';
+  document.getElementById('recap-total').textContent     = fmt(tot);
+
+  const promoRow = document.getElementById('recap-promo-row');
+  if(promoReduction > 0){
+    promoRow.style.display = 'flex';
+    document.getElementById('recap-promo-val').textContent = `- ${fmt(red)} (${promoReduction}%)`;
+  } else {
+    promoRow.style.display = 'none';
+  }
+}
+
+/* ── Quantité ── */
+function changeQty(id, d){
+  const p = PANIER.find(x=>x.id===id);
+  if(!p) return;
+  p.qte = Math.max(1, p.qte + d);
+  render();
+}
+
+/* ── Supprimer ── */
+function removeItem(id){
+  PANIER = PANIER.filter(p=>p.id !== id);
+  render();
+  showToast('Article retiré du panier');
+}
+
+/* ── Vider ── */
+function clearCart(){
+  if(!PANIER.length) return;
+  if(confirm('Vider tout le panier ?')){
+    PANIER = [];
+    render();
+    showToast('🗑️ Panier vidé');
+  }
+}
+
+/* ── Livraison ── */
+function updateCommunes(){
+  const dept = document.getElementById('dept-select').value;
+  const sel  = document.getElementById('commune-select');
+  const opts = COMMUNES[dept]||[];
+  sel.innerHTML = '<option value="">Sélectionnez votre commune…</option>' + opts.map(c=>`<option>${c}</option>`).join('');
+  document.getElementById('livraison-info').style.display = 'none';
+}
+
+function updateLivraison(){
+  const dept    = document.getElementById('dept-select').value;
+  const commune = document.getElementById('commune-select').value;
+  if(!commune) return;
+
+  const port = ['Port-au-Prince','Pétionville','Delmas','Carrefour'];
+  fraisLivraison = port.includes(commune) ? 0 : 200;
+
+  const info = document.getElementById('livraison-info');
+  const msg  = document.getElementById('livraison-msg');
+  info.style.display = 'flex';
+  msg.textContent = fraisLivraison === 0
+    ? `Livraison gratuite à ${commune} · Délai : 24h`
+    : `Livraison à ${commune} · +${fmt(fraisLivraison)} · Délai : 48h`;
+
+  updateRecap();
+}
+
+/* ── Promo ── */
+function applyPromo(){
+  const code = document.getElementById('promo-input').value.trim().toUpperCase();
+  const result = document.getElementById('promo-result');
+  result.style.display = 'block';
+  if(PROMOS[code]){
+    promoReduction = PROMOS[code];
+    result.className = 'promo-result promo-ok';
+    result.textContent = `✓ Code "${code}" appliqué — ${promoReduction}% de réduction !`;
+    updateRecap();
+    showToast(`🏷️ -${promoReduction}% appliqué !`);
+  } else {
+    result.className = 'promo-result promo-err';
+    result.textContent = `✕ Code invalide ou expiré`;
+    promoReduction = 0;
+    updateRecap();
+  }
+}
+
+/* ── Checkout ── */
+function checkout(){
+  if(!document.getElementById('commune-select').value){
+    showToast('📍 Choisissez votre zone de livraison');
+    document.getElementById('dept-select').focus();
+    return;
+  }
+  showToast('⚡ Redirection vers le paiement…');
+  const btn = document.getElementById('btn-checkout');
+  if (btn && window.VendzaButtonLoading) window.VendzaButtonLoading.setLoading(btn, true);
+  setTimeout(()=> window.location.href = 'historique-des-commandes.html', 1200);
+}
+
+/* ── Toast ── */
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2500);
+}
+
+-->
+<script src="../vendza-loading.js"></script>
+</body>
+</html>

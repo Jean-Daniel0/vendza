@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base href="/client/">
+  <title>Scanner la commande – Vendza</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="../theme-vendza.css">
+  <link rel="stylesheet" href="confirmation.css">
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <script src="vendza-fix-assets.js"></script>
+</head>
+<body class="confirm-page">
+
+  <nav class="confirm-nav">
+    <a class="nav-back" href="historique-des-commandes.html"><i class="fas fa-arrow-left"></i> Retour</a>
+    <a class="nav-logo" href="../index.html">Vendza</a>
+    <span style="width:60px;"></span>
+  </nav>
+
+  <section class="page">
+
+    <section id="state-scan">
+      <header class="page-header">
+        <h1>Scanner la commande</h1>
+        <p>Pointez la caméra sur le QR code présenté par le vendeur pour confirmer la réception</p>
+      </header>
+
+      <article class="scanner-card">
+        <header class="scanner-header">
+          <span class="sh-icon">📷</span>
+          <span>
+            <span class="sh-title">Caméra de scan</span>
+            <span class="sh-sub">Dirigez vers le QR code du vendeur</span>
+          </span>
+          <span class="scanner-status status-waiting" id="cam-status">⏳ En attente</span>
+        </header>
+
+        <section class="video-wrap" id="video-wrap">
+          <video id="video" autoplay playsinline muted></video>
+          <canvas id="canvas-hidden"></canvas>
+          <span class="scan-overlay-bg"></span>
+          <span class="scan-overlay">
+            <span class="scan-frame">
+              <span class="sf-inner"></span>
+              <span class="scan-line"></span>
+            </span>
+          </span>
+          <span class="scan-hint">
+            <span class="dot"></span> Cadrez le QR code dans le rectangle
+          </span>
+        </section>
+
+        <footer class="scanner-bottom">
+          <p class="scan-msg">
+            <span class="sm-icon">📷</span>
+            <span id="scan-msg-text">Appuyez sur « Démarrer » pour activer la caméra</span>
+          </p>
+          <button type="button" class="btn-start" id="btn-start">📷 Démarrer la caméra</button>
+        </footer>
+      </article>
+
+      <aside class="instructions">
+        <p class="inst-title">Comment ça marche</p>
+        <ol class="inst-steps">
+          <li class="inst-step"><span class="is-num">1</span><span class="is-text">Activez la caméra</span></li>
+          <li class="inst-step"><span class="is-num">2</span><span class="is-text">Scannez le QR du vendeur</span></li>
+          <li class="inst-step"><span class="is-num">3</span><span class="is-text">Vérifiez la commande</span></li>
+          <li class="inst-step"><span class="is-num">4</span><span class="is-text">Confirmez la réception</span></li>
+        </ol>
+      </aside>
+
+      <aside class="manual-input-wrap">
+        <p class="mi-title">Saisie manuelle de l'ID</p>
+        <p class="mi-row">
+          <input class="mi-input" id="manual-id" type="text" placeholder="Collez l'ID de commande ici…">
+          <button type="button" class="btn-manual" id="btn-manual">Valider</button>
+        </p>
+      </aside>
+    </section>
+
+    <section id="state-detected">
+      <header class="page-header">
+        <h1>Commande détectée</h1>
+        <p>Vérifiez les informations avant de confirmer la réception</p>
+      </header>
+      <article class="detected-card">
+        <header class="detected-header">
+          <span class="dh-icon">🔍</span>
+          <span>
+            <span class="dh-title">QR Code lu avec succès</span>
+            <span class="dh-sub">Vérifiez les détails ci-dessous</span>
+          </span>
+        </header>
+        <section class="detected-body">
+          <p class="det-id-box">
+            <span class="det-id-label">ID de commande</span>
+            <span class="det-id-val" id="det-id">—</span>
+          </p>
+          <section class="det-info-grid">
+            <p class="det-info-item"><span class="dii-label">Statut</span><span class="dii-val green" id="det-statut">✓ Payée</span></p>
+            <p class="det-info-item"><span class="dii-label">Date</span><span class="dii-val" id="det-date">—</span></p>
+            <p class="det-info-item"><span class="dii-label">Vendeur</span><span class="dii-val" id="det-vendeur">—</span></p>
+            <p class="det-info-item"><span class="dii-label">Total</span><span class="dii-val" id="det-total">—</span></p>
+          </section>
+          <button type="button" class="btn-validate" id="btn-validate">✅ Confirmer la réception</button>
+          <button type="button" class="btn-rescan" id="btn-rescan">↩️ Scanner un autre QR code</button>
+        </section>
+      </article>
+    </section>
+
+    <section id="state-success">
+      <article class="success-card">
+        <span class="success-icon">✅</span>
+        <h2 class="success-title">Livraison confirmée !</h2>
+        <p class="success-sub">Votre réception a été enregistrée avec succès.</p>
+        <p class="success-id" id="success-id">—</p>
+        <p class="success-info">
+          <span class="si-chip">✓ Commande validée</span>
+          <span class="si-chip">📋 Historique mis à jour</span>
+        </p>
+        <a class="btn-done" href="historique-des-commandes.html">Voir mon historique</a>
+      </article>
+    </section>
+
+    <section id="state-error">
+      <article class="error-card">
+        <span class="error-icon">❌</span>
+        <h2 class="error-title" id="error-title">QR Code invalide</h2>
+        <p class="error-sub" id="error-sub">Ce QR code ne correspond à aucune commande Vendza.</p>
+        <button type="button" class="btn-retry" id="btn-retry">↩️ Réessayer</button>
+      </article>
+    </section>
+
+  </section>
+
+  <span class="confetti-wrap" id="confetti-wrap"></span>
+  <span class="toast" id="toast"></span>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="../config.js"></script>
+  <script src="../supabaseclient.js"></script>
+  <script src="../qr-utils.js"></script>
+  <script src="../vendza-order-prices.js"></script>
+  <script src="../vendza-vendor-wallet.js"></script>
+  <script src="confirmation.js"></script>
+  <script src="../guest-drawer.js"></script>
+  <script src="vendza-urls.js"></script>
+  <script src="../vendza-loading.js"></script>
+  <script src="../dynamic-runtime.js"></script>
+</body>
+</html>

@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<base href="/"/>
+<title>Conditions d'Utilisation – Vendza</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,600&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --blue:#2563eb;--blue-lt:#eff6ff;--blue-dk:#1e40af;
+  --teal:#0d9488;--teal-lt:#f0fdfa;
+  --green:#16a34a;--green-lt:#f0fdf4;
+  --amber:#f59e0b;--amber-lt:#fffbeb;
+  --red:#ef4444;--red-lt:#fef2f2;
+  --violet:#7c3aed;--violet-lt:#f5f3ff;
+  --text:#0c1445;--muted:#4a5278;--faint:#8890b0;
+  --border:#e8ecf8;--bg:#f5f7ff;--white:#fff;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);line-height:1.7;}
+
+/* ── Nav ── */
+nav{
+  background:linear-gradient(90deg,var(--blue-dk),var(--teal));
+  height:56px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;position:sticky;top:0;z-index:200;
+  box-shadow:0 2px 12px rgba(0,0,0,.18);
+}
+.nav-logo{font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-weight:700;color:white;text-decoration:none;}
+.nav-back{font-size:12px;color:rgba(255,255,255,.8);text-decoration:none;}
+.nav-back:hover{color:white;}
+
+/* ── Cover ── */
+.cover{
+  background:linear-gradient(135deg,#0c1445 0%,#1e3a8a 55%,#0d9488 100%);
+  padding:60px 24px 52px;text-align:center;position:relative;overflow:hidden;
+}
+.cover::before{
+  content:'';position:absolute;inset:0;
+  background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);
+  background-size:48px 48px;
+}
+.cover-inner{position:relative;z-index:1;}
+.cover-icon{font-size:3rem;margin-bottom:16px;}
+.cover-eyebrow{font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--teal);margin-bottom:12px;}
+.cover h1{
+  font-family:'Cormorant Garamond',serif;
+  font-size:clamp(2rem,5vw,3rem);font-weight:700;
+  color:white;letter-spacing:-.02em;line-height:1.1;margin-bottom:12px;
+}
+.cover-sub{font-size:14px;color:rgba(255,255,255,.55);max-width:480px;margin:0 auto 28px;line-height:1.65;}
+.cover-meta{
+  display:inline-flex;gap:24px;flex-wrap:wrap;justify-content:center;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);
+  padding:12px 24px;border-radius:12px;
+}
+.cm{font-size:12px;color:rgba(255,255,255,.5);}
+.cm strong{display:block;font-size:13px;color:white;margin-bottom:2px;}
+
+/* ── Container ── */
+.container{max-width:780px;margin:0 auto;padding:40px 24px 80px;}
+
+/* ── TOC ── */
+.toc{background:var(--white);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:40px;}
+.toc-title{font-family:'Cormorant Garamond',serif;font-size:1.1rem;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+.toc-list{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.toc-list li a{
+  display:flex;align-items:center;gap:10px;
+  font-size:13px;font-weight:500;color:var(--blue);
+  text-decoration:none;padding:6px 10px;border-radius:8px;transition:all .15s;
+}
+.toc-list li a:hover{background:var(--blue-lt);}
+.toc-num{width:24px;height:24px;border-radius:6px;background:var(--blue);color:white;font-size:10px;font-weight:700;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+
+/* ── Article ── */
+.article-section{margin-bottom:48px;scroll-margin-top:80px;}
+.section-header{display:flex;align-items:flex-start;gap:14px;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid var(--border);}
+.section-num{width:36px;height:36px;border-radius:10px;flex-shrink:0;background:linear-gradient(135deg,var(--blue),var(--teal));color:white;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;margin-top:3px;}
+.section-title{font-family:'Cormorant Garamond',serif;font-size:1.5rem;font-weight:700;letter-spacing:-.01em;color:var(--text);}
+.section-subtitle{font-size:13px;color:var(--faint);margin-top:3px;}
+
+.article-section p{font-size:14px;color:var(--muted);line-height:1.8;margin-bottom:16px;}
+.article-section p:last-child{margin-bottom:0;}
+
+.subsection{margin-bottom:24px;}
+.subsection h3{font-family:'Cormorant Garamond',serif;font-size:1.1rem;font-weight:600;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+.subsection h3::before{content:'';width:3px;height:18px;border-radius:2px;flex-shrink:0;background:linear-gradient(135deg,var(--blue),var(--teal));}
+
+.article-section ul,.article-section ol{padding-left:0;list-style:none;margin-bottom:16px;display:flex;flex-direction:column;gap:8px;}
+.article-section ul li,.article-section ol li{font-size:14px;color:var(--muted);line-height:1.7;display:flex;align-items:flex-start;gap:10px;padding:10px 14px;background:var(--bg);border-radius:9px;border:1px solid var(--border);}
+.article-section ul li::before{content:'✓';color:var(--green);font-weight:700;flex-shrink:0;margin-top:1px;}
+.article-section ol{counter-reset:ol;}
+.article-section ol li{counter-increment:ol;}
+.article-section ol li::before{content:counter(ol);width:22px;height:22px;border-radius:6px;background:var(--blue);color:white;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+
+/* Highlight */
+.highlight{border-radius:12px;padding:16px 18px;margin-bottom:16px;display:flex;gap:12px;align-items:flex-start;}
+.highlight.blue{background:var(--blue-lt);border:1px solid #bfdbfe;}
+.highlight.amber{background:var(--amber-lt);border:1px solid #fde68a;}
+.highlight.green{background:var(--green-lt);border:1px solid #86efac;}
+.highlight.red{background:var(--red-lt);border:1px solid #fecaca;}
+.highlight.violet{background:var(--violet-lt);border:1px solid #ddd6fe;}
+.highlight-icon{font-size:18px;flex-shrink:0;margin-top:1px;}
+.highlight-text{font-size:13px;line-height:1.65;}
+.highlight.blue .highlight-text{color:var(--blue-dk);}
+.highlight.amber .highlight-text{color:#92400e;}
+.highlight.green .highlight-text{color:#14532d;}
+.highlight.red .highlight-text{color:#991b1b;}
+.highlight.violet .highlight-text{color:#4c1d95;}
+
+/* Commission table */
+.comm-table{width:100%;border-collapse:collapse;margin-bottom:16px;border-radius:12px;overflow:hidden;}
+.comm-table th{padding:12px 16px;background:var(--blue-dk);color:white;font-size:12px;font-weight:700;text-align:center;}
+.comm-table th:first-child{text-align:left;}
+.comm-table td{padding:12px 16px;border-bottom:1px solid var(--border);font-size:13px;text-align:center;color:var(--muted);}
+.comm-table td:first-child{text-align:left;font-weight:600;color:var(--text);}
+.comm-table tr:last-child td{border-bottom:none;}
+.comm-table .pct{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--blue);}
+.comm-table .abo{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--teal);}
+
+/* Sanction table */
+.sanction-table{width:100%;border-collapse:collapse;margin-bottom:16px;border-radius:12px;overflow:hidden;}
+.sanction-table th{padding:10px 14px;background:var(--text);color:white;font-size:12px;font-weight:700;text-align:left;}
+.sanction-table td{padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;color:var(--muted);vertical-align:top;}
+.sanction-table tr:last-child td{border-bottom:none;}
+.sanction-table tr:hover td{background:var(--bg);}
+.s-imm{color:var(--red);font-weight:700;}
+.s-warn{color:var(--amber);font-weight:700;}
+
+/* Produits interdits grid */
+.interdit-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:16px;}
+.interdit-card{background:var(--red-lt);border:1px solid #fecaca;border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:10px;}
+.ic-icon{font-size:1.3rem;flex-shrink:0;}
+.ic-text{font-size:12px;font-weight:600;color:#991b1b;line-height:1.3;}
+
+/* Timeline litige */
+.timeline{display:flex;flex-direction:column;gap:0;margin-bottom:16px;}
+.tl-step{display:flex;align-items:flex-start;gap:14px;padding-bottom:20px;position:relative;}
+.tl-step:last-child{padding-bottom:0;}
+.tl-step::before{content:'';position:absolute;left:16px;top:32px;bottom:0;width:2px;background:var(--border);}
+.tl-step:last-child::before{display:none;}
+.tl-num{width:32px;height:32px;border-radius:10px;flex-shrink:0;background:linear-gradient(135deg,var(--blue),var(--teal));color:white;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;position:relative;z-index:1;}
+.tl-content{flex:1;padding-top:4px;}
+.tl-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;}
+.tl-desc{font-size:12px;color:var(--muted);line-height:1.55;}
+.tl-time{font-size:11px;font-weight:700;color:var(--blue);margin-top:3px;font-family:'JetBrains Mono',monospace;}
+
+/* Footer */
+.doc-footer{background:var(--white);border:1px solid var(--border);border-radius:16px;padding:24px;text-align:center;margin-top:40px;}
+.contact-box{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:16px;}
+.cb-item{display:flex;align-items:center;gap:7px;background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:9px 16px;font-size:13px;font-weight:500;text-decoration:none;color:var(--text);transition:all .15s;}
+.cb-item:hover{border-color:var(--blue);color:var(--blue);}
+
+@media print{
+  nav{display:none;}
+  body{background:white;}
+  .cover{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+}
+</style>
+<script src="vendza-fix-assets.js"></script>
+</head>
+<body>
+
+<!-- Nav -->
+<nav>
+  <a class="nav-back" href="index.html">← Retour</a>
+  <a class="nav-logo" href="index.html">Vendza</a>
+  <span style="width:60px;"></span>
+</nav>
+
+<!-- Cover -->
+<div class="cover">
+  <div class="cover-inner">
+    <div class="cover-icon">📋</div>
+    <div class="cover-eyebrow">Document légal officiel</div>
+    <h1>Conditions d'Utilisation</h1>
+    <p class="cover-sub">Ce document définit les règles, droits et obligations qui régissent l'utilisation de la plateforme Vendza par tous ses utilisateurs.</p>
+    <div class="cover-meta">
+      <div class="cm"><strong>Vendza</strong>Plateforme</div>
+      <div class="cm"><strong>Mai 2026</strong>Dernière mise à jour</div>
+      <div class="cm"><strong>Version 1.0</strong>Révision</div>
+      <div class="cm"><strong>Haïti</strong>Territoire</div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- TOC -->
+  <div class="toc">
+    <div class="toc-title">📋 Table des matières</div>
+    <ul class="toc-list">
+      <li><a href="#s1"><div class="toc-num">01</div>Acceptation des conditions et champ d'application</a></li>
+      <li><a href="#s2"><div class="toc-num">02</div>Inscription et gestion du compte</a></li>
+      <li><a href="#s3"><div class="toc-num">03</div>Règles pour les vendeurs</a></li>
+      <li><a href="#s4"><div class="toc-num">04</div>Règles pour les acheteurs</a></li>
+      <li><a href="#s5"><div class="toc-num">05</div>Système de paiement et commissions</a></li>
+      <li><a href="#s6"><div class="toc-num">06</div>Système de livraison et validation QR</a></li>
+      <li><a href="#s7"><div class="toc-num">07</div>Litiges et résolution des conflits</a></li>
+      <li><a href="#s8"><div class="toc-num">08</div>Remboursements et annulations</a></li>
+      <li><a href="#s9"><div class="toc-num">09</div>Produits et comportements interdits</a></li>
+      <li><a href="#s10"><div class="toc-num">10</div>Sanctions et suspension de compte</a></li>
+      <li><a href="#s11"><div class="toc-num">11</div>Responsabilités de Vendza</a></li>
+      <li><a href="#s12"><div class="toc-num">12</div>Propriété intellectuelle</a></li>
+      <li><a href="#s13"><div class="toc-num">13</div>Modifications des conditions</a></li>
+      <li><a href="#s14"><div class="toc-num">14</div>Contact et support</a></li>
+    </ul>
+  </div>
+
+  <div class="highlight blue">
+    <div class="highlight-icon">ℹ️</div>
+    <div class="highlight-text"><strong>Accord obligatoire.</strong> En créant un compte, en achetant ou en vendant sur Vendza, vous acceptez intégralement les présentes Conditions d'Utilisation. Veuillez les lire attentivement avant d'utiliser nos services.</div>
+  </div>
+
+  <!-- ══ 01 — ACCEPTATION ══ -->
+  <div class="article-section" id="s1">
+    <div class="section-header">
+      <div class="section-num">01</div>
+      <div>
+        <div class="section-title">Acceptation des conditions et champ d'application</div>
+        <div class="section-subtitle">Qui est concerné et ce que signifie l'acceptation</div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h3>Qu'est-ce que Vendza ?</h3>
+      <p>Vendza est une marketplace haïtienne en ligne qui met en relation des acheteurs et des vendeurs locaux sur le territoire d'Haïti. Vendza agit exclusivement en tant qu'intermédiaire de confiance et n'est pas le vendeur direct des produits proposés sur la plateforme. Chaque vendeur est un tiers indépendant qui assume la pleine responsabilité des produits qu'il publie et vend.</p>
+      <p>Notre mission est de faciliter le commerce local haïtien en offrant un système de paiement sécurisé par séquestre (escrow), une validation de livraison par QR code unique, et une infrastructure fiable pour les transactions entre particuliers et professionnels.</p>
+    </div>
+
+    <div class="subsection">
+      <h3>Conditions d'acceptation</h3>
+      <p>En utilisant Vendza de quelque manière que ce soit — navigation, inscription, achat ou vente — vous déclarez :</p>
+      <ul>
+        <li>Avoir <strong>18 ans ou plus</strong> et être légalement capable de contracter</li>
+        <li>Avoir lu, compris et accepté intégralement les présentes Conditions d'Utilisation</li>
+        <li>Avoir lu et accepté notre Politique de Confidentialité</li>
+        <li>Utiliser la plateforme de bonne foi et dans le respect des lois applicables</li>
+        <li>Fournir des informations exactes, complètes et à jour lors de votre inscription</li>
+      </ul>
+    </div>
+
+    <div class="subsection">
+      <h3>Territoire d'application</h3>
+      <p>Les présentes Conditions d'Utilisation s'appliquent à l'utilisation de la plateforme Vendza sur le territoire d'Haïti. Vendza est principalement conçu pour et destiné aux résidents d'Haïti. L'utilisation de la plateforme depuis un autre territoire est possible mais se fait sous la seule responsabilité de l'utilisateur.</p>
+    </div>
+  </div>
+
+  <!-- ══ 02 — COMPTE ══ -->
+  <div class="article-section" id="s2">
+    <div class="section-header">
+      <div class="section-num">02</div>
+      <div>
+        <div class="section-title">Inscription et gestion du compte</div>
+        <div class="section-subtitle">Création, sécurité et responsabilités liées à votre compte</div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h3>Création d'un compte</h3>
+      <p>Pour accéder à la plupart des fonctionnalités de Vendza, vous devez créer un compte en fournissant des informations exactes et complètes. Vous pouvez vous inscrire en tant que <strong>client</strong> (acheteur) ou en tant que <strong>vendeur</strong>. Un même utilisateur ne peut pas posséder plusieurs comptes actifs simultanément.</p>
+      <ul>
+        <li>Vous êtes responsable de l'exactitude des informations fournies lors de l'inscription</li>
+        <li>Vous vous engagez à maintenir vos informations à jour en cas de changement</li>
+        <li>Chaque personne physique ne peut posséder qu'un seul compte de chaque type</li>
+        <li>Les comptes créés au nom de tiers sans leur consentement sont strictement interdits</li>
+      </ul>
+    </div>
+
+    <div class="subsection">
+      <h3>Sécurité et confidentialité du compte</h3>
+      <p>Vous êtes seul responsable de la sécurité de votre compte Vendza. À ce titre :</p>
+      <ul>
+        <li>Vous devez choisir un mot de passe fort et unique, jamais utilisé sur d'autres services</li>
+        <li>Vous ne devez jamais partager vos identifiants de connexion avec un tiers</li>
+        <li>Vous devez nous signaler immédiatement toute utilisation non autorisée de votre compte</li>
+        <li>Vendza ne sera pas responsable des pertes résultant d'un accès non autorisé à votre compte dû à votre négligence</li>
+      </ul>
+    </div>
+
+    <div class="subsection">
+      <h3>Fermeture du compte</h3>
+      <p>Vous pouvez fermer votre compte à tout moment depuis vos paramètres ou en contactant notre support. La fermeture d'un compte entraîne la perte de toutes les données associées, des avis publiés et de l'historique des transactions. Les commandes en cours au moment de la fermeture doivent être finalisées avant la suppression effective du compte.</p>
+    </div>
+  </div>
+
+  <!-- ══ 03 — VENDEURS ══ -->
+  <div class="article-section" id="s3">
+    <div class="section-header">
+      <div class="section-num">03</div>
+      <div>
+        <div class="section-title">Règles pour les vendeurs</div>
+        <div class="section-subtitle">Obligations et responsabilités des vendeurs sur Vendza</div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h3>Conditions pour vendre sur Vendza</h3>
+      <p>Pour vendre sur Vendza, vous devez :</p>
+      <ul>
+        <li>Avoir 18 ans ou plus et être légalement autorisé à exercer une activité commerciale</li>
+        <li>Posséder un compte MonCash actif et vérifié pour recevoir vos paiements</li>
+        <li>Choisir un plan d'abonnement — Gratuit, Pro Local ou Pro National</li>
+        <li>Accepter les taux de commission applicables à votre plan</li>
+        <li>Vous engager à livrer les produits commandés dans les délais annoncés</li>
+      </ul>
+    </div>
+
+    <div class="subsection">
+      <h3>Obligations relatives aux produits</h3>
+      <p>Chaque vendeur est seul responsable des produits qu'il publie sur Vendza. À ce titre, vous vous engagez à :</p>
+      <ul>
+        <li>Publier uniquement des produits que vous possédez réellement et que vous êtes en mesure de livrer</li>
+        <li>Fournir des descriptions exactes, complètes et non trompeuses de vos produits</li>
+        <li>Utiliser uniquement vos propres photos ou des photos dont vous possédez les droits</li>
+        <li>Afficher des prix honnêtes, non abusivement gonflés ou trompeurs</li>
+        <li>Mettre à jour le stock de vos produits en temps réel pour éviter les commandes impossibles à honorer</li>
+        <li>Indiquer clairement les délais de livraison réalistes pour votre zone de couverture</li>
+        <li>Ne jamais publier de produits appartenant aux catégories interdites (voir section 09)</li>
+      </ul>
+    </div>
+
+    <div class="subsection">
+      <h3>Obligations relatives aux commandes</h3>
+      <ul>
+        <li>Vous engager à traiter chaque commande payée dans les 24 heures suivant la réception</li>
+        <li>Contacter le client en cas de retard ou d'impossibilité de livraison</li>
+        <li>Remettre le QR code de validation au client au moment de la livraison</li>
+        <li>Ne jamais tenter de forcer ou de manipuler le scan du QR code sans livraison réelle</li>
+        <li>Conserver une preuve de livraison en cas de litige</li>
+      </ul>
+    </div>
+
+    <div class="subsection">
+      <h3>Plans d'abonnement et couverture</h3>
+      <p>Chaque plan d'abonnement offre une couverture géographique différente. En souscrivant à un plan, vous vous engagez à livrer uniquement dans les départements couverts par votre plan :</p>
+      <ul>
+        <li><strong>Plan Gratuit</strong> — 1 département de couverture seulement</li>
+        <li><strong>Pro Local (350 Gdes/mois)</strong> — jusqu'à 5 départements selon vos sélections</li>
+        <li><strong>Pro National (499 Gdes/mois)</strong> — couverture nationale, les 10 départements d'Haïti</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ══ 04 — ACHETEURS ══ -->
+  <div class="article-section" id="s4">
+    <div class="section-header">
+      <div class="section-num">04</div>
+      <div>
+        <div class="section-title">Règles pour les acheteurs</div>
+        <div class="section-subtitle">Obligations et responsabilités des clients sur Vendza</div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h3>Obligations des acheteurs</h3>
+      <p>En tant qu'acheteur sur Vendza, vous vous engagez à :</p>
+      <ul>
+        <li>Fournir des informations de livraison exactes (département, commune, téléphone)</li>
+        <li>Être disponible pour réceptionner votre commande dans le délai convenu</li>
+        <li>Scanner le QR code <strong>uniquement</strong> après avoir réellement reçu et vérifié votre commande</li>
+        <li>Ne jamais scanner le QR code avant d'avoir inspecté le produit reçu</li>
+        <li>Signaler tout problème dans les <strong>24 heures</strong> suivant le scan du QR code</li>
+        <li>Ne pas abuser du système de litige en faisant de fausses déclarations</li>
+      </ul>
+    </div>
+
+    <div class="highlight amber">
+      <div class="highlight-icon">⚠️</div>
+      <div class="highlight-text"><strong>Important — Le scan du QR code est définitif.</strong> En scannant le QR code de votre commande, vous confirmez officiellement avoir reçu votre produit et vous déclenchez le paiement au vendeur. Inspectez toujours votre commande avant de scanner. Vous disposez de 24h après le scan pour signaler un problème.</div>
+    </div>
+  </div>
+
+  <!-- ══ 05 — PAIEMENT ET COMMISSIONS ══ -->
+  <div class="article-section" id="s5">
+    <div class="section-header">
+      <div class="section-num">05</div>
+      <div>
+        <div class="section-title">Système de paiement et commissions</div>
+        <div class="section-subtitle">Comment fonctionnent les paiements et les frais Vendza</div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h3>Système de paiement par séquestre (Escrow)</h3>
+      <p>Vendza utilise un système de paiement sécurisé par séquestre pour protéger à la fois l'acheteur et le vendeur. Le fonctionnement est le suivant :</p>
+      <ol>
+        <li>Le client effectue son paiement via MonCash au moment de la commande</li>
+        <li>Le montant est retenu par Vendza jusqu'à confirmation de la livraison</li>
+        <li>Le client reçoit sa commande et scanne le QR code de validation</li>
+        <li>Vendza libère automatiquement le paiement au vendeur, déduction faite de la commission</li>
+        <li>Le vendeur reçoit le montant net sur son compte MonCash</li>
+      </ol>
+      <p>Ce système garantit que le vendeur est payé uniquement après livraison confirmée, et que l'acheteur ne perd pas son argent si la livraison n'a pas lieu.</p>
+    </div>
+
+    <div class="subsection">
+      <h3>Commissions Vendza</h3>
+      <p>Vendza prélève une commission sur le <strong>montant total de chaque commande</strong> (prix du produit + frais de livraison). Cette commission varie selon le plan d'abonnement du vendeur :</p>
+
+      <table class="comm-table">
+        <thead>
+          <tr>
+            <th>Plan</th>
+            <th>Abonnement mensuel</th>
+            <th>Commission par vente</th>
+            <th>Exemple (1 000 Gdes)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Plan Gratuit</td>
+            <td class="abo">0 Gdes</td>
+            <td><span class="pct">12%</span></td>
+            <td>Vendeur reçoit 880 Gdes</td>
+          </tr>
+          <tr>
+            <td>Pro Local</td>
+            <td class="abo">350 Gdes/mois</td>
+            <td><span class="pct">10%</span></td>
+            <td>Vendeur reçoit 900 Gdes</td>
+          </tr>
+          <tr>
+            <td>Pro National</td>
+            <td class="abo">499 Gdes/mois</td>
+            <td><span class="pct">5%</span></td>
+            <td>Vendeur reçoit 950 Gdes</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="highlight violet">
+        <div class="highlight-icon">💡</div>
+        <div class="highlight-text"><strong>Conseil.</strong> Un vendeur Pro National qui réalise des ventes régulières rentabilisera rapidement son abonnement grâce à la commission réduite à 5%. Pour une vente de 10 000 Gdes, la différence entre le plan Gratuit (12%) et le plan Pro National (5%) représente une économie de 700 Gdes sur une seule transaction.</div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h3>Délai de versement au vendeur</h3>
+      <p>Le paiement est libéré au vendeur de manière automatique et instantanée dès que le client scanne le QR code de validation de livraison. En cas de litige résolu en faveur du vendeur, le paiement est libéré dans les <strong>24 heures</strong> suivant la décision de Vendza.</p>
+    </div>
+
+    <div class="subsection">
+      <h3>Modification des tarifs</h3>
+      <p>Vendza se réserve le droit de modifier ses tarifs de commission et d'abonnement. Tout changement de tarif sera communiqué aux utilisateurs concernés avec un préavis de <strong>30 jours</strong> par email et notification sur la plateforme.</p>
+    </div>
+  </div>
+
+  <!-- ══ 06 — LIVRAISON ET QR ══ -->
+  <div class="article-section" id="s6">
+    <div class="section-header">
+      <div class="section-num">06</div>
+      <div>
+        <div class="section-title">Système de livraison et validation QR</div>
+        <div class="section-subtitle">Comment fonctionne la confirmation de livraison</div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h3>Le QR code de validation</h3>
+      <p>Chaque commande payée sur Vendza génère automatiquement un QR code unique et infalsifiable. Ce QR code est la pièce centrale du système de sécurité de Vendza :</p>
+      <ul>
+        <li>Il est unique à chaque commande — deux commandes ne peuvent jamais avoir le même QR code</li>
+        <li>Il encode l'identifiant unique de la commande (UUID) et pointe vers la page de confirmation Vendza</li>
+        <li>Il ne peut être utilisé qu'une seule fois — une fois scanné, la commande est définitivement marquée comme livrée</li>
+        <li>Il est valide jusqu'à la livraison ou l'annulation de la commande</li>
+      </ul>
+    </div>
+
+    <div class="subsection">
+      <h3>Remise du QR code</h3>
+      <p>Le vendeur est responsable de remettre le QR code au client au moment de la livraison. Ce QR code peut être :</p>
+      <ul>
+        <li>Imprimé et collé sur le colis ou remis sur papier</li>
+        <li>Envoyé électroniquement par message ou email avant la livraison</li>
+        <li>Présenté sur l'écran du téléphone du vendeur lors de la remise en main propre</li>
+      </ul>
+    </div>
+
+    <div class="subsection">
+      <h3>Conséquences du scan</h3>
+      <p>Le scan du QR code par le client constitue une confirmation officielle et irréversible que :</p>
+      <ul>
+        <li>Le client a bien reçu sa commande physiquement</li>
+        <li>La livraison est considérée comme accomplie avec succès</li>
+        <li>Le paiement sera libéré au vendeur automatiquement</li>
+        <li>Le délai de 24h pour contester commence à courir à partir de ce moment</li>
+      </ul>
+    </div>
+
+    <div class="highlight red">
+      <div class="highlight-icon">🚫</div>
+      <div class="highlight-text"><strong>Tentative de fraude.</strong> Toute tentative de scanner le QR code sans avoir effectué la livraison réelle, ou de forcer un client à scanner sans avoir reçu son produit, constitue une fraude grave entraînant la suspension immédiate et définitive du compte vendeur, sans remboursement de l'abonnement.</div>
+    </div>
+  </div>
+
+  <!-- ══ 07 — LITIGES ══ -->
+  <div class="article-section" id="s7">
+    <div class="section-header">
+      <div class="section-num">07</div>
+      <div>
+        <div class="section-title">Litiges et résolution des conflits</div>
+        <div class="section-subtitle">Comment Vendza gère les désaccords entre acheteurs et vendeurs</div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h3>Processus de résolution d'un litige</h3>
+      <p>En cas de désaccord entre un acheteur et un vendeur, Vendza intervient comme arbitre neutre selon le processus suivant :</p>
+
+      <div class="timeline">
+        <div class="tl-step">
+          <div class="tl-num">1</div>
+          <div class="tl-content">
+            <div class="tl-title">Signalement du problème</div>
+            <div class="tl-desc">Le client signale le problème via la plateforme ou par email à vendza@gmail.com en fournissant tous les détails et preuves disponibles (photos, messages, etc.)</div>
+            <div class="tl-time">Dans les 24h après le scan QR</div>
+          </div>
+        </div>
+        <div class="tl-step">
+          <div class="tl-num">2</div>
+          <div class="tl-content">
+            <div class="tl-title">Notification des deux parties</div>
+            <div class="tl-desc">Vendza notifie le vendeur du litige ouvert et lui demande de fournir ses preuves de livraison (photos, confirmations, échanges de messages).</div>
+            <div class="tl-time">Dans les 24h suivant le signalement</div>
+          </div>
+        </div>
+        <div class="tl-step">
+          <div class="tl-num">3</div>
+          <div class="tl-content">
+            <div class="tl-title">Tentative de résolution amiable</div>
+            <div class="tl-desc">Les deux parties ont la possibilité de se mettre d'accord directement via la messagerie Vendza. Vendza facilite le dialogue sans intervenir.</div>
+            <div class="tl-time">Jusqu'à 48h</div>
+          </div>
+        </div>
+        <div class="tl-step">
+          <div class="tl-num">4</div>
+          <div class="tl-content">
+            <div class="tl-title">Décision définitive de Vendza</div>
+            <div class="tl-desc">Si aucun accord n'est trouvé, Vendza examine les preuves des deux parties et tranche définitivement. Cette décision est sans appel et immédiatement applicable.</div>
+            <div class="tl-time">Dans les 72h suivant l'ouverture du litige</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h3>Cas particulier — QR scanné mais produit non reçu</h3>
+      <p>Si un client déclare ne pas avoir reçu sa commande alors que le QR code a été scanné, Vendza considère que :</p>
+      <ul>
+        <li>Le QR code scanné constitue une <strong>présomption de livraison</strong> en faveur du vendeur</li>
+        <li>Le client dispose de <strong>24 heures</strong> après le scan pour contester et fournir des preuves</li>
+        <li>Passé ce délai, la livraison est considérée comme définitivement confirmée et aucune contestation n'est recevable</li>
+        <li>En cas de preuve de fraude avérée de la part du vendeur, Vendza peut décider d'un remboursement et suspendre le compte</li>
+      </ul>
+    </div>
+
+    <div class="subsection">
+      <h3>Décision de Vendza</h3>
+      <p>La décision rendue par Vendza à l'issue du processus de 72 heures est <strong>définitive et sans appel</strong>. En utilisant la plateforme, vous acceptez de vous soumettre à cette décision. Vendza s'engage à rendre ses décisions de manière impartiale, en se basant uniquement sur les preuves fournies par les deux parties.</p>
+    </div>
+  </div>
+
+  <!-- ══ 08 — REMBOURSEMENTS ══ -->
+  <div class="article-section" id="s8">
+    <div class="section-header">
+      <div class="section-num">08</div>
+      <div>
+        <div class="section-title">Remboursements et annulations</div>
+        <div class="section-subtitle">Conditions et procédures de remboursement</div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h3>Conditions de remboursement</h3>
+      <p>Un remboursement peut être accordé dans les cas suivants :</p>
+      <ul>
+        <li>Le produit reçu ne correspond pas à la description publiée sur Vendza</li>
+        <li>Le produit reçu est défectueux ou endommagé</li>
+        <li>La commande n'a pas été livrée dans le délai annoncé et aucun accord n'a été trouvé</li>
+        <li>Une fraude avérée de la part du vendeur est constatée par Vendza</li>
+      </ul>
+    </div>
+
+    <div class="subsection">
+      <h3>Délai pour demander un remboursement</h3>
+      <div class="highlight amber">
+        <div class="highlight-icon">⏰</div>
+        <div class="highlight-text"><strong>Délai strict de 24 heures.</strong> Toute demande de remboursement doit être effectuée dans les <strong>24 heures suivant la confirmation de livraison</strong> (scan du QR code). Passé ce délai, aucune demande de remboursement ne sera acceptée, quelle qu'en soit la raison.</div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h3>Ce que couvre le remboursement</h3>
+      <p>En cas de remboursement accordé par Vendza :</p>
+      <ul>
+        <li>Le <strong>prix du produit</strong> est remboursé intégralement par le vendeur</li>
+        <li>Les <strong>frais de livraison ne sont pas remboursés</strong> — ils couvrent un service déjà rendu</li>
+        <li>La commission Vendza prélevée sur la transaction n'est pas remboursée</li>
+      </ul>
+    </div>
+
+    <div class="subsection">
+      <h3>Délai de remboursement</h3>
+      <p>Une fois la décision de remboursement rendue par Vendza, le client recevra son remboursement sur son compte MonCash dans un délai de <strong>24 heures</strong>. Ce délai peut être prolongé en cas de problème technique indépendant de la volonté de Vendza.</p>
+    </div>
+
+    <div class="subsection">
+      <h3>Annulation avant livraison</h3>
+      <p>Un client peut annuler sa commande tant que le vendeur n'a pas encore effectué la livraison et que le QR code n'a pas été scanné. Dans ce cas, le remboursement intégral — produit et frais de livraison — est effectué dans les 24 heures suivant l'annulation.</p>
+    </div>
+  </div>
+
+  <!-- ══ 09 — INTERDICTIONS ══ -->
+  <div class="article-section" id="s9">
+    <div class="section-header">
+      <div class="section-num">09</div>
+      <div>
+        <div class="section-title">Produits et comportements interdits</div>
+        <div class="section-subtitle">Ce qui est strictement prohibé sur la plateforme Vendza</div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h3>Produits strictement interdits</h3>
+      <p>Il est strictement interdit de publier, vendre ou acheter les catégories de produits suivantes sur Vendza. Toute violation entraîne la suppression immédiate du produit et la suspension du compte :</p>
+
+      <div class="interdit-grid">
+        <div class="interdit-card"><div class="ic-icon">🔫</div><div class="ic-text">Armes à feu, munitions et explosifs</div></div>
+        <div class="interdit-card"><div class="ic-icon">💊</div><div class="ic-text">Drogues, stupéfiants et substances illicites</div></div>
+        <div class="interdit-card"><div class="ic-icon">⛔</div><div class="ic-text">Produits contrefaits, volés ou de provenance illicite</div></div>
+        <div class="interdit-card"><div class="ic-icon">🔞</div><div class="ic-text">Contenu adulte, pornographique ou sexuellement explicite</div></div>
+        <div class="interdit-card"><div class="ic-icon">💉</div><div class="ic-text">Médicaments non homologués ou produits pharmaceutiques sans prescription</div></div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h3>Comportements strictement interdits</h3>
+      <p>Les comportements suivants sont interdits sur Vendza et peuvent entraîner une suspension immédiate du compte :</p>
+      <ul>
+        <li><strong>Faux avis et manipulation de notes</strong> — publier de faux avis sur sa propre boutique ou sur celle d'un concurrent, ou inciter des tiers à le faire</li>
+        <li><strong>Spam et harcèlement</strong> — envoyer des messages non sollicités, harceler ou menacer d'autres utilisateurs via la messagerie Vendza</li>
+        <li><strong>Création de comptes multiples</strong> — créer un nouveau compte après une suspension pour contourner les sanctions</li>
+        <li><strong>Prix trompeurs</strong> — afficher des prix artificiellement gonflés pour créer une fausse impression de remise, ou modifier le prix après la commande</li>
+        <li><strong>Photos trompeuses</strong> — utiliser des photos volées, modifiées ou ne représentant pas fidèlement le produit réel vendu</li>
+        <li><strong>Fraude au QR code</strong> — scanner ou faire scanner un QR code sans remise réelle du produit commandé</li>
+        <li><strong>Usurpation d'identité</strong> — se faire passer pour un autre utilisateur, pour Vendza ou pour une autorité</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ══ 10 — SANCTIONS ══ -->
+  <div class="article-section" id="s10">
+    <div class="section-header">
+      <div class="section-num">10</div>
+      <div>
+        <div class="section-title">Sanctions et suspension de compte</div>
+        <div class="section-subtitle">Conséquences des violations des conditions d'utilisation</div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h3>Principe de sanctions</h3>
+      <p>Vendza applique des sanctions proportionnelles à la gravité de l'infraction commise. La politique de sanction est la suivante : <strong>suspension immédiate et définitive selon la gravité</strong> de la violation. Vendza se réserve le droit d'apprécier la gravité de chaque situation individuellement.</p>
+    </div>
+
+    <div class="subsection">
+      <h3>Tableau des sanctions</h3>
+      <table class="sanction-table">
+        <thead>
+          <tr><th>Type d'infraction</th><th>Sanction applicable</th><th>Préavis</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Fraude au QR code, produits illicites, usurpation d'identité</td>
+            <td class="s-imm">Suspension immédiate et définitive</td>
+            <td>Aucun préavis</td>
+          </tr>
+          <tr>
+            <td>Faux avis, spam grave, escroquerie avérée</td>
+            <td class="s-imm">Suspension immédiate et définitive</td>
+            <td>Aucun préavis</td>
+          </tr>
+          <tr>
+            <td>Création de compte après suspension</td>
+            <td class="s-imm">Suspension immédiate et définitive</td>
+            <td>Aucun préavis</td>
+          </tr>
+          <tr>
+            <td>Photos trompeuses, description inexacte grave</td>
+            <td class="s-warn">Suspension avec préavis de 48h</td>
+            <td>48 heures</td>
+          </tr>
+          <tr>
+            <td>Prix abusifs, harcèlement mineur</td>
+            <td class="s-warn">Avertissement puis suspension 48h</td>
+            <td>48 heures</td>
+          </tr>
+          <tr>
+            <td>Non-respect des délais de livraison répété</td>
+            <td class="s-warn">Avertissement + baisse de visibilité</td>
+            <td>48 heures</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="subsection">
+      <h3>Procédure de suspension</h3>
+      <p>En cas de suspension avec préavis de 48 heures, Vendza notifiera l'utilisateur par email en précisant la raison de la suspension et la date d'entrée en vigueur. L'utilisateur dispose de ce délai pour régulariser sa situation ou contester la décision par email à <strong>vendza@gmail.com</strong>.</p>
+      <p>En cas de suspension immédiate, l'utilisateur sera notifié par email après l'application de la sanction. Aucun remboursement d'abonnement ne sera effectué en cas de suspension pour faute grave.</p>
+    </div>
+
+    <div class="subsection">
+      <h3>Contestation d'une sanction</h3>
+      <p>Tout utilisateur sanctionné peut contester la décision en envoyant un email détaillé à <strong>vendza@gmail.com</strong> dans les 7 jours suivant la notification. Vendza examinera la contestation et communiquera sa décision finale dans un délai de 5 jours ouvrables. La décision rendue sur contestation est définitive.</p>
+    </div>
+  </div>
+
+  <!-- ══ 11 — RESPONSABILITÉS ══ -->
+  <div class="article-section" id="s11">
+    <div class="section-header">
+      <div class="section-num">11</div>
+      <div>
+        <div class="section-title">Responsabilités de Vendza</div>
+        <div class="section-subtitle">Ce que Vendza garantit et ce dont il n'est pas responsable</div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h3>Ce que Vendza garantit</h3>
+      <ul>
+        <li>La sécurité des paiements via le système d'escrow MonCash</li>
+        <li>La confidentialité de vos données personnelles conformément à notre Politique de Confidentialité</li>
+        <li>Un traitement impartial des litiges dans le délai de 72 heures</div>
+        <li>La disponibilité de la plateforme avec un objectif de 99% de temps de fonctionnement</li>
+        <li>La notification préalable de tout changement majeur des conditions</li>
+      </ul>
+    </div>
+
+    <div class="subsection">
+      <h3>Responsabilité partagée</h3>
+      <p>Vendza et le vendeur partagent la responsabilité en cas de produit défectueux ou non conforme. Le vendeur est responsable en premier lieu de la qualité et de la conformité de ses produits. Vendza intervient en tant que médiateur et peut être tenu partiellement responsable si une défaillance de ses systèmes de vérification a permis la mise en vente d'un produit frauduleux.</p>
+    </div>
+
+    <div class="subsection">
+      <h3>Limitations de responsabilité</h3>
+      <p>Vendza ne peut être tenu responsable dans les situations suivantes :</p>
+      <ul>
+        <li>Les actions, omissions ou manquements des vendeurs indépendants</li>
+        <li>La qualité, l'authenticité ou la conformité des produits vendus par les vendeurs</li>
+        <li>Les interruptions de service dues à des causes extérieures (pannes internet, force majeure)</li>
+        <li>Les pertes résultant d'un accès non autorisé à votre compte dû à votre négligence</li>
+        <li>Les décisions commerciales prises par les vendeurs (prix, délais, disponibilité)</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ══ 12 — PROPRIÉTÉ INTELLECTUELLE ══ -->
+  <div class="article-section" id="s12">
+    <div class="section-header">
+      <div class="section-num">12</div>
+      <div>
+        <div class="section-title">Propriété intellectuelle</div>
+        <div class="section-subtitle">Droits sur le contenu de la plateforme</div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <h3>Propriété de Vendza</h3>
+      <p>Le nom "Vendza", le logo, le design de la plateforme, les textes, les fonctionnalités et tous les éléments originaux de la plateforme sont la propriété exclusive de Vendza et sont protégés par les droits d'auteur applicables. Toute reproduction, modification ou utilisation non autorisée est strictement interdite.</p>
+    </div>
+
+    <div class="subsection">
+      <h3>Contenu des vendeurs</h3>
+      <p>En publiant des photos, descriptions ou tout autre contenu sur Vendza, vous accordez à Vendza une licence non exclusive pour afficher, reproduire et promouvoir ce contenu dans le cadre de la plateforme. Vous garantissez posséder tous les droits nécessaires sur le contenu que vous publiez.</p>
+    </div>
+  </div>
+
+  <!-- ══ 13 — MODIFICATIONS ══ -->
+  <div class="article-section" id="s13">
+    <div class="section-header">
+      <div class="section-num">13</div>
+      <div>
+        <div class="section-title">Modifications des conditions</div>
+        <div class="section-subtitle">Comment nous vous informons des changements</div>
+      </div>
+    </div>
+
+    <p>Vendza se réserve le droit de modifier les présentes Conditions d'Utilisation à tout moment. Toute modification significative sera notifiée aux utilisateurs par email et par notification sur la plateforme au moins <strong>15 jours avant son entrée en vigueur</strong>.</p>
+    <p>En continuant à utiliser Vendza après l'entrée en vigueur des nouvelles conditions, vous les acceptez intégralement. Si vous n'acceptez pas les modifications, vous devez cesser d'utiliser la plateforme et supprimer votre compte avant la date d'entrée en vigueur.</p>
+    <p>La date de la dernière mise à jour est indiquée en haut de ce document. L'historique des versions précédentes est disponible sur demande à <strong>vendza@gmail.com</strong>.</p>
+  </div>
+
+  <!-- ══ 14 — CONTACT ══ -->
+  <div class="article-section" id="s14">
+    <div class="section-header">
+      <div class="section-num">14</div>
+      <div>
+        <div class="section-title">Contact et support</div>
+        <div class="section-subtitle">Comment nous joindre pour toute question</div>
+      </div>
+    </div>
+
+    <p>Pour toute question relative aux présentes Conditions d'Utilisation, tout signalement d'infraction ou toute demande de support, notre équipe est disponible et s'engage à vous répondre dans un délai de <strong>48 heures ouvrables</strong>.</p>
+
+    <div class="doc-footer">
+      <p>📬 Contactez l'équipe Vendza</p>
+      <div class="contact-box">
+        <a class="cb-item" href="mailto:vendza@gmail.com">📧 vendza@gmail.com</a>
+        <a class="cb-item" href="tel:+50941953739">📞 +509 4195 37 39</a>
+        <a class="cb-item" href="index.html">🌐 vendza.netlify.app</a>
+      </div>
+      <p style="margin-top:20px;font-size:12px;color:var(--faint);">
+        Document rédigé et approuvé par l'équipe Vendza · Version 1.0 · Mai 2026<br/>
+        Ces conditions constituent l'accord légal complet entre Vendza et ses utilisateurs.<br/>
+        À lire conjointement avec la <a href="politique-confidentialite.html" style="color:var(--blue);font-weight:600;">Politique de Confidentialité</a>.
+      </p>
+    </div>
+  </div>
+
+</div>
+  <script src="vendza-urls.js"></script>
+  <script src="vendza-loading.js"></script>
+  <script src="dynamic-runtime.js"></script>
+</body>
+</html>

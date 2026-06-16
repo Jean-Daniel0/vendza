@@ -1,0 +1,36 @@
+*{box-sizing:border-box}body{margin:0;font-family:'Poppins',sans-serif;background:#f8f9fa;color:#333}
+:root{--blue:#2563eb;--blue2:#1d4ed8;--green:#10b981;--green2:#059669;--gold:#f59e0b}
+.header{position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:linear-gradient(135deg,var(--blue),var(--green));color:#fff}
+.header .brand a{color:#fff;text-decoration:none;font-weight:700}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:24px;font-weight:600;text-decoration:none;border:none;cursor:pointer;transition:.2s}
+.btn-primary{background:#34d399;color:#fff}.btn-primary:hover{background:var(--green2)}
+.btn-outline{background:transparent;color:var(--blue);border:2px solid var(--blue)}.btn-outline:hover{background:rgba(37,99,235,.06)}
+.container{max-width:1100px;margin:0 auto;padding:20px}
+.hero{text-align:center;margin:20px 0}
+.hero h1{margin:6px 0 8px;font-size:26px}
+.hero p{color:#555}
+
+.plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:16px}
+.plan-card{background:#fff;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.06);padding:18px;position:relative;border:2px solid transparent}
+.plan-card:hover{transform:translateY(-4px);box-shadow:0 14px 32px rgba(0,0,0,.08)}
+.plan-badge{position:absolute;top:12px;right:12px;background:#e5e7eb;color:#111;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700}
+.plan-badge.popular{background:linear-gradient(135deg,var(--blue),var(--green));color:#fff}
+.plan-badge.best{background:linear-gradient(135deg,#8b5cf6,#2563eb);color:#fff}
+.plan-card h2{margin:10px 0 6px;font-size:18px}
+.price{font-size:22px;font-weight:800;color:var(--blue);margin:8px 0 12px}
+.features{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
+.features li{display:flex;align-items:center;gap:8px;color:#444}
+.features i{color:var(--green)}
+.plan-card.free{border-color:#e5e7eb}
+.plan-card.pro{border-color:var(--blue)}
+.plan-card.elite{border-color:#8b5cf6}
+
+.info{margin-top:24px}
+.info-card{background:#fff;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.06);padding:16px}
+.info-card .note{color:#555}
+.footer{padding:16px;text-align:center;color:#667085}
+
+@media (max-width: 480px){
+  .hero h1{font-size:22px}
+  .price{font-size:20px}
+}

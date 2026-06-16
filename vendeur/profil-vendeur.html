@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base href="/vendeur/">
+  <title>Mon profil – Vendza</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="../theme-vendza.css">
+  <link rel="stylesheet" href="../home-v2.css">
+  <link rel="stylesheet" href="profil-vendeur-prive.css">
+  <link rel="stylesheet" href="../vendza-verified-badge.css">
+  <script src="/vendza-fix-assets.js"></script>
+</head>
+<body class="page-profil-vendeur-prive read-mode">
+
+  <nav class="profil-prive-nav" aria-label="Navigation profil">
+    <a class="nav-back" id="nav-back" href="tableau-de-bord-vendeur.html">← Dashboard</a>
+    <a class="nav-logo" href="../index.html">Vendza</a>
+    <a class="nav-cart" href="/client/panier" aria-label="Panier">🛒<span class="cart-dot" id="cart-count">0</span></a>
+  </nav>
+
+  <div class="page-profil-prive" id="page">
+
+    <div class="cover" id="profile-cover">
+      <div class="cover-grid"></div>
+      <div class="cover-blob"></div>
+      <div class="cover-actions">
+        <button type="button" class="cover-edit-btn" id="btn-cover-edit">🖼️ Changer la couverture</button>
+      </div>
+      <input type="file" class="avatar-input" id="cover-file" accept="image/*" hidden>
+    </div>
+
+    <div class="avatar-section">
+      <div class="avatar-row">
+        <div class="avatar-wrap" id="avatar-wrap">
+          <div class="avatar" id="avatar-display" role="button" tabindex="0" aria-label="Changer la photo de profil">
+            <span id="avatar-letter">V</span>
+            <span class="avatar-loading" id="avatar-loading" hidden aria-hidden="true"></span>
+          </div>
+          <div class="avatar-edit" id="avatar-edit-trigger" role="button" tabindex="0" title="Changer la photo">✏️</div>
+          <input type="file" class="avatar-input" id="avatar-file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+        </div>
+        <button type="button" class="btn-edit-profile read" id="btn-edit-toggle">✏️ Modifier</button>
+      </div>
+
+      <div style="margin-top:14px;">
+        <div class="profile-name" id="display-nom">Utilisateur</div>
+        <div class="profile-email" id="display-email">—</div>
+        <div class="profile-badges">
+          <span class="badge badge-blue">👤 Compte vendeur</span>
+          <span class="badge badge-amber" id="badge-plan">⭐ Membre</span>
+          <span class="badge badge-green" id="badge-zone">📍 Haïti</span>
+          <span class="badge badge-violet" id="badge-coverage" hidden>🗺️ Couverture</span>
+        </div>
+      </div>
+    </div>
+
+    <nav class="profile-quick-nav" style="display:flex;flex-wrap:wrap;gap:10px;margin:0 16px 16px;">
+      <a href="../index.html" style="text-decoration:none;font-size:13px;font-weight:600;">Accueil</a>
+      <a href="tableau-de-bord-vendeur.html" style="text-decoration:none;font-size:13px;font-weight:600;">Tableau de bord</a>
+      <a href="mes-produit.html" style="text-decoration:none;font-size:13px;font-weight:600;">Mes produits</a>
+      <a href="commande-recu.html" style="text-decoration:none;font-size:13px;font-weight:600;">Commandes</a>
+      <a href="boite-de-reception-vendeur.html" style="text-decoration:none;font-size:13px;font-weight:600;">Messages</a>
+      <a href="/client/panier" style="text-decoration:none;font-size:13px;font-weight:600;">Panier</a>
+    </nav>
+
+    <div class="abo-card" id="abo-card">
+      <div class="abo-left">
+        <h3 id="abo-title">Plan —</h3>
+        <p id="abo-sub">Gérez votre abonnement vendeur</p>
+      </div>
+      <div class="abo-right">
+        <a href="Abonnement.html" id="abo-link">Gérer →</a>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div class="sc-head">
+        <div class="sc-icon blue">📊</div>
+        <div>
+          <div class="sc-title">Statistiques de la boutique</div>
+          <div class="sc-sub">Résumé de votre activité</div>
+        </div>
+      </div>
+      <div class="stat-strip">
+        <div class="ss-item"><div class="ss-val" id="stat-products">0</div><div class="ss-lbl">Produits</div></div>
+        <div class="ss-item"><div class="ss-val" id="stat-orders">0</div><div class="ss-lbl">Commandes</div></div>
+        <div class="ss-item"><div class="ss-val" id="stat-rating">—</div><div class="ss-lbl">Note</div></div>
+      </div>
+    </div>
+
+    <div class="section-card editable-section" id="section-infos" data-section="infos">
+      <div class="sc-head">
+        <div class="sc-icon blue">👤</div>
+        <div>
+          <div class="sc-title">Informations personnelles</div>
+          <div class="sc-sub">Vos données de compte</div>
+        </div>
+        <button type="button" class="sc-edit-btn" data-section="infos">Modifier</button>
+      </div>
+      <div class="read-content info-rows">
+        <div class="info-row">
+          <span class="ir-icon">👤</span>
+          <div class="ir-content"><div class="ir-label">Nom complet</div><div class="ir-val" id="r-nom">—</div></div>
+        </div>
+        <div class="info-row">
+          <span class="ir-icon">📧</span>
+          <div class="ir-content"><div class="ir-label">Email</div><div class="ir-val mono" id="r-email">—</div></div>
+        </div>
+        <div class="info-row">
+          <span class="ir-icon">📞</span>
+          <div class="ir-content"><div class="ir-label">Téléphone</div><div class="ir-val" id="r-tel"><span class="empty">Non renseigné</span></div></div>
+        </div>
+        <div class="info-row">
+          <span class="ir-icon">🗺️</span>
+          <div class="ir-content"><div class="ir-label">Département</div><div class="ir-val" id="r-dept"><span class="empty">Non renseigné</span></div></div>
+        </div>
+        <div class="info-row">
+          <span class="ir-icon">📍</span>
+          <div class="ir-content"><div class="ir-label">Commune</div><div class="ir-val" id="r-commune"><span class="empty">Non renseignée</span></div></div>
+        </div>
+      </div>
+      <div class="edit-content edit-fields">
+        <div class="field">
+          <div class="field-label">Nom complet <span class="req">*</span></div>
+          <input type="text" id="e-nom" placeholder="Votre nom complet" autocomplete="name">
+          <p class="field-error" id="err-nom" hidden></p>
+        </div>
+        <div class="field">
+          <div class="field-label">Email <span class="req">*</span></div>
+          <input type="email" id="e-email" placeholder="votre@email.com" autocomplete="email">
+          <p class="field-hint">Un email de confirmation sera envoyé si vous modifiez cette adresse.</p>
+          <p class="field-error" id="err-email" hidden></p>
+        </div>
+        <div class="field">
+          <div class="field-label">Téléphone <span class="opt">Optionnel</span></div>
+          <input type="tel" id="e-tel" placeholder="+509 XXXX XXXX" autocomplete="tel">
+          <p class="field-error" id="err-tel" hidden></p>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <div class="field-label">Département</div>
+            <select id="e-dept">
+              <option value="">Choisir…</option>
+              <option>Ouest</option><option>Nord</option><option>Sud</option>
+              <option>Artibonite</option><option>Centre</option><option>Nord-Est</option>
+              <option>Nord-Ouest</option><option>Nippes</option><option>Sud-Est</option>
+              <option>Grand'Anse</option>
+            </select>
+          </div>
+          <div class="field">
+            <div class="field-label">Commune</div>
+            <select id="e-commune"><option value="">Choisir…</option></select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-card editable-section" id="section-boutique" data-section="boutique">
+      <div class="sc-head">
+        <div class="sc-icon teal">🏪</div>
+        <div>
+          <div class="sc-title">Ma boutique</div>
+          <div class="sc-sub">Informations publiques affichées aux clients</div>
+        </div>
+      </div>
+      <div class="read-content info-rows">
+        <div class="info-row">
+          <span class="ir-icon">🏪</span>
+          <div class="ir-content"><div class="ir-label">Nom de la boutique</div><div class="ir-val" id="r-boutique"><span class="empty">Non renseigné</span></div></div>
+        </div>
+        <div class="info-row">
+          <span class="ir-icon">📝</span>
+          <div class="ir-content"><div class="ir-label">Description</div><div class="ir-val" id="r-desc"><span class="empty">Aucune description</span></div></div>
+        </div>
+        <div class="info-row">
+          <span class="ir-icon">🚚</span>
+          <div class="ir-content"><div class="ir-label">Délai de livraison</div><div class="ir-val" id="r-delai"><span class="empty">Non renseigné</span></div></div>
+        </div>
+        <div class="info-row" id="row-public-profile">
+          <span class="ir-icon">🔗</span>
+          <div class="ir-content">
+            <div class="ir-label">Profil public</div>
+            <div class="ir-val">
+              <a href="#" id="link-public-profile" style="color:var(--blue);font-weight:600;font-size:13px;">Voir mon profil public →</a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="edit-content edit-fields">
+        <div class="field">
+          <div class="field-label">Nom de la boutique</div>
+          <input type="text" id="e-boutique" placeholder="Ex: TechShop HT">
+        </div>
+        <div class="field">
+          <div class="field-label">Description <span class="opt">Visible par les clients</span></div>
+          <textarea id="e-desc" placeholder="Décrivez votre boutique en quelques mots…"></textarea>
+        </div>
+        <div class="field">
+          <div class="field-label">Délai de livraison habituel</div>
+          <select id="e-delai">
+            <option value="">Sélectionner…</option>
+            <option>24 heures</option>
+            <option>48 heures</option>
+            <option>2-3 jours</option>
+            <option>1 semaine</option>
+            <option>Remise en main propre</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-card" id="section-secu">
+      <div class="sc-head">
+        <div class="sc-icon amber">🔒</div>
+        <div>
+          <div class="sc-title">Sécurité</div>
+          <div class="sc-sub">Mot de passe et accès</div>
+        </div>
+      </div>
+      <div class="read-content info-rows">
+        <div class="info-row" id="row-pwd-edit" style="cursor:pointer;">
+          <span class="ir-icon">🔑</span>
+          <div class="ir-content">
+            <div class="ir-label">Mot de passe</div>
+            <div class="ir-val">••••••••••••</div>
+          </div>
+          <span class="ir-action">›</span>
+        </div>
+        <div class="info-row">
+          <span class="ir-icon">📱</span>
+          <div class="ir-content">
+            <div class="ir-label">Double authentification</div>
+            <div class="ir-val"><span style="color:var(--red);font-weight:600;">Non activée</span></div>
+          </div>
+          <span class="ir-action">›</span>
+        </div>
+        <div class="info-row">
+          <span class="ir-icon">🕐</span>
+          <div class="ir-content">
+            <div class="ir-label">Dernière connexion</div>
+            <div class="ir-val mono" id="r-lastlogin">—</div>
+          </div>
+        </div>
+      </div>
+      <div class="edit-content edit-fields">
+        <div class="field">
+          <div class="field-label">Mot de passe actuel</div>
+          <input type="password" id="e-pwd-current" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <div class="field-label">Nouveau mot de passe</div>
+            <input type="password" id="e-pwd-new" placeholder="••••••••" autocomplete="new-password">
+          </div>
+          <div class="field">
+            <div class="field-label">Confirmer</div>
+            <input type="password" id="e-pwd-conf" placeholder="••••••••" autocomplete="new-password">
+          </div>
+        </div>
+        <div id="pwd-msg" style="font-size:11px;font-weight:600;display:none;"></div>
+      </div>
+    </div>
+
+    <div class="section-card" id="section-notif">
+      <div class="sc-head">
+        <div class="sc-icon violet">🔔</div>
+        <div>
+          <div class="sc-title">Notifications</div>
+          <div class="sc-sub">Gérez vos préférences</div>
+        </div>
+      </div>
+      <div class="toggle-row" data-pref="notif_orders">
+        <div class="toggle-left">
+          <div class="tl">Nouvelles commandes</div>
+          <div class="ts">Alerté dès qu'une commande arrive</div>
+        </div>
+        <button type="button" class="toggle-switch on" aria-pressed="true"><div class="toggle-knob"></div></button>
+      </div>
+      <div class="toggle-row" data-pref="notif_delivery">
+        <div class="toggle-left">
+          <div class="tl">Livraisons confirmées</div>
+          <div class="ts">Quand un client valide sa réception</div>
+        </div>
+        <button type="button" class="toggle-switch on" aria-pressed="true"><div class="toggle-knob"></div></button>
+      </div>
+      <div class="toggle-row" data-pref="notif_reviews">
+        <div class="toggle-left">
+          <div class="tl">Avis clients</div>
+          <div class="ts">Quand un client laisse un avis</div>
+        </div>
+        <button type="button" class="toggle-switch on" aria-pressed="true"><div class="toggle-knob"></div></button>
+      </div>
+      <div class="toggle-row" data-pref="newsletter">
+        <div class="toggle-left">
+          <div class="tl">Newsletter Vendza</div>
+          <div class="ts">Offres, nouveautés et conseils</div>
+        </div>
+        <button type="button" class="toggle-switch" aria-pressed="false"><div class="toggle-knob"></div></button>
+      </div>
+      <div class="toggle-row" data-pref="notif_messages">
+        <div class="toggle-left">
+          <div class="tl">Messages clients</div>
+          <div class="ts">Notifications de nouveaux messages</div>
+        </div>
+        <button type="button" class="toggle-switch on" aria-pressed="true"><div class="toggle-knob"></div></button>
+      </div>
+    </div>
+
+    <div class="danger-zone" id="danger-zone">
+      <button type="button" class="btn-logout" id="btn-logout">🚪 Se déconnecter</button>
+      <button type="button" class="btn-delete-account" id="btn-delete-account">⚠️ Supprimer mon compte</button>
+    </div>
+
+  </div>
+
+  <div class="save-bar" id="save-bar">
+    <button type="button" class="btn-cancel-edit" id="btn-cancel-edit">✕ Annuler</button>
+    <button type="button" class="btn-save-edit" id="btn-save-edit">💾 Enregistrer les modifications</button>
+  </div>
+
+  <div class="profil-toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="../config.js"></script>
+  <script src="../supabaseclient.js"></script>
+  <script src="../vendza-subscription.js"></script>
+  <script src="../vendza-verified-badge.js"></script>
+  <script src="/vendza-urls.js"></script>
+  <script src="profil-vendeur.js"></script>
+  <script src="../guest-drawer.js"></script>
+  <script src="../vendza-loading.js"></script>
+  <script src="../dynamic-runtime.js"></script>
+</body>
+</html>

@@ -1,0 +1,1890 @@
+import express from 'express';
+import path from 'path';
+import fs from 'fs';
+import { createServer as createViteServer } from 'vite';
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+import Stripe from 'stripe';
+import crypto from 'crypto';
+import { MonCashClient, constructEvent, MonCashError } from "@moncashconnect/sdk";
+
+// Load environmental variables
+dotenv.config();
+
+const app = express();
+const PORT = 3000;
+
+// Enable JSON and URL-encoded body parsing middlewares (excluding Stripe & MonCash webhooks)
+app.use((req, res, next) => {
+  if (req.originalUrl === '/api/stripe/webhook' || req.originalUrl === '/api/moncash/webhook' || req.originalUrl === '/api/mcc/webhook') {
+    next();
+  } else {
+    express.json({ limit: '10mb' })(req, res, next);
+  }
+});
+app.use(express.urlencoded({ extended: true }));
+
+// Initialize Supabase Client on Server Side securely
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+// On the server, we want to favor the Service Role Key (secret) if configured to automatically bypass Row Level Security (RLS) constraints
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey;
+const isSupabaseConfigured = !!(supabaseUrl && supabaseKey);
+const supabase = isSupabaseConfigured ? createClient(supabaseUrl, supabaseKey) : null;
+
+// Initialize MonCash client using MonCashConnect secret key lazily to prevent server crashes on start if the key is missing in development/environments
+const getMonCashClient = (): MonCashClient => {
+  const secretKey = process.env.MONCASHCONNECT_KEY || process.env.VITE_MONCASHCONNECT_KEY;
+  if (!secretKey) {
+    throw new Error("Configuration MonCash manquante : MONCASHCONNECT_KEY ou VITE_MONCASHCONNECT_KEY est requise.");
+  }
+  return new MonCashClient(secretKey);
+};
+
+// Helper to dynamically get the correct base URL
+const getBaseUrl = (req: express.Request) => {
+  if (process.env.BASE_URL && process.env.BASE_URL.startsWith('http')) {
+    return process.env.BASE_URL;
+  }
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+  const host = req.headers['x-forwarded-host'] || req.get('host') || 'localhost:3000';
+  
+  // Force HTTPS if not running on localhost to prevent issues with strict HTTPS gates like MonCash
+  const secureProtocol = (String(host).includes('localhost') || String(host).includes('127.0.0.1')) ? protocol : 'https';
+  return `${secureProtocol}://${host}`;
+};
+
+// ============================================
+// AUTOMATED EXCHANGE RATE SYNCHRONIZER
+// ============================================
+
+const updateTaux = async () => {
+  if (!isSupabaseConfigured || !supabase) {
+    console.warn('[Exchange Rates] Supabase not configured on server. Skipping exchange rate update.');
+    return;
+  }
+
+  try {
+    console.log('[Exchange Rates] Checking and updating exchange rate...');
+    // Retrieve current rate record from Supabase table exchange_rates
+    const { data: current, error: selectError } = await supabase
+      .from('exchange_rates')
+      .select('id, usd_to_htg, updated_at')
+      .maybeSingle();
+
+    if (selectError) {
+      console.warn('[Exchange Rates] Error fetching current exchange rate from DB:', selectError.message);
+    }
+
+    const now = new Date();
+    let shouldUpdate = !current;
+    if (current && current.updated_at) {
+      const lastUpdate = new Date(current.updated_at);
+      const diffHeures = (now.getTime() - lastUpdate.getTime()) / 1000 / 3600;
+      if (diffHeures >= 24) {
+        shouldUpdate = true;
+      }
+    }
+
+    if (shouldUpdate) {
+      let nouveauTaux = 130; // default backup rate
+      let fetchedSuccessfully = false;
+
+      // 1. Try ExchangeRate API with API key from environment variable if present
+      if (process.env.EXCHANGE_RATE_API_KEY) {
+        try {
+          console.log('[Exchange Rates] Fetching rate using EXCHANGE_RATE_API_KEY...');
+          const response = await fetch(
+            `https://v6.exchangerate-api.com/v6/${process.env.EXCHANGE_RATE_API_KEY}/latest/USD`
+          );
+          const data: any = await response.json();
+          if (data && data.conversion_rates && data.conversion_rates.HTG) {
+            nouveauTaux = Number(data.conversion_rates.HTG);
+            fetchedSuccessfully = true;
+          }
+        } catch (apiError: any) {
+          console.warn('[Exchange Rates] V6 API key call failed:', apiError.message);
+        }
+      }
+
+      // 2. Fallback to free API (no key required) if first didn't succeed
+      if (!fetchedSuccessfully) {
+        try {
+          console.log('[Exchange Rates] Fetching rate using free exchangerate-api... (no key required)');
+          const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+          const data: any = await response.json();
+          if (data && data.rates && data.rates.HTG) {
+            nouveauTaux = Number(data.rates.HTG);
+            fetchedSuccessfully = true;
+          }
+        } catch (apiError: any) {
+          console.warn('[Exchange Rates] Free API call failed:', apiError.message);
+        }
+      }
+
+      if (fetchedSuccessfully) {
+        if (current) {
+          // Update existing
+          const { error: updateError } = await supabase
+            .from('exchange_rates')
+            .update({
+              usd_to_htg: nouveauTaux,
+              updated_at: now.toISOString()
+            })
+            .eq('id', current.id);
+          
+          if (updateError) {
+            console.error('[Exchange Rates] Error updating exchange rate row:', updateError.message);
+          } else {
+            console.log('[Exchange Rates] Exchange rate updated in Supabase successfully:', nouveauTaux);
+          }
+        } else {
+          // Insert a new row
+          const { error: insertError } = await supabase
+            .from('exchange_rates')
+            .insert([{
+              usd_to_htg: nouveauTaux,
+              updated_at: now.toISOString()
+            }]);
+          
+          if (insertError) {
+            console.error('[Exchange Rates] Error inserting exchange rate row:', insertError.message);
+          } else {
+            console.log('[Exchange Rates] Exchange rate inserted in Supabase successfully:', nouveauTaux);
+          }
+        }
+      } else {
+        console.warn('[Exchange Rates] Unable to fetch exchange rates from external APIs. Keeping existing / backup rate of 130.');
+      }
+    } else if (current) {
+      console.log('[Exchange Rates] Supabase rate is fresh (less than 24 hours old):', current.usd_to_htg);
+    }
+  } catch (err: any) {
+    console.error('[Exchange Rates] Unexpected error in updateTaux:', err.message);
+  }
+};
+
+// Initial run
+updateTaux();
+// Run every hour
+setInterval(updateTaux, 60 * 60 * 1000);
+
+// Initial products fallback list in case Supabase is not connected or empty
+const FALLBACK_PRODUCTS = [
+  {
+    id: 'p-iphone-15',
+    nom: 'iPhone 15 Pro Max - 256GB',
+    desc: 'iPhone 15 Pro Max importé à l\'état neuf avec santé batterie de 100%. Livré complet dans la boîte avec tous les accessoires officiels. Modèle sécurisé par Vendza.',
+    prix: 145000,
+    image: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=600&q=80',
+    categorie: 'Électronique'
+  },
+  {
+    id: 'p-macbook-m3',
+    nom: 'MacBook Air M3 13" - 8GB/256GB',
+    desc: 'MacBook Air ultra fin équipé de la dernière puce Apple M3. Parfait pour les étudiants et professionnels. Garantie légale vendeur de 6 mois incluse.',
+    prix: 195000,
+    image: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=600&q=80',
+    categorie: 'Informatique'
+  },
+  {
+    id: 'p-yamaha-generator',
+    nom: 'Génératrice Inverter Yamaha 2200W',
+    desc: 'Génératrice silencieuse et ultra économique pour pallier les coupures d\'EdH. Délivre un courant stable parfait pour les équipements sensibles.',
+    prix: 110000,
+    image: 'https://images.unsplash.com/photo-1590374585152-caec243f114c?auto=format&fit=crop&w=600&q=80',
+    categorie: 'Maison & Énergie'
+  },
+  {
+    id: 'p-nike-dunk',
+    nom: 'Nike Dunk Low Retro Panda',
+    desc: 'Sneakers Nike Dunks coloris classique Noah noir et blanc. Pointures disponibles du 40 au 45. 100% authentiques avec vérification certifiée.',
+    prix: 12500,
+    image: 'https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?auto=format&fit=crop&w=600&q=80',
+    categorie: 'Mode & Mode'
+  }
+];
+
+// ============================================
+// STRIPE & MONCASH COMMON ORDER CREATION FUNCTION
+// ============================================
+
+// --- VENDOR SUBSCRIPTION HELPERS ---
+
+const getPendingOrderSubscriptionInfo = async (referenceId: string) => {
+  if (!isSupabaseConfigured || !supabase) return null;
+  try {
+    const { data: pending } = await supabase
+      .from('pending_orders')
+      .select('*')
+      .eq('reference_id', referenceId)
+      .maybeSingle();
+
+    if (!pending) return null;
+
+    if (pending.metadata && pending.metadata.type === 'subscription') {
+      return pending.metadata;
+    }
+
+    if (Array.isArray(pending.items)) {
+      const firstItem = pending.items[0];
+      if (firstItem && firstItem.subscriptionMeta) {
+        return firstItem.subscriptionMeta;
+      }
+    }
+    
+    if (pending.delivery_address && pending.delivery_address.startsWith('SUB_META:')) {
+      try {
+        return JSON.parse(pending.delivery_address.substring(9));
+      } catch (e) {}
+    }
+  } catch (err: any) {
+    console.error('[Subscription Meta Check Error]', err.message);
+  }
+  return null;
+};
+
+const setPendingSubscriptionMeta = async (referenceId: string, amount: number, metadata: any) => {
+  if (!isSupabaseConfigured || !supabase) return;
+  
+  const payloadsToTry = [
+    {
+      reference_id: referenceId,
+      buyer_id: metadata.userId,
+      vendor_id: metadata.userId,
+      total_price: Number(amount),
+      metadata: metadata,
+      created_at: new Date().toISOString()
+    },
+    {
+      reference_id: referenceId,
+      buyer_id: metadata.userId,
+      vendor_id: metadata.userId,
+      total_price: Number(amount),
+      items: [{ name: `Abonnement ${metadata.planCode}`, price: amount, quantity: 1, subscriptionMeta: metadata }],
+      created_at: new Date().toISOString()
+    },
+    {
+      reference_id: referenceId,
+      buyer_id: metadata.userId,
+      vendor_id: metadata.userId,
+      total_price: Number(amount),
+      delivery_address: 'SUB_META:' + JSON.stringify(metadata),
+      created_at: new Date().toISOString()
+    }
+  ];
+
+  try {
+    await supabase.from('pending_orders').delete().eq('reference_id', referenceId);
+  } catch (err) {}
+
+  for (const payload of payloadsToTry) {
+    try {
+      const { error } = await supabase.from('pending_orders').insert([payload]);
+      if (!error) {
+        console.log(`[Subscription DB Success] Stored pending metadata successfully for subscription reference: ${referenceId}`);
+        return;
+      }
+      console.warn(`[Subscription DB Warn] Tried payload failed:`, error.message, `trying next level.`);
+    } catch (e: any) {
+      console.warn(`[Subscription DB Exception] Exception trying payload:`, e.message);
+    }
+  }
+};
+
+const activerAbonnement = async (
+  userId: string, 
+  planCode: string, 
+  billing: string, 
+  paymentMethod: string, 
+  montant: number
+) => {
+  if (!isSupabaseConfigured || !supabase) {
+    console.error('[Abonnement] Database not configured for activation.');
+    return;
+  }
+  const maintenant = new Date();
+  
+  const expiresAt = new Date(maintenant);
+  if (billing === 'annuel') {
+    expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+  } else {
+    expiresAt.setMonth(expiresAt.getMonth() + 1);
+  }
+
+  const planCodeLower = String(planCode).toLowerCase(); // 'gratuit', 'pro_local', 'pro_national'
+
+  try {
+    // 1. Désactiver l'ancien abonnement
+    await supabase
+      .from('vendor_subscriptions')
+      .update({ 
+        status: 'cancelled',
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId)
+      .eq('status', 'active');
+  } catch (err: any) {
+    console.error('Error cancelling old subscription:', err.message);
+  }
+
+  try {
+    // 2. Créer le nouvel abonnement
+    await supabase
+      .from('vendor_subscriptions')
+      .insert({
+        user_id:        userId,
+        plan_code:      planCodeLower,
+        status:         'active',
+        billing:        billing,
+        payment_method: paymentMethod,
+        total_paid:     Number(montant) || 0,
+        started_at:     maintenant.toISOString(),
+        expires_at:     expiresAt.toISOString(),
+        created_at:     maintenant.toISOString(),
+        updated_at:     maintenant.toISOString()
+      });
+  } catch (err: any) {
+    console.error('Error inserting new subscription:', err.message);
+  }
+
+  try {
+    // 3. Mettre à jour profiles
+    await supabase
+      .from('profiles')
+      .update({
+        plan:             planCodeLower,
+        plan_expires_at:  expiresAt.toISOString(),
+        updated_at:       new Date().toISOString()
+      })
+      .eq('id', userId);
+  } catch (err: any) {
+    console.error('Error updating profiles state:', err.message);
+  }
+
+  try {
+    // 4. Mettre à jour shops (boost_score)
+    const boostScores: Record<string, number> = {
+      'gratuit':      0,
+      'pro_local':    50,
+      'pro_national': 100
+    };
+
+    await supabase
+      .from('shops')
+      .update({
+        plan:        planCodeLower,
+        boost_score: boostScores[planCodeLower] !== undefined ? boostScores[planCodeLower] : 0,
+        is_featured: planCodeLower === 'pro_national',
+        updated_at:  new Date().toISOString()
+      })
+      .eq('vendor_id', userId);
+  } catch (err: any) {
+    console.error('Error updating shops boost score:', err.message);
+  }
+
+  try {
+    // 5. Notifier le vendeur
+    await supabase
+      .from('platform_messages')
+      .insert({
+        title:     `✅ Abonnement ${planCodeLower === 'pro_national' ? 'Pro National ⭐' : 'Pro Local'} activé !`,
+        message:   `Votre abonnement ${planCodeLower} est actif jusqu'au ${expiresAt.toLocaleDateString('fr-FR')}. Profitez de votre commission réduite à ${planCodeLower === 'pro_national' ? '3%' : planCodeLower === 'pro_local' ? '7%' : '10%'}.`,
+        audience:  userId,
+        is_active: true
+      });
+  } catch (err: any) {
+    console.error('Error inserting platform messages check:', err.message);
+  }
+
+  console.log('Abonnement activé avec succès:', planCodeLower, 'pour', userId);
+};
+
+const verifierExpirationsAbonnements = async () => {
+  if (!isSupabaseConfigured || !supabase) return;
+  try {
+    console.log('[Subscription Checker] Running automated subscriptions expiration scan...');
+    const nowIso = new Date().toISOString();
+    const { data: expires, error } = await supabase
+      .from('vendor_subscriptions')
+      .select('user_id, plan_code')
+      .eq('status', 'active')
+      .lt('expires_at', nowIso);
+
+    if (error) {
+       console.error('[Subscription Checker] Could not fetch expired subscriptions:', error.message);
+       return;
+    }
+
+    for (const sub of expires || []) {
+      console.log(`[Subscription Checker] Plan expired for seller: ${sub.user_id}. Downgrading to package gratuit...`);
+      await supabase
+        .from('vendor_subscriptions')
+        .update({ 
+          status: 'expired',
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', sub.user_id)
+        .eq('status', 'active');
+
+      await activerAbonnement(
+        sub.user_id,
+        'gratuit',
+        'mensuel',
+        'system',
+        0
+      );
+    }
+  } catch (err: any) {
+    console.error('[Subscription Checker] Exception in verifierExpirationsAbonnements:', err.message);
+  }
+};
+
+// Start daily check and run on startup
+setInterval(verifierExpirationsAbonnements, 24 * 60 * 60 * 1000);
+setTimeout(verifierExpirationsAbonnements, 5000); // 5 sec after booting
+
+// Shared order creation function for Stripe and MonCash webhooks
+const creerCommandeApresPaiement = async (
+  orderId: string, 
+  paymentMethod: string,
+  transactionId?: string | null
+) => {
+  if (!isSupabaseConfigured || !supabase) {
+    console.error('[Webhook] Database is not configured.');
+    return null;
+  }
+
+  try {
+    console.log(`[Webhook] Processing creerCommandeApresPaiement for reference ID: ${orderId} (${paymentMethod})`);
+
+    // 1. Récupérer les données depuis Supabase stockées temporairement avant le paiement
+    const { data: pendingOrder, error: pendingErr } = await supabase
+      .from('pending_orders')
+      .select('*')
+      .eq('reference_id', orderId)
+      .maybeSingle();
+
+    if (pendingErr || !pendingOrder) {
+      console.error('[Webhook] Commande pending introuvable ou erreur:', orderId, pendingErr?.message);
+      return null;
+    }
+
+    console.log('[Webhook] Pending order found:', pendingOrder);
+
+    // 2. Générer QR code unique
+    const qrCode = `qr-${orderId.split('-')[1] || Date.now().toString().slice(-4)}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+
+    // 3. Récupérer le plan du vendeur pour la commission
+    const { data: shop, error: shopErr } = await supabase
+      .from('shops')
+      .select('plan')
+      .eq('vendor_id', pendingOrder.vendor_id)
+      .maybeSingle();
+
+    if (shopErr) {
+      console.warn('[Webhook] Error fetching shop plan, defaulting to gratuit:', shopErr.message);
+    }
+
+    const commissions: Record<string, number> = {
+      'gratuit':      0.10,
+      'pro_local':    0.07,
+      'pro_national': 0.03
+    };
+
+    const plan = (shop?.plan || 'gratuit').toLowerCase();
+    const rate = commissions[plan] !== undefined ? commissions[plan] : 0.10;
+    const total_price = Number(pendingOrder.total_price) || 0;
+    const commission = total_price * rate;
+    const montantVendeur = total_price - commission;
+
+    console.log(`[Webhook] Plan=${plan}, Rate=${rate}, Total=${total_price}, Comm=${commission}, VendorAmount=${montantVendeur}`);
+
+    // Create a human readable date and hour for French format matching App.tsx orders
+    const dateStr = new Date().toLocaleDateString('fr-FR');
+    const heureStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+    // Ensure profiles details are retrieved for client name & phone
+    let clientNom = 'Client Anonyme';
+    let clientTel = '';
+    const { data: clientProfile } = await supabase
+      .from('profiles')
+      .select('prenom, nom, tel')
+      .eq('id', pendingOrder.buyer_id)
+      .maybeSingle();
+
+    if (clientProfile) {
+      clientNom = `${clientProfile.prenom || ''} ${clientProfile.nom || ''}`.trim() || 'Client';
+      clientTel = clientProfile.tel || '';
+    }
+
+    const itemsList = Array.isArray(pendingOrder.items) ? pendingOrder.items : [];
+
+    // 4. Créer la commande définitive
+    const orderPayload: any = {
+      id: orderId,
+      buyer_id: pendingOrder.buyer_id,
+      client_nom: clientNom,
+      client_tel: clientTel,
+      vendor_id: pendingOrder.vendor_id,
+      items: itemsList,
+      total_price: total_price,
+      frais_livraison: Number(pendingOrder.shipping_fee) || 0,
+      shipping_fee: Number(pendingOrder.shipping_fee) || 0,
+      delivery_commune: pendingOrder.delivery_commune || '',
+      delivery_address: pendingOrder.delivery_address || '',
+      status: 'payee', // 'payee' is standard in Vendza
+      payment_method: paymentMethod,
+      stripe_session_id: paymentMethod === 'stripe' ? transactionId : null,
+      qr_code: qrCode,
+      is_validated: false,
+      client_confirmed: false,
+      reception_confirmed: false,
+      vendor_credited: false,
+      date: dateStr,
+      heure: heureStr,
+      created_at: new Date().toISOString()
+    };
+
+    // Retry insertion loop with resilience just like in frontend to bypass schema changes
+    let orderStored: any = null;
+    const payloadCopy = { ...orderPayload };
+    for (let attempt = 0; attempt < 15; attempt++) {
+      try {
+        const { data: insertedData, error: insertError } = await supabase
+          .from('orders')
+          .insert([payloadCopy])
+          .select()
+          .maybeSingle();
+
+        if (!insertError) {
+          orderStored = insertedData;
+          console.log('[Webhook] Order created successfully inside database:', orderId);
+          break;
+        }
+
+        const errMsg = insertError.message || '';
+        const matchCol = errMsg.match(/column "([^"]+)" of relation "([^"]+)" does not exist/i) || 
+                         errMsg.match(/Could not find the '([^']+)' column/i) || 
+                         errMsg.match(/column "([^"]+)" does not exist/i);
+        
+        if (matchCol && matchCol[1]) {
+          const offendingCol = matchCol[1];
+          console.warn(`[Webhook resilience] Removing offending column: ${offendingCol}`);
+          delete payloadCopy[offendingCol];
+        } else {
+          console.error('[Webhook error] Fatal database insert error:', insertError);
+          break;
+        }
+      } catch (err: any) {
+        console.error('[Webhook error] Insertion exception:', err.message);
+        break;
+      }
+    }
+
+    // 5. Créditer le wallet vendeur (en séquestre)
+    const { data: wallet } = await supabase
+      .from('vendor_wallets')
+      .select('*')
+      .eq('vendor_id', pendingOrder.vendor_id)
+      .maybeSingle();
+
+    if (wallet) {
+      const newPending = (Number(wallet.pending_balance) || 0) + montantVendeur;
+      const newTotal = (Number(wallet.total_earned) || 0) + montantVendeur;
+      await supabase
+        .from('vendor_wallets')
+        .update({
+          pending_balance: newPending,
+          total_earned: newTotal,
+          updated_at: new Date().toISOString()
+        })
+        .eq('vendor_id', pendingOrder.vendor_id);
+    } else {
+      await supabase
+        .from('vendor_wallets')
+        .insert({
+          vendor_id: pendingOrder.vendor_id,
+          pending_balance: montantVendeur,
+          available_balance: 0,
+          total_earned: montantVendeur,
+          updated_at: new Date().toISOString()
+        });
+    }
+
+    // 6. Enregistrer transaction wallet
+    await supabase
+      .from('vendor_wallet_transactions')
+      .insert({
+        vendor_id: pendingOrder.vendor_id,
+        order_id: orderId,
+        amount: montantVendeur,
+        type: 'pending_escrow',
+        description: `Paiement ${paymentMethod} — en séquestre (commission ${rate * 100}% pour forfait ${plan} déduite)`
+      });
+
+    // 7. Supprimer la commande pending
+    await supabase
+      .from('pending_orders')
+      .delete()
+      .eq('reference_id', orderId);
+
+    console.log('[Webhook Success] Finished successfully for order:', orderId);
+    return orderStored;
+  } catch (e: any) {
+    console.error('[Webhook] Exception in creerCommandeApresPaiement:', e.message);
+    return null;
+  }
+};
+
+// ============================================
+// OFFICIAL MONCASHCONNECT (MCC) SANDBOX PAYMENTS
+// ============================================
+
+// 1. OPTIONS CORS preflight handler for MCC creation
+app.options('/api/mcc/create-payment', (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  return res.sendStatus(204);
+});
+
+// 2. Create payment backend route (Backend -> MCC)
+app.post('/api/mcc/create-payment', async (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  const { 
+    orderId, 
+    amount,
+    customerName,
+    customerEmail 
+  } = req.body;
+
+  if (!amount || amount < 1 || amount > 1000000) {
+    return res.status(400).json({ error: 'Montant invalide (1 à 1 000 000 HTG)' });
+  }
+
+  // Pre-save subscription metadata resiliently if starting with 'sub-'
+  const metadata = req.body.metadata;
+  const isSubscription = (orderId && orderId.startsWith('sub-')) || (metadata && metadata.type === 'subscription');
+
+  if (isSubscription) {
+    const subMeta = metadata || {
+      type: 'subscription',
+      planCode: req.body.planCode || (orderId.includes('pro_national') ? 'pro_national' : 'pro_local'),
+      billing: req.body.billing || 'mensuel',
+      userId: req.body.userId || 'unknown_user_id'
+    };
+    await setPendingSubscriptionMeta(orderId, amount, subMeta);
+  }
+
+  const mccSecret = process.env.MCC_SECRET || '';
+  const mccDomain = process.env.MCC_DOMAIN || '';
+
+  if (!mccSecret || !mccDomain) {
+    console.error('[MCC Backend Error] MCC_SECRET or MCC_DOMAIN not configured in your environment system.');
+    return res.status(400).json({ error: 'Configuration MonCashConnect manquante sur le serveur (MCC_SECRET / MCC_DOMAIN).' });
+  }
+
+  try {
+    const cleanDomain = mccDomain.replace(/^https?:\/\//i, '').split('/')[0];
+    const originHeader = `https://${cleanDomain}`;
+    const returnUrl = `https://${cleanDomain}/checkout/return`;
+
+    console.log(`[MCC Backend] Creating payment page request to MCC backend. Origin: ${originHeader}, returnUrl: ${returnUrl}`);
+
+    const requestBody: any = {
+      amount: Math.round(Number(amount)),
+      referenceId: orderId,
+      returnUrl: returnUrl,
+    };
+
+    if (customerEmail && customerEmail.trim() !== '') {
+      requestBody.customerEmail = customerEmail;
+    }
+    if (customerName && customerName.trim() !== '') {
+      requestBody.customerName = customerName;
+    }
+
+    const mccResponse = await fetch('https://hvlmeoqyxaguzcujpmit.supabase.co/functions/v1/pay-create', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${mccSecret}`,
+        'Origin': originHeader,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!mccResponse.ok) {
+      const errorText = await mccResponse.text();
+      console.error('[MCC Backend] Reject response from pay-create:', mccResponse.status, errorText);
+      return res.status(mccResponse.status).json({ error: `La création du paiement pay-create a échoué: ${errorText}` });
+    }
+
+    const data: any = await mccResponse.json();
+    console.log('[MCC Backend] Successfully received paymentUrl:', data);
+
+    return res.json({
+      paymentUrl: data.paymentUrl,
+      reference: data.reference,
+      expiresAt: data.expiresAt,
+      livemode: data.livemode
+    });
+  } catch (err: any) {
+    console.error('[MCC Backend] Exception in create-payment:', err.message);
+    return res.status(500).json({ error: err.message || 'Erreur interne lors de la création du paiement MonCashConnect' });
+  }
+});
+
+// 3. Webhook endpoint with HMAC verification (MCC -> Backend)
+app.post('/api/mcc/webhook', express.raw({ type: '*/*' }), async (req: any, res) => {
+  try {
+    const rawBodyBuffer = req.body;
+    const rawBody = rawBodyBuffer ? rawBodyBuffer.toString('utf-8') : '';
+    
+    const sig = req.headers['x-mcc-signature'];
+    const ts = req.headers['x-mcc-timestamp'];
+
+    console.log('[MCC Webhook] Received signature:', sig, 'timestamp:', ts);
+
+    const webhookSecret = process.env.MCC_WEBHOOK_SECRET || '';
+    if (!webhookSecret) {
+      console.error('[MCC Webhook Error] Webhook secret MCC_WEBHOOK_SECRET is missing from server environment.');
+    }
+
+    // Compute expected webhook verification signature
+    const hmac = crypto.createHmac('sha256', webhookSecret);
+    const expected = "sha256=" + hmac.update(rawBody).digest('hex');
+
+    const receivedSig = Array.isArray(sig) ? sig[0] : (sig || '');
+
+    if (receivedSig !== expected) {
+      console.error('[MCC Webhook] Invalid webhook signature! Expected:', expected, 'Received:', receivedSig);
+      return res.status(401).send('Signature verification failed');
+    }
+
+    const payload = JSON.parse(rawBody);
+    console.log('[MCC Webhook] Signature verified. Event:', payload.event, 'Ref:', payload.reference);
+
+    const { event, reference, amount } = payload;
+
+    if (event === 'payment.completed') {
+      console.log('[MCC Webhook] Processing billing success for ref:', reference);
+      if (reference && String(reference).startsWith('sub-')) {
+        const pending = await getPendingOrderSubscriptionInfo(String(reference));
+        if (pending) {
+          console.log(`[MCC Webhook Subscription] Found subscription details: user=${pending.userId}, plan=${pending.planCode}`);
+          await activerAbonnement(
+            pending.userId,
+            pending.planCode,
+            pending.billing || 'mensuel',
+            'moncash',
+            Number(amount) || 0
+          );
+          try {
+            await supabase.from('pending_orders').delete().eq('reference_id', String(reference));
+          } catch (e) {}
+        } else {
+          console.warn('[MCC Webhook Subscription] No pending meta found in DB for:', reference, 'Parsing ref fallback');
+          const parts = String(reference).split('-');
+          const userId = parts[1] || 'unknown';
+          await activerAbonnement(
+            userId,
+            String(reference).includes('pro_national') ? 'pro_national' : 'pro_local',
+            'mensuel',
+            'moncash',
+            Number(amount) || 0
+          );
+        }
+      } else {
+        await creerCommandeApresPaiement(reference, 'moncash', reference);
+      }
+    } else if (event === 'payment.failed' || event === 'payment.cancelled') {
+      console.log('[MCC Webhook] Order failed or was cancelled:', reference);
+      if (isSupabaseConfigured && supabase) {
+        await supabase
+          .from('pending_orders')
+          .delete()
+          .eq('reference_id', reference);
+      }
+    }
+
+    return res.status(200).send('ok');
+  } catch (err: any) {
+    console.error('[MCC Webhook Exception]', err.message);
+    return res.status(200).send('Handled: ' + err.message);
+  }
+});
+
+// 4. Proxy status route to bypass client-side CORS issues
+app.get('/api/mcc/status', async (req, res) => {
+  const { reference } = req.query;
+  if (!reference) {
+    return res.status(400).json({ error: 'Référence obligatoire' });
+  }
+
+  const mccSecret = process.env.MCC_SECRET || '';
+
+  try {
+    const url = `https://hvlmeoqyxaguzcujpmit.supabase.co/functions/v1/pay-status?referenceId=${encodeURIComponent(String(reference))}`;
+    console.log(`[MCC Status Proxy] Fetching pay-status for referenceId: ${reference}`);
+    const response = await fetch(url, {
+      headers: mccSecret ? {
+        'Authorization': `Bearer ${mccSecret}`
+      } : {}
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.warn(`[MCC Status Proxy Error] Code: ${response.status}. Msg: ${errorText}`);
+      return res.status(response.status).json({ error: errorText });
+    }
+
+    const data = await response.json();
+    
+    // Auto-create order in database securely if completed, acting as an instant webhook fallback on redirect/polling
+    if (data.status === 'completed' && reference) {
+      console.log(`[MCC Status Proxy] Payment status completed! Finalizing: ${reference}`);
+      if (String(reference).startsWith('sub-')) {
+        const pending = await getPendingOrderSubscriptionInfo(String(reference));
+        if (pending) {
+          console.log(`[MCC Status Proxy Subscription] Activating subscription for user: ${pending.userId}, plan: ${pending.planCode}`);
+          await activerAbonnement(
+            pending.userId,
+            pending.planCode,
+            pending.billing || 'mensuel',
+            'moncash',
+            data.amount || 0
+          );
+          try {
+            await supabase.from('pending_orders').delete().eq('reference_id', String(reference));
+          } catch (e) {}
+        } else {
+          console.warn('[MCC Status Proxy Subscription] No pending meta found in DB for:', reference);
+          const parts = String(reference).split('-');
+          const userId = parts[1] || 'unknown';
+          await activerAbonnement(
+            userId,
+            String(reference).includes('pro_national') ? 'pro_national' : 'pro_local',
+            'mensuel',
+            'moncash',
+            data.amount || 0
+          );
+        }
+      } else {
+        await creerCommandeApresPaiement(String(reference), 'moncash', String(reference));
+      }
+    }
+
+    return res.json(data);
+  } catch (err: any) {
+    console.error('[MCC Status Proxy Exception]', err.message);
+    return res.status(500).json({ error: err.message || 'Erreur lors de la récupération du statut' });
+  }
+});
+
+// ============================================
+// MONCASHCONNECT & WEBHOOK ENDPOINTS
+// ============================================
+
+app.post('/api/moncash/create-payment', async (req, res) => {
+  const { 
+    orderId, 
+    amount,
+    customerName,
+    customerEmail 
+  } = req.body;
+
+  // Vérifier montant valide (1 à 1 000 000 HTG)
+  if(!amount || amount < 1 || amount > 1000000){
+    return res.status(400).json({ 
+      error: 'Montant invalide (1 à 1 000 000 HTG)' 
+    });
+  }
+
+  // Pre-save subscription metadata resiliently if starting with 'sub-'
+  const metadata = req.body.metadata;
+  const isSubscription = (orderId && orderId.startsWith('sub-')) || (metadata && metadata.type === 'subscription');
+
+  if (isSubscription) {
+    const subMeta = metadata || {
+      type: 'subscription',
+      planCode: req.body.planCode || (orderId.includes('pro_national') ? 'pro_national' : 'pro_local'),
+      billing: req.body.billing || 'mensuel',
+      userId: req.body.userId || 'unknown_user_id'
+    };
+    await setPendingSubscriptionMeta(orderId, amount, subMeta);
+  }
+
+  const baseUrl = getBaseUrl(req);
+  const simulationUrl = `${baseUrl}/moncash-simulation?orderId=${encodeURIComponent(orderId)}&total=${encodeURIComponent(String(amount))}`;
+
+  // Check if MonCash secret key is missing or matches the literal placeholder "sk_proj_..." or is not properly formatted.
+  const secretKey = process.env.MONCASHCONNECT_KEY || process.env.VITE_MONCASHCONNECT_KEY || '';
+  const isPlaceholderKey = !secretKey || secretKey === "sk_proj_..." || secretKey.trim() === "" || !secretKey.startsWith("sk_proj_");
+
+  if (isPlaceholderKey) {
+    console.warn(`[MonCash Backend Fallback] Clé MonCashConnect manquante ou invalide ("${secretKey}"). Redirection automatique vers la passerelle de simulation sécurisée.`);
+    return res.json({
+      payment_url: simulationUrl,
+      is_simulated: true,
+      warning: "La clé de l'API MonCashConnect n'est pas configurée ou est invalide. En cours de simulation de paiement."
+    });
+  }
+
+  try {
+    const returnUrl = `${baseUrl}/paiement/moncash/succes?orderId=${orderId}`;
+    console.log(`[MonCash Backend] BaseUrl: ${baseUrl}, returnUrl: ${returnUrl}`);
+
+    const payment = await getMonCashClient().createPayment(
+      Math.round(amount), // Entier obligatoire
+      orderId,
+      {
+        returnUrl: returnUrl,
+        customerName:  customerName || '',
+        customerEmail: customerEmail || '',
+      }
+    );
+
+    res.json({ 
+      payment_url: payment.paymentUrl,
+      expires_at:  payment.expiresAt
+    });
+
+  } catch(error: any) {
+    console.error('MonCashConnect API error:', error);
+
+    // If duplicate reference, let's treat it gracefully
+    if(error.code === 'duplicate_reference'){
+      try {
+        const status = await getMonCashClient().getPaymentStatus(orderId);
+        if(status.status === 'completed'){
+          return res.status(409).json({ 
+            error: 'Cette commande a déjà été payée' 
+          });
+        }
+      } catch (checkErr: any) {
+        console.error('Error fetching status for duplicate reference:', checkErr);
+      }
+    }
+
+    // Catch formatting / key error and fall back to simulation
+    const errMsg = error.message || String(error);
+    if (errMsg.includes('sk_proj_') || errMsg.includes('Secret key')) {
+      console.warn(`[MonCash Backend Fallback] Détection de l'erreur de clé SDK (${errMsg}). Redirection vers le mode simulation.`);
+      return res.json({
+        payment_url: simulationUrl,
+        is_simulated: true,
+        warning: "Configuration MonCash invalide détectée par le SDK. Utilisation du mode simulation."
+      });
+    }
+
+    res.status(500).json({ 
+      error: error.message || 'Erreur lors de la création du paiement MonCash' 
+    });
+  }
+});
+
+app.post('/api/moncash/webhook', express.raw({ type: 'application/json' }), async (req: any, res) => {
+  try {
+    const sig = req.headers['x-mcc-signature'];
+    const ts = req.headers['x-mcc-timestamp'];
+
+    // Vérifier signature HMAC-SHA256 via le constructeur d'évènement SDK
+    const event = constructEvent(
+      req.body,
+      Array.isArray(sig) ? sig[0] : (sig || ''),
+      Array.isArray(ts) ? ts[0] : (ts || ''),
+      process.env.MCC_WEBHOOK_SECRET || ''
+    );
+
+    console.log('Webhook MonCash reçu via SDK:', event.event);
+
+    if(event.event === 'payment.completed'){
+      await creerCommandeApresPaiement(
+        event.reference,
+        'moncash',
+        event.reference
+      );
+    }
+
+    if(event.event === 'payment.failed'){
+      if (isSupabaseConfigured && supabase) {
+        // Nettoyer la commande pending
+        await supabase
+          .from('pending_orders')
+          .delete()
+          .eq('reference_id', event.reference);
+      }
+      console.log('Paiement échoué:', event.reference);
+    }
+
+    res.sendStatus(200);
+
+  } catch(err: any) {
+    if(err instanceof MonCashError){
+      return res.status(err.statusCode)
+        .send(err.message);
+    }
+    console.error('Webhook error:', err);
+    res.sendStatus(500);
+  }
+});
+
+app.get('/api/moncash/status/:orderId', async (req, res) => {
+  const secretKey = process.env.MONCASHCONNECT_KEY || process.env.VITE_MONCASHCONNECT_KEY || '';
+  const isPlaceholderKey = !secretKey || secretKey === "sk_proj_..." || secretKey.trim() === "" || !secretKey.startsWith("sk_proj_");
+
+  if (isPlaceholderKey) {
+    // Return mock completed status to gracefully satisfy client-side polling in test environment
+    return res.json({
+      status: 'completed',
+      reference: req.params.orderId,
+      amount: 100,
+      is_simulated: true
+    });
+  }
+
+  try {
+    const status = await getMonCashClient().getPaymentStatus(
+      req.params.orderId
+    );
+    
+    // Call creerCommandeApresPaiement if Classic MonCash is fully paid to ensure database registration
+    if (status && status.status === 'completed') {
+      console.log(`[Classic MonCash status] Payment status completed! Finalizing order: ${req.params.orderId}`);
+      await creerCommandeApresPaiement(req.params.orderId, 'moncash', req.params.orderId);
+    }
+    
+    res.json(status);
+  } catch(error: any) {
+    console.error('Erreur status-check MonCash:', error.message);
+    
+    // Fallback if SDK complains about formatting
+    if (error.message?.includes('sk_proj_')) {
+      return res.json({
+        status: 'completed',
+        reference: req.params.orderId,
+        amount: 100,
+        is_simulated: true
+      });
+    }
+
+    res.status(404).json({ 
+      error: 'Transaction introuvable: ' + error.message 
+    });
+  }
+});
+
+app.post('/api/orders/pending', async (req, res) => {
+  if (!isSupabaseConfigured || !supabase) {
+    return res.status(500).json({ error: "Base de données non configurée sur le serveur" });
+  }
+
+  const {
+    reference_id,
+    buyer_id,
+    vendor_id,
+    items,
+    total_price,
+    shipping_fee,
+    delivery_commune,
+    delivery_address
+  } = req.body;
+
+  if (!reference_id) {
+    return res.status(400).json({ error: "reference_id est manquant" });
+  }
+
+  try {
+    console.log(`[Pending Order Server] Creating pending order: ${reference_id} for buyer: ${buyer_id}`);
+    
+    // First, let's delete any existing pending order with this reference ID to avoid unique-constraint collisions
+    await supabase
+      .from('pending_orders')
+      .delete()
+      .eq('reference_id', reference_id);
+
+    // Insert new pending order using the server client which bypasses Row-Level Security
+    const { data, error } = await supabase
+      .from('pending_orders')
+      .insert([{
+        reference_id,
+        buyer_id,
+        vendor_id,
+        items,
+        total_price: Number(total_price) || 0,
+        shipping_fee: Number(shipping_fee) || 0,
+        delivery_commune: delivery_commune || '',
+        delivery_address: delivery_address || '',
+        created_at: new Date().toISOString()
+      }])
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.error('[Pending Order Server] Error inserting pending order:', error.message);
+      return res.status(400).json({ error: error.message });
+    }
+
+    console.log(`[Pending Order Server] Successfully created pending order: ${reference_id}`);
+    return res.json({ success: true, data });
+  } catch (err: any) {
+    console.error('[Pending Order Server] Unexpected exception:', err.message);
+    return res.status(500).json({ error: 'Exception interne du serveur: ' + err.message });
+  }
+});
+
+app.post('/api/paiement/creer', async (req, res) => {
+  const { orderId, total } = req.body;
+  if (!orderId || !total) {
+    return res.status(400).json({ error: "Champs requis manquants : orderId ou total" });
+  }
+
+  const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+  
+  // Real MonCash or Sandbox Integration if ClientID & Secret are set
+  const clientId = process.env.MONCASH_CLIENT_ID || '';
+  const clientSecret = process.env.MONCASH_CLIENT_SECRET || '';
+  const mode = process.env.MONCASH_MODE || 'sandbox';
+
+  if (clientId && clientSecret) {
+    try {
+      console.log(`[MonCash Backend] Initiating real/sandbox MonCash payment for order ${orderId}, amount: ${total} HTG...`);
+      const authUrl = mode === 'live' 
+        ? 'https://moncashbutton.digicelgroup.com/Moncash-middleware/oauth/token'
+        : 'https://sandbox.moncashbutton.digicelgroup.com/Moncash-middleware/oauth/token';
+
+      // Call MonCash token endpoint
+      const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+      const tokenResponse = await fetch(`${authUrl}?grant_type=client_credentials`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Basic ${credentials}`
+        }
+      });
+
+      if (!tokenResponse.ok) {
+        throw new Error(`MonCash auth failed: ${tokenResponse.statusText}`);
+      }
+
+      const tokenData: any = await tokenResponse.json();
+      const token = tokenData.access_token;
+
+      // Construct payment creation body
+      const createUrl = mode === 'live'
+        ? 'https://moncashbutton.digicelgroup.com/Moncash-middleware/v1/CreatePayment'
+        : 'https://sandbox.moncashbutton.digicelgroup.com/Moncash-middleware/v1/CreatePayment';
+
+      const paymentResponse = await fetch(createUrl, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          amount: Math.round(Number(total)),
+          orderId: orderId
+        })
+      });
+
+      if (!paymentResponse.ok) {
+        throw new Error(`MonCash payment creation failed: ${paymentResponse.statusText}`);
+      }
+
+      const paymentData: any = await paymentResponse.json();
+      const rawToken = paymentData.payment_token?.token;
+
+      if (!rawToken) {
+        throw new Error("No payment token returned by MonCash API.");
+      }
+
+      const redirectUrl = mode === 'live'
+        ? `https://moncashbutton.digicelgroup.com/Moncash-middleware/Payment/Redirect?token=${rawToken}`
+        : `https://sandbox.moncashbutton.digicelgroup.com/Moncash-middleware/Payment/Redirect?token=${rawToken}`;
+
+      return res.json({ payment_url: redirectUrl });
+    } catch (err: any) {
+      console.warn(`[MonCash Backend] Failed to make actual MonCash token request. Falling back to secure interactive simulation:`, err.message);
+    }
+  }
+
+  // Fallback / Default: Secure and beautiful interactive MonCash mockup simulator
+  const simulationUrl = `${baseUrl}/moncash-simulation?orderId=${encodeURIComponent(orderId)}&total=${encodeURIComponent(String(total))}`;
+  res.json({ payment_url: simulationUrl });
+});
+
+// Endpoint serving the interactive mock MonCash Simulation screen
+app.get('/moncash-simulation', (req, res) => {
+  const { orderId, total } = req.query;
+  const cleanOrderId = String(orderId || 'order-unknown');
+  const cleanTotal = String(total || '0');
+
+  const html = `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MonCash Digicel - Passerelle de Paiement Sécurisée</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
+        <!-- MonCash Logo Header -->
+        <div class="bg-[#e2001a] p-6 text-white text-center relative">
+            <div class="font-bold text-3xl tracking-tight flex items-center justify-center gap-2">
+                <span class="bg-white text-[#e2001a] px-2.5 py-0.5 rounded-lg text-2xl font-black">Mon</span>Cash
+            </div>
+            <p class="text-xs text-white/80 mt-1.5 font-medium tracking-wide">PASSERELLE DE PAIEMENT SÉCURISÉE</p>
+        </div>
+
+        <div class="p-6 space-y-6">
+            <!-- Payment Summary -->
+            <div class="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-2">
+                <div class="flex justify-between items-center text-xs text-slate-500">
+                    <span>Marchand</span>
+                    <span class="font-semibold text-slate-700">Vendza S.A. (Séquestre)</span>
+                </div>
+                <div class="flex justify-between items-center text-xs text-slate-500">
+                    <span>Référence Commande</span>
+                    <span class="font-mono text-slate-700 font-bold">${cleanOrderId}</span>
+                </div>
+                <div class="border-t border-slate-200/60 my-2 pt-2 flex justify-between items-center">
+                    <span class="text-sm font-medium text-slate-700">Montant total</span>
+                    <span class="text-xl font-bold text-[#e11d48]">${Number(cleanTotal).toLocaleString('fr-FR')} HTG</span>
+                </div>
+            </div>
+
+            <!-- Simulation Banner -->
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 space-y-1">
+                <div class="font-semibold flex items-center gap-1.5 text-amber-900">
+                    <span>⚠️ Mode Simulation Active</span>
+                </div>
+                <p>Cette passerelle de test vous permet de simuler un paiement MonCash réel pour vos tests de validation.</p>
+            </div>
+
+            <!-- Form simulator -->
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Numéro de Téléphone MonCash</label>
+                    <div class="relative">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">+509</span>
+                        <input type="tel" value="3788 4410" readonly class="w-full pl-14 pr-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none cursor-not-allowed font-medium" />
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Code PIN Secret (4 chiffres)</label>
+                    <input type="password" value="••••" readonly class="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none cursor-not-allowed font-medium" />
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="space-y-3 pt-2">
+                <button onclick="triggerPayment('success')" class="w-full bg-[#10b981] hover:bg-[#059669] text-white py-3 rounded-xl font-semibold text-sm transition-all duration-200 transform hover:scale-[1.01] active:scale-[0.99] shadow-md shadow-emerald-100 flex items-center justify-center gap-2">
+                    ✓ Confirmer le Paiement (Succès)
+                </button>
+                <button onclick="triggerPayment('error')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 py-3 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2">
+                    ✕ Annuler la Transaction
+                </button>
+            </div>
+            
+            <p class="text-[10px] text-slate-400 text-center">En cliquant, vous allez être redirigé vers l'application Vendza pour finaliser votre commande en séquestre.</p>
+        </div>
+    </div>
+
+    <script>
+        function triggerPayment(status) {
+            const orderId = "${encodeURIComponent(cleanOrderId)}";
+            window.location.href = "/?paymentStatus=" + status + "&orderId=" + orderId;
+        }
+    </script>
+</body>
+</html>
+  `;
+  res.send(html);
+});
+
+app.post('/api/stripe/create-checkout-session', async (req, res) => {
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY || '';
+  if (!stripeSecretKey) {
+    return res.status(500).json({ error: "Stripe features are not configured: STRIPE_SECRET_KEY is missing." });
+  }
+
+  const { orderId, items, customerEmail, type, referenceId, planCode, billing, userId, successUrl, cancelUrl } = req.body;
+  if (!items || !Array.isArray(items)) {
+    return res.status(400).json({ error: "Missing required fields: items" });
+  }
+
+  try {
+    const stripe = new Stripe(stripeSecretKey, {
+      apiVersion: '2026-05-27.dahlia' as any
+    });
+
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+
+    console.log(`[Stripe Backend] Creating session, converting prices to USD basis... Type=${type || 'order'}`);
+
+    // Fetch dynamic exchange rate from database if available, otherwise fallback to 130
+    let currentRate = 130;
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data } = await supabase
+          .from('exchange_rates')
+          .select('usd_to_htg')
+          .maybeSingle();
+        if (data && data.usd_to_htg) {
+          currentRate = Number(data.usd_to_htg);
+          console.log(`[Stripe Backend] Using real-time exchange rate for Stripe: 1 USD = ${currentRate} HTG`);
+        }
+      } catch (rateErr) {
+        console.warn('[Stripe Backend] Could not read exchange rate from DB, using fallback of 130:', rateErr);
+      }
+    }
+
+    const isSub = type === 'subscription';
+    const actualSuccessUrl = isSub && successUrl ? successUrl : `${baseUrl}/paiement/succes?session_id={CHECKOUT_SESSION_ID}`;
+    const actualCancelUrl = isSub && cancelUrl ? cancelUrl : `${baseUrl}/paiement/annule`;
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      customer_email: customerEmail || undefined,
+      line_items: items.map(item => {
+        // Handle cart item format: { product: { nom, prix, image_url }, quantity }
+        if (item.product) {
+          return {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: item.product.nom || 'Produit Vendza',
+                images: item.product.image_url && item.product.image_url.startsWith('https://') 
+                  ? [item.product.image_url] 
+                  : [],
+              },
+              unit_amount: Math.round((Number(item.product.prix) / currentRate) * 100),
+            },
+            quantity: item.quantity || 1,
+          };
+        }
+        // Handle flat item format: { name, price, quantity, image_url }
+        return {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: item.name || 'Produit Vendza',
+              images: item.image_url && item.image_url.startsWith('https://') 
+                ? [item.image_url] 
+                : [],
+            },
+            unit_amount: Math.round((Number(item.price) / currentRate) * 100),
+          },
+          quantity: item.quantity || 1,
+        };
+      }),
+      mode: 'payment',
+      metadata: {
+        orderId: orderId || referenceId || 'pending_payment',
+        source: 'vendza',
+        type: type || 'order',
+        planCode: planCode || '',
+        billing: billing || '',
+        userId: userId || ''
+      },
+      success_url: actualSuccessUrl,
+      cancel_url: actualCancelUrl,
+    });
+
+    res.json({ url: session.url });
+  } catch (error: any) {
+    console.error("[Stripe Backend] Error creating session:", error.message);
+    res.status(500).json({ error: error.message || "Failed to create Stripe checkout session" });
+  }
+});
+
+// Endpoint verifying Stripe session status by session ID
+app.post('/api/stripe/verify-session', async (req, res) => {
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY || '';
+  if (!stripeSecretKey) {
+    return res.status(500).json({ error: "Stripe features are not configured: STRIPE_SECRET_KEY is missing." });
+  }
+
+  const { sessionId } = req.body;
+  if (!sessionId) {
+    return res.status(400).json({ error: "Missing required field: sessionId" });
+  }
+
+  try {
+    const stripe = new Stripe(stripeSecretKey, {
+      apiVersion: '2026-05-27.dahlia' as any
+    });
+
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    // Call activation or order creation if Stripe session is fully paid to ensure database registration
+    if (session.payment_status === 'paid') {
+      const orderId = session.metadata?.orderId;
+      const type = session.metadata?.type;
+      
+      if (type === 'subscription') {
+        const userId = session.metadata?.userId;
+        const planCode = session.metadata?.planCode;
+        const billing = session.metadata?.billing;
+        const amount_total_htg = Math.round((session.amount_total || 0) / 100 * 130);
+        console.log(`[Stripe Verification Proxy Subscription] Session paid! Activating subscription for user: ${userId}, plan: ${planCode}`);
+        if (userId && planCode) {
+          await activerAbonnement(userId, planCode, billing || 'mensuel', 'stripe', amount_total_htg);
+        }
+      } else if (orderId) {
+        console.log(`[Stripe Verification Proxy] Session paid! Finalizing order inside database securely: ${orderId}`);
+        await creerCommandeApresPaiement(orderId, 'stripe', session.id);
+      }
+    }
+
+    res.json({
+      paid: session.payment_status === 'paid',
+      amount: session.amount_total,
+      customerEmail: session.customer_email
+    });
+  } catch (error: any) {
+    console.error("[Stripe Backend Verify Error]", error.message);
+    res.status(500).json({ error: error.message || "Failed to verify session" });
+  }
+});
+
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async (req: any, res) => {
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY || '';
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const sig = req.headers['stripe-signature'];
+
+  if (!stripeSecretKey) {
+    return res.status(500).send("Stripe not configured on server.");
+  }
+
+  let event;
+  const stripe = new Stripe(stripeSecretKey, {
+    apiVersion: '2026-05-27.dahlia' as any
+  });
+
+  try {
+    if (endpointSecret && sig) {
+      event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+    } else {
+      console.warn("[Stripe Webhook] Missing STRIPE_WEBHOOK_SECRET or stripe-signature header, parsing request payload directly in fallback mode");
+      const bodyString = req.body && Buffer.isBuffer(req.body) ? (req.body as Buffer).toString('utf8') : JSON.stringify(req.body);
+      event = JSON.parse(bodyString);
+    }
+  } catch (err: any) {
+    console.error(`[Stripe Webhook] Error verifying signature:`, err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object as any;
+    const orderId = session.metadata?.orderId;
+    const type = session.metadata?.type;
+
+    if (type === 'subscription') {
+      const userId = session.metadata?.userId;
+      const planCode = session.metadata?.planCode;
+      const billing = session.metadata?.billing;
+      const amount_total_htg = Math.round((session.amount_total || 0) / 100 * 130);
+      console.log(`[Stripe Webhook Subscription] Webhook completed! Activating subscription for user: ${userId}, plan: ${planCode}`);
+      if (userId && planCode) {
+        await activerAbonnement(userId, planCode, billing || 'mensuel', 'stripe', amount_total_htg);
+      }
+    } else if (orderId) {
+      console.log(`[Stripe Webhook] Verified success for order ${orderId}. Session ID: ${session.id}`);
+      await creerCommandeApresPaiement(orderId, 'stripe', session.id);
+    }
+  }
+
+  res.json({ received: true });
+});
+
+// 1. DYNAMIC SITEMAP.XML GENERATOR
+app.get('/sitemap.xml', async (req, res) => {
+  res.header('Content-Type', 'application/xml');
+
+  let products = [...FALLBACK_PRODUCTS];
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, nom, updated_at, date_creation');
+      
+      if (!error && data && data.length > 0) {
+        // Map keys correctly
+        products = data.map((p: any) => ({
+          id: p.id,
+          nom: p.nom || p.name || 'Produit',
+          desc: p.desc || p.description || '',
+          prix: Number(p.prix || 0),
+          image: p.image || '',
+          categorie: p.cat || p.category || 'Général'
+        }));
+      }
+    } catch (e) {
+      console.warn("Error loading products for sitemap.xml, serving fallbacks instead:", e);
+    }
+  }
+
+  const hostUrl = `${req.protocol}://${req.get('host')}`;
+  
+  // Format dynamic XML
+  let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Pages Générales -->
+  <url>
+    <loc>${hostUrl}/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>${hostUrl}/#about</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>${hostUrl}/#terms</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  
+  <!-- Produits Dynamiques -->`;
+
+  products.forEach(p => {
+    xml += `
+  <url>
+    <loc>${hostUrl}/?product=${p.id}</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>`;
+  });
+
+  xml += `\n</urlset>`;
+  res.send(xml);
+});
+
+// Helper to escape HTML safely for meta values
+function escapeHtml(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// 2. MIDDLEWARE TO CAPTURE PRODUCT SHARES AND INJECT REAL-TIME OPENGRAPH META TAGS
+app.get('*', async (req, res, next) => {
+  const prodId = req.query.product || req.query.p || req.query.id;
+  
+  // If no product queried, standard SPA routing takes over
+  if (!prodId) {
+    return next();
+  }
+
+  // Fetch product information to construct rich dynamic preview card
+  let product: any = null;
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', prodId)
+        .maybeSingle();
+
+      if (!error && data) {
+        product = {
+          id: data.id,
+          nom: data.nom || data.name || data.title || 'Article Vendza',
+          desc: data.desc || data.description || 'Venez découvrir cet article exclusif sur la marketplace Vendza.',
+          prix: Number(data.prix || data.price || 0),
+          image: data.image || data.image_url || 'https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?auto=format&fit=crop&w=1200&h=630&q=80'
+        };
+      }
+    } catch (e) {
+      console.warn("Failed fetching metadata product:", e);
+    }
+  }
+
+  if (!product) {
+    product = FALLBACK_PRODUCTS.find(p => p.id === prodId);
+  }
+
+  // If there is a product matches the query, we inject details dynamically
+  if (product) {
+    try {
+      const isProd = process.env.NODE_ENV === 'production';
+      let htmlFileName = 'index.html';
+      if (req.path.includes('detail-produit')) {
+        htmlFileName = 'detail-produit.html';
+      }
+
+      // Check all potential paths for the HTML template
+      const pathsToTry = [
+        isProd ? path.join(process.cwd(), 'dist', 'Frontend-vendza', htmlFileName) : path.join(process.cwd(), 'Frontend-vendza', htmlFileName),
+        isProd ? path.join(process.cwd(), 'dist', htmlFileName) : path.join(process.cwd(), htmlFileName)
+      ];
+
+      let indexPath = '';
+      for (const p of pathsToTry) {
+        if (fs.existsSync(p)) {
+          indexPath = p;
+          break;
+        }
+      }
+
+      if (indexPath) {
+        let html = fs.readFileSync(indexPath, 'utf-8');
+
+        const pName = escapeHtml(product.nom);
+        const pDesc = escapeHtml(product.desc.substring(0, 160) + (product.desc.length > 160 ? '...' : ''));
+        const pPrice = `${product.prix.toLocaleString('fr-FR')} Gdes`;
+        const pImage = product.image;
+        const pUrl = `${req.protocol}://${req.get('host')}/detail-produit.html?id=${product.id}`;
+
+        const fullTitle = `${pName} | ${pPrice} sur Vendza`;
+        const fullDesc = `${pDesc} - Achetez sereinement avec notre modèle sécurisé de séquestre de fonds à Haïti.`;
+
+        // Perform fast injections over meta tags supporting standard and self-closing styles
+        html = html.replace(/<title>.*?<\/title>/, `<title>${fullTitle}</title>`);
+        html = html.replace(/<meta name="description" content=".*?"\s*\/?>/, `<meta name="description" content="${fullDesc}" />`);
+
+        // OG replacements
+        html = html.replace(/<meta property="og:title" content=".*?"\s*\/?>/, `<meta property="og:title" content="${fullTitle}" />`);
+        html = html.replace(/<meta property="og:description" content=".*?"\s*\/?>/, `<meta property="og:description" content="${fullDesc}" />`);
+        html = html.replace(/<meta property="og:image" content=".*?"\s*\/?>/, `<meta property="og:image" content="${pImage}" />`);
+        html = html.replace(/<meta property="og:url" content=".*?"\s*\/?>/, `<meta property="og:url" content="${pUrl}" />`);
+
+        // Twitter Card replacements
+        html = html.replace(/<meta property="twitter:title" content=".*?"\s*\/?>/, `<meta property="twitter:title" content="${fullTitle}" />`);
+        html = html.replace(/<meta property="twitter:description" content=".*?"\s*\/?>/, `<meta property="twitter:description" content="${fullDesc}" />`);
+        html = html.replace(/<meta property="twitter:image" content=".*?"\s*\/?>/, `<meta property="twitter:image" content="${pImage}" />`);
+        html = html.replace(/<meta name="twitter:title" content=".*?"\s*\/?>/, `<meta name="twitter:title" content="${fullTitle}" />`);
+        html = html.replace(/<meta name="twitter:description" content=".*?"\s*\/?>/, `<meta name="twitter:description" content="${fullDesc}" />`);
+        html = html.replace(/<meta name="twitter:image" content=".*?"\s*\/?>/, `<meta name="twitter:image" content="${pImage}" />`);
+
+        return res.send(html);
+      }
+    } catch (err) {
+      console.error("Error doing metadata injection:", err);
+    }
+  }
+
+  next();
+});
+
+// ============================================
+// SIGHTENGINE IMAGE MODERATION API PROXY
+// ============================================
+app.post('/api/moderate-image', async (req, res) => {
+  const { imageUrl, imageBase64 } = req.body;
+  try {
+    const apiUser = process.env.SIGHTENGINE_API_USER;
+    const apiSecret = process.env.SIGHTENGINE_API_SECRET;
+
+    if (!apiUser || !apiSecret) {
+      console.warn("Sightengine API keys are not configured. Running fallback simulated moderation...");
+      let sharpness = 45;
+      let contrast = 0.8;
+      let brightness = 0.55;
+      let illustrationScore = 0.05;
+      let photoScore = 0.95;
+
+      const base64Len = imageBase64 ? imageBase64.length : 0;
+      if (base64Len > 0 && base64Len < 25000) {
+        sharpness = 12; // simulated blur
+        illustrationScore = 0.85; // simulated illustration
+      }
+
+      // Also let's simulate blurry/illustration images for URLs for demo/testing purposes
+      const testContent = (imageUrl || "").toLowerCase();
+      if (testContent.includes("blur") || testContent.includes("flou") || testContent.includes("lowquality")) {
+        sharpness = 10;
+      }
+      if (testContent.includes("drawing") || testContent.includes("illustration") || testContent.includes("cartoon") || testContent.includes("vector")) {
+        illustrationScore = 0.9;
+        photoScore = 0.1;
+      }
+
+      const isBlurry = sharpness < 20;
+      const isIllustration = illustrationScore > 0.5;
+      const shouldLowerSeo = isBlurry || isIllustration;
+
+      let warning = "";
+      if (isBlurry) {
+        warning += "L'image du produit semble floue ou de basse résolution.";
+      }
+      if (isIllustration) {
+        if (warning) warning += " De plus, ";
+        warning += "l'image ressemble à une illustration/dessin plutôt qu'à une photo physique du produit.";
+      }
+
+      return res.json({
+        status: "simulated",
+        sharpness,
+        contrast,
+        brightness,
+        illustrationScore,
+        photoScore,
+        warning: shouldLowerSeo ? warning : undefined,
+        shouldLowerSeo
+      });
+    }
+
+    const formData = new FormData();
+    formData.append('api_user', apiUser);
+    formData.append('api_secret', apiSecret);
+    formData.append('models', 'properties,type');
+
+    if (imageUrl && !imageUrl.startsWith('data:')) {
+      formData.append('url', imageUrl);
+    } else if (imageBase64) {
+      const base64Clean = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+      const buffer = Buffer.from(base64Clean, 'base64');
+      const blob = new Blob([buffer], { type: 'image/jpeg' });
+      formData.append('media', blob, 'image.jpg');
+    } else {
+      return res.status(400).json({ error: "Aucun URL ou Base64 d'image fourni." });
+    }
+
+    const response = await fetch('https://api.sightengine.com/1.0/check.json', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) {
+      throw new Error(`Sightengine response status: ${response.status}`);
+    }
+
+    const json: any = await response.json();
+    if (json.status !== 'success') {
+      throw new Error(json.error?.message || "Sightengine returned error status.");
+    }
+
+    const sharpness = json.properties?.sharpness ?? 50;
+    const contrast = json.properties?.contrast ?? 1.0;
+    const brightness = json.properties?.brightness ?? 0.5;
+    const illustrationScore = json.type?.illustration ?? 0.0;
+    const photoScore = json.type?.photo ?? 1.0;
+
+    const isBlurry = sharpness < 20;
+    const isIllustration = illustrationScore > 0.5;
+    const shouldLowerSeo = isBlurry || isIllustration;
+
+    let warning = "";
+    if (isBlurry) {
+      warning += "L'image de votre produit est trop floue (netteté insuffisante).";
+    }
+    if (isIllustration) {
+      if (warning) warning += " De plus, ";
+      warning += "le type d'image détecté est une illustration ou un dessin non-physique.";
+    }
+
+    return res.json({
+      status: "success",
+      sharpness,
+      contrast,
+      brightness,
+      illustrationScore,
+      photoScore,
+      warning: shouldLowerSeo ? warning : undefined,
+      shouldLowerSeo
+    });
+  } catch (err: any) {
+    console.error("Error with Sightengine moderation API:", err.message);
+    return res.status(500).json({ error: "Erreur lors de la modération de l'image: " + err.message });
+  }
+});
+
+// ============================================
+// ONESIGNAL MULTI-USER NOTIFICATION PROXY
+// ============================================
+app.post('/api/onesignal/send', async (req, res) => {
+  const { recipientId, title, message } = req.body;
+  try {
+    const apiAppId = '75a4d965-5500-4694-abfa-69b8a88c9d1d';
+    const apiKey = process.env.ONESIGNAL_REST_API_KEY;
+
+    if (!apiKey) {
+      console.warn("[OneSignal Proxy] REST API key ONESIGNAL_REST_API_KEY is not configured. Simulating delivery...");
+      return res.json({
+        status: "simulated",
+        message: "Clé API OneSignal manquante, simulation réussie.",
+        recipientId,
+        title,
+        body: message
+      });
+    }
+
+    const payload = {
+      app_id: apiAppId,
+      contents: {
+        fr: message,
+        en: message
+      },
+      headings: {
+        fr: title,
+        en: title
+      },
+      target_channel: "push",
+      include_aliases: {
+        external_id: [recipientId]
+      }
+    };
+
+    console.log("[OneSignal Proxy] Transmitting notification:", JSON.stringify(payload));
+
+    const response = await fetch('https://onesignal.com/api/v1/notifications', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Key ${apiKey}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+    console.log("[OneSignal Proxy] Response:", data);
+    return res.json(data);
+  } catch (err: any) {
+    console.error("[OneSignal Proxy] Failed sending notification:", err.message);
+    return res.status(500).json({ error: "Failed to send notification: " + err.message });
+  }
+});
+
+// 3. VITE INTEGRATION FOR ASSETS AND SPA HANDLING
+async function startServer() {
+  if (process.env.NODE_ENV !== 'production') {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    // Serve production static assets compiled inside /dist
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[Vendza FullStack] Server listening securely on http://localhost:${PORT}`);
+  });
+}
+
+startServer();

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base href="/vendeur/">
+  <title>Livraisons prévues | Vendza</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="../styles.css">
+  <style>
+    .header { display:flex; align-items:center; justify-content:space-between; padding:12px 20px; background:#2563eb; color:#fff; }
+    .header .brand a { color:#fff; text-decoration:none; font-weight:800; font-size:20px; }
+
+    .container { max-width:1100px; margin:0 auto; padding:20px; }
+
+    .toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin: 6px 0 16px; }
+    .toolbar .btn { padding:10px 14px; border:none; border-radius:10px; cursor:pointer; font-weight:600; }
+    .btn-primary { background:#2563eb; color:#fff; }
+    .btn-outline { background:#fff; color:#2563eb; border:2px solid #2563eb; }
+
+    .filters { display:flex; gap:10px; flex-wrap:wrap; margin: 6px 0 16px; }
+    .filters input, .filters select { padding:10px; border:1px solid #e5e7eb; border-radius:10px; }
+
+    .cards { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:12px; }
+    .card { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:14px; display:grid; gap:8px; }
+    .card .row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .muted { color:#6b7280; font-size:12px; }
+    .badge { padding:4px 10px; border-radius:999px; font-weight:700; font-size:12px; }
+    .badge-upcoming { background:#dbeafe; color:#1e3a8a; }
+    .badge-today { background:#dcfce7; color:#166534; }
+    .badge-delayed { background:#fee2e2; color:#991b1b; }
+    .actions { display:flex; gap:8px; }
+    .actions .btn { padding:8px 10px; border-radius:8px; font-weight:700; }
+    .btn-secondary { background:#f3f4f6; color:#111827; }
+
+    @media (max-width: 480px) {
+      .cards { grid-template-columns: 1fr; }
+    }
+  </style>
+
+  <link rel="stylesheet" href="../theme-vendza.css">
+  <script src="/vendza-fix-assets.js"></script>
+</head>
+<body>
+  <header class="header">
+    <div class="brand"><a href="../index.html">Vendza</a></div>
+    <nav class="toolbar">
+      <a href="tableau-de-bord-vendeur.html" class="btn btn-outline"><i class="fas fa-gauge"></i> Tableau de bord</a>
+      <a href="commande-recu.html" class="btn btn-outline"><i class="fas fa-inbox"></i> Commandes reçues</a>
+      <a href="profil-vendeur.html" class="btn btn-outline"><i class="fas fa-user"></i> Mon profil</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <h1 style="margin:6px 0 10px;">Livraisons prévues</h1>
+
+    <div class="filters">
+      <input type="text" id="q" placeholder="Rechercher par client ou produit">
+      <select id="status">
+        <option value="">Tous statuts</option>
+        <option value="today">Aujourd'hui</option>
+        <option value="upcoming">À venir</option>
+        <option value="delayed">Retardée</option>
+      </select>
+      <select id="period">
+        <option value="">Toutes périodes</option>
+        <option value="7">7 jours</option>
+        <option value="30">30 jours</option>
+      </select>
+      <button id="apply" class="btn btn-primary"><i class="fas fa-filter"></i> Filtrer</button>
+    </div>
+
+    <div id="empty" class="muted" style="display:none;">Aucune livraison à afficher.</div>
+    <div id="deliveries" class="cards"></div>
+  </main>
+
+  <footer class="footer"><p style="text-align:center; padding:16px; color:#6b7280;">© 2024 Vendza</p></footer>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="../config.js"></script>
+  <script src="../supabaseclient.js"></script>
+  <script src="livraison.js"></script>
+  <script src="../guest-drawer.js"></script>
+
+    <script src="/vendza-urls.js"></script>
+    <script src="../vendza-loading.js"></script>
+    <script src="../dynamic-runtime.js"></script>
+</body>
+</html>
+
+
+
+
+
+
+
