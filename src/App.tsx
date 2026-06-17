@@ -1335,7 +1335,7 @@ export default function App() {
     }
   }, [messages]);
 
-  // Messages dynamic synchronization and refresh loop
+  // Messages dynamic synchronization and real-time subscription
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase || !currentUser) return;
 
@@ -1378,11 +1378,55 @@ export default function App() {
     }
 
     fetchMessages();
-    const interval = setInterval(fetchMessages, 4000);
+
+    // Listen to real-time message changes (INSERT, UPDATE, DELETE) for instant chat responsiveness
+    const channel = supabase
+      .channel('messages-realtime-channel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'messages' },
+        (payload) => {
+          if (!isSubscribed) return;
+
+          if (payload.eventType === 'DELETE') {
+            const oldId = payload.old ? String(payload.old.id) : '';
+            if (oldId) {
+              setMessages(prev => prev.filter(p => p.id !== oldId));
+            }
+          } else if (payload.new) {
+            const m = payload.new as any;
+            const mappedMsg: Message = {
+              id: String(m.id),
+              senderId: m.sender_id || m.senderId || '',
+              senderNom: m.sender_nom || m.sender_name || m.senderNom || 'Utilisateur',
+              recipientId: m.recipient_id || m.recipientId || '',
+              text: m.text || '',
+              image: m.image || '',
+              time: m.time || m.created_at || "Aujourd'hui",
+              productId: m.product_id || m.productId,
+              orderId: m.order_id || m.orderId,
+              createdAt: m.created_at,
+              isRead: m.is_read !== undefined ? m.is_read : (m.isRead !== undefined ? m.isRead : false)
+            };
+
+            const isRelevant = mappedMsg.senderId === currentUser.id || 
+                               mappedMsg.recipientId === currentUser.id || 
+                               (mappedMsg.senderId === 'system-vendza' && mappedMsg.recipientId === currentUser.id);
+
+            if (isRelevant) {
+              setMessages(prev => {
+                const filtered = prev.filter(p => p.id !== mappedMsg.id);
+                return [...filtered, mappedMsg];
+              });
+            }
+          }
+        }
+      )
+      .subscribe();
 
     return () => {
       isSubscribed = false;
-      clearInterval(interval);
+      supabase.removeChannel(channel);
     };
   }, [currentUser]);
 
