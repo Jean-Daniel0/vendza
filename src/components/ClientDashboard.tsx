@@ -674,7 +674,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                               <Eye size={12} /> Voir ticket & QR
                             </button>
 
-                            {order.status === 'attente' && (
+                            {order.status !== 'livree' && order.status !== 'annulee' && (
                               <button
                                 onClick={() => onCancelOrder(order.id)}
                                 className="p-1 px-3 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-[10px] font-extrabold uppercase tracking-wider cursor-pointer"

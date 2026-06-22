@@ -118,11 +118,45 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
     return p.statut === 'actif';
   });
 
-  // Sort products dynamically by referencing/SEO score descending (higher is better, default 100)
+  // Sort products dynamically by referencing/SEO tiers (Pro National > Pro Local > Gratuit) and image verification status
   filteredProducts.sort((a, b) => {
+    const getProductTier = (p: Product) => {
+      const rawPlan = String(p.vendeurPlan || '').toLowerCase().replace(/_/g, ' ').trim();
+      
+      // If the product is marked by the image verification (has an active quality/illustration warning)
+      const isMarkedByImageVerification = !!p.seoWarning;
+      
+      if (isMarkedByImageVerification) {
+        return 1; // Demote to basic tier matching the free plan
+      }
+      
+      if (rawPlan === 'pro national' || rawPlan === 'pro_national') {
+        return 3; // Best referencing (National Pro first)
+      }
+      if (rawPlan === 'pro local' || rawPlan === 'pro_local') {
+        return 2; // Medium referencing (Local Pro next)
+      }
+      return 1; // Basic referencing (Gratuit / base last)
+    };
+
+    const tierA = getProductTier(a);
+    const tierB = getProductTier(b);
+
+    if (tierB !== tierA) {
+      return tierB - tierA; // Higher tier first
+    }
+
+    // Within the same tier, sort by secondary SEO/referencing score descending
     const scoreA = a.scoreReferencement ?? 100;
     const scoreB = b.scoreReferencement ?? 100;
-    return scoreB - scoreA;
+    if (scoreB !== scoreA) {
+      return scoreB - scoreA;
+    }
+
+    // Fallback: newest products first
+    const dateA = new Date(a.dateCreation || 0).getTime();
+    const dateB = new Date(b.dateCreation || 0).getTime();
+    return dateB - dateA;
   });
 
   const getProductRating = (p: Product) => {

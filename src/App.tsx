@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import OneSignal from 'react-onesignal';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -21,6 +21,7 @@ import { ShopSettingsView } from './components/ShopSettingsView';
 import { BecomeSellerView } from './components/BecomeSellerView';
 import { TicketDetailView } from './components/TicketDetailView';
 import { CheckoutReturn } from './components/CheckoutReturn';
+import { InstallBanner } from './components/InstallBanner';
 
 import { Product, CartItem, Order, Review, Message, UserProfile } from './types';
 import { INITIAL_PRODUCTS, INITIAL_REVIEWS } from './data';
@@ -165,6 +166,61 @@ export default function App() {
     localStorage.setItem('vendza_current_view', currentView);
   }, [currentView]);
 
+  // --- Back Button Navigation & PWA History Management ---
+  const currentViewRef = useRef(currentView);
+  useEffect(() => {
+    currentViewRef.current = currentView;
+  }, [currentView]);
+
+  useEffect(() => {
+    // 1. Initial state baseline setup
+    if (!window.history.state || window.history.state.view === undefined) {
+      if (currentView === 'home') {
+        window.history.replaceState({ view: 'home' }, '');
+      } else {
+        // If we land on another page (e.g. redirected success page),
+        // we replace history with home first, then push currentView
+        // so that there's always a 'home' state behind us!
+        window.history.replaceState({ view: 'home' }, '');
+        window.history.pushState({ view: currentView }, '');
+      }
+    }
+
+    const handlePopState = (event: PopStateEvent) => {
+      const activeView = currentViewRef.current;
+      
+      if (activeView !== 'home') {
+        // If they click back when on any other page, go to 'home'!
+        setCurrentView('home');
+        
+        // Push state of 'home' on the stack to prevent going back further (e.g. to payment gateways)
+        window.history.pushState({ view: 'home' }, '');
+      } else {
+        // We are on home page, and they clicked back -> trigger close/exit
+        try {
+          window.close();
+        } catch (e) {
+          console.warn("Auto-close is not supported by this browser container:", e);
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  const lastPushedViewRef = useRef(currentView);
+
+  useEffect(() => {
+    if (currentView === lastPushedViewRef.current) return;
+    
+    // Push the state so back button navigation can detect the popup/view change
+    window.history.pushState({ view: currentView }, '');
+    lastPushedViewRef.current = currentView;
+  }, [currentView]);
+
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('vendza_current_user', JSON.stringify(currentUser));
@@ -175,9 +231,18 @@ export default function App() {
   
   // Custom MonCash States
   const [isRedirectingToMonCash, setIsRedirectingToMonCash] = useState<boolean>(false);
+  const [isVerifyingPayment, setIsVerifyingPayment] = useState<boolean>(false);
   const [redirectPaymentMethod, setRedirectPaymentMethod] = useState<'moncash' | 'stripe' | null>(null);
   const [moncashSuccessOrder, setMoncashSuccessOrder] = useState<string | null>(null);
   const [moncashErrorOrder, setMoncashErrorOrder] = useState<string | null>(null);
+  
+  // Instant checkout (Acheter maintenant) payment choice state
+  const [instantCheckoutModalItem, setInstantCheckoutModalItem] = useState<{
+    product: Product;
+    quantity: number;
+    color?: string;
+    size?: string;
+  } | null>(null);
   
   // Custom ticket view states
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -212,6 +277,10 @@ export default function App() {
   // Real-time exchange rate Gdes/USD
   const [tauxUSD, setTauxUSD] = useState<number>(130);
   const [oneSignalInitDone, setOneSignalInitDone] = useState<boolean>(false);
+
+  // Canceled order process states
+  const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
+  const [refundConfirmationMsg, setRefundConfirmationMsg] = useState<string | null>(null);
 
   // Initialize OneSignal Push Notifications Web SDK
   useEffect(() => {
@@ -1090,6 +1159,7 @@ export default function App() {
       const orderId = urlParams.get('orderId');
 
       if (paymentStatus === 'success') {
+        setIsVerifyingPayment(true);
         const pendingOrderStr = sessionStorage.getItem('pendingOrder');
         if (pendingOrderStr) {
           try {
@@ -1115,9 +1185,12 @@ export default function App() {
           } catch (err) {
             console.error("Error creating MonCash order on success return:", err);
             setMoncashSuccessOrder(orderId || 'unknown');
+          } finally {
+            setIsVerifyingPayment(false);
           }
         } else if (orderId) {
           setMoncashSuccessOrder(orderId);
+          setIsVerifyingPayment(false);
         }
         window.history.replaceState({}, document.title, window.location.pathname);
       } else if (paymentStatus === 'error') {
@@ -1156,7 +1229,7 @@ export default function App() {
 
       if (isStripeSuccess || isMonCashSuccess) {
         console.log(`[Payment Success Redirect] Processing callback for path: ${path}`);
-        setIsRedirectingToMonCash(true); // show loading overlay during verification/polling
+        setIsVerifyingPayment(true); // show loading overlay during verification/polling
 
         try {
           // If sessionId is present (Stripe), verify on backend first
@@ -1173,7 +1246,7 @@ export default function App() {
                 alert("Le paiement Stripe n'a pas pu être vérifié ou est incomplet.");
                 setCurrentView('cart');
                 window.history.replaceState({}, document.title, '/');
-                setIsRedirectingToMonCash(false);
+                setIsVerifyingPayment(false);
                 return;
               }
             } else {
@@ -1250,7 +1323,7 @@ export default function App() {
           alert("Erreur lors de la confirmation de votre commande: " + err.message);
           setCurrentView('cart');
         } finally {
-          setIsRedirectingToMonCash(false);
+          setIsVerifyingPayment(false);
         }
         window.history.replaceState({}, document.title, '/');
       } else if (path.includes('/paiement/annule')) {
@@ -1747,6 +1820,15 @@ export default function App() {
       return;
     }
 
+    // Instead of directly processing, let user choose between payment options first via the custom choice popup
+    setInstantCheckoutModalItem({ product, quantity, color, size });
+  };
+
+  // Perform the actual instant payment booking after user has selected their method
+  const executeInstantCheckout = async (paymentMethod: 'stripe' | 'moncash') => {
+    if (!currentUser || !instantCheckoutModalItem) return;
+    const { product, quantity, color, size } = instantCheckoutModalItem;
+
     const freeCapitalCommunes = ['Port-au-Prince', 'Pétion-Ville', 'Delmas', 'Carrefour'];
     const shippingFee = freeCapitalCommunes.includes(currentUser.commune) ? 0 : 200;
     const finalTotal = product.prix * quantity + shippingFee;
@@ -1772,45 +1854,111 @@ export default function App() {
       date: new Date().toLocaleDateString('fr-FR'),
       heure: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
       departement: currentUser.departement || 'Ouest',
-      commune: currentUser.commune || 'Pétion-Ville'
+      commune: currentUser.commune || 'Pétion-Ville',
+      paymentMethod: paymentMethod
     };
 
     // Save to pending order session storage
     sessionStorage.setItem('pendingOrder', JSON.stringify(newOrder));
 
-    // Trigger MonCash overlay loading screen
-    setIsRedirectingToMonCash(true);
-    setRedirectPaymentMethod('moncash');
+    // Save to database pending orders
+    if (isSupabaseConfigured) {
+      try {
+        const response = await fetch('/api/orders/pending', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reference_id: newOrder.id,
+            buyer_id: newOrder.clientId,
+            vendor_id: product.vendeurId,
+            items: newOrder.items,
+            total_price: newOrder.total,
+            shipping_fee: newOrder.fraisLivraison || 0,
+            delivery_commune: newOrder.commune,
+            delivery_address: newOrder.departement || ''
+          })
+        });
 
-    try {
-      const response = await fetch('/api/paiement/creer', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          orderId: newOrder.id,
-          total: newOrder.total,
-        }),
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(errText || "Impossible d'initier le paiement instantané.");
+        if (!response.ok) {
+          const errData = await response.json();
+          console.error("Error creating pending order record in Supabase:", errData.error || response.statusText);
+        } else {
+          console.log("Pending order successfully registered on server.");
+        }
+      } catch (e: any) {
+        console.error("Exception creating pending order inside database:", e.message);
       }
+    }
 
-      const data = await response.json();
+    if (paymentMethod === 'stripe') {
+      setIsRedirectingToMonCash(true);
+      setRedirectPaymentMethod('stripe');
+      try {
+        const items = [{
+          name: product.nom,
+          price: product.prix,
+          quantity: quantity,
+          image_url: product.image_url && product.image_url.startsWith('https://') 
+            ? product.image_url 
+            : null,
+        }];
 
-      if (data && data.payment_url) {
-        // Redirect to MonCash payment gateway
-        window.location.href = data.payment_url;
-      } else {
-        throw new Error(data.error || "Aucune URL de redirection configurée.");
+        const response = await fetch('/api/stripe/create-checkout-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: newOrder.id,
+            items: items,
+            customerEmail: currentUser.email || '',
+          })
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(errText || "Erreur de communication avec le serveur Stripe.");
+        }
+
+        const { url } = await response.json();
+        setInstantCheckoutModalItem(null); // Clear modal select state
+        window.location.href = url;
+      } catch (err: any) {
+        setIsRedirectingToMonCash(false);
+        console.error("[Stripe Checkout Error]", err.message);
+        alert(`✕ Impossible de se connecter à Stripe: ${err.message}.\n\nVotre achat est enregistré en local.`);
       }
-    } catch (err: any) {
-      setIsRedirectingToMonCash(false);
-      console.error("[MonCash Instant Checkout Error]", err.message);
-      alert(`✕ Impossible de se connecter à MonCash: ${err.message}.\n\nVotre commande instantanée a été sauvegardée en local.`);
+    } else if (paymentMethod === 'moncash') {
+      setIsRedirectingToMonCash(true);
+      setRedirectPaymentMethod('moncash');
+      try {
+        const response = await fetch('/api/paiement/creer', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            orderId: newOrder.id,
+            total: newOrder.total,
+          }),
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(errText || "Impossible d'initier le paiement instantané.");
+        }
+
+        const data = await response.json();
+
+        if (data && data.payment_url) {
+          setInstantCheckoutModalItem(null); // Clear modal select state
+          window.location.href = data.payment_url;
+        } else {
+          throw new Error(data.error || "Aucune URL de redirection configurée.");
+        }
+      } catch (err: any) {
+        setIsRedirectingToMonCash(false);
+        console.error("[MonCash Instant Checkout Error]", err.message);
+        alert(`✕ Impossible de se connecter à MonCash: ${err.message}.\n\nVotre commande instantanée a été sauvegardée en local.`);
+      }
     }
   };
 
@@ -2056,20 +2204,75 @@ export default function App() {
   };
 
   const handleCancelOrder = (orderId: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (order) {
+      setOrderToCancel(order);
+    } else {
+      console.warn("[App] Order not found for cancellation:", orderId);
+    }
+  };
+
+  const executeConfirmCancelOrder = async () => {
+    if (!orderToCancel) return;
+
+    const orderId = orderToCancel.id;
+    const total = orderToCancel.total || 0;
+    const frais_annulation = total * 0.075;
+    const montant_rembourse = total - frais_annulation;
+
     setOrders(prev => prev.map(o => {
       if (o.id === orderId) {
-        return { ...o, status: 'annulee' as const };
+        return {
+          ...o,
+          status: 'annulee' as const,
+          montant_rembourse,
+          frais_annulation
+        };
       }
       return o;
     }));
 
     if (isSupabaseConfigured && supabase) {
-      supabase.from('orders').update({ status: 'annulee' }).eq('id', orderId).then(({ error }) => {
-        if (error) console.error("Error canceling order in Supabase:", error.message);
-      });
+      const payload: any = {
+        status: 'annulee',
+        montant_rembourse,
+        frais_annulation
+      };
+      
+      try {
+        const { error } = await supabase.from('orders').update(payload).eq('id', orderId);
+        if (error) {
+          const errMsg = error.message || '';
+          if (errMsg.includes('column') && (errMsg.includes('montant_rembourse') || errMsg.includes('frais_annulation'))) {
+            console.warn("[App Cancel Order] Column does not exist on orders table, falling back to simple status cancellation");
+            await supabase.from('orders').update({ status: 'annulee' }).eq('id', orderId);
+          } else {
+            console.error("[App Cancel Order Error] Failed to update custom columns in Supabase:", error.message);
+          }
+        }
+      } catch (err: any) {
+        console.error("[App Cancel Order Exception]", err.message);
+      }
     }
 
-    alert("✓ Achat annulé. Vos Gourdes vous ont été intégralement recréditées sur votre compte mobile !");
+    // Send OneSignal notification to the vendor
+    const vendorId = orderToCancel.vendor_id || (orderToCancel as any).vendeur_id || orderToCancel.items[0]?.vendeurId || '';
+    if (vendorId) {
+      sendPushNotification(
+        vendorId,
+        "Commande annulée",
+        `Le client a annulé sa commande (${orderId}). Reste remboursé : ${montant_rembourse.toFixed(2)} HTG (frais retenus : ${frais_annulation.toFixed(2)} HTG).`
+      );
+    }
+
+    // Dismiss the cancellation prompt and display confirmation message
+    setOrderToCancel(null);
+    setRefundConfirmationMsg(
+      `Ta commande a été annulée avec succès.\n\n` +
+      `Frais de transaction conservés: ${frais_annulation.toFixed(2)} HTG (7.50%)\n` +
+      `Montant qui te sera remboursé: ${montant_rembourse.toFixed(2)} HTG\n\n` +
+      `Le remboursement sera crédité selon le mode de paiement utilisé.`
+    );
   };
 
   // Rule 1: Aprés confirmation du paiement, on appelle afterPaymentConfirmed
@@ -2195,16 +2398,41 @@ export default function App() {
         // Mettre à jour en base de données Supabase si configuré
         if (isSupabaseConfigured && supabase) {
           targetOrder.items.forEach(async (item) => {
-            const currentProd = prev.find(p => p.id === item.productId);
-            if (currentProd) {
-              const nextStock = Math.max(0, currentProd.stock - item.qte);
-              const { error } = await supabase
+            try {
+              // Obtenir la quantité réelle en temps réel dans Supabase pour éviter les désynchronisations de stock
+              const { data: realTimeProduct, error: fetchError } = await supabase
                 .from('products')
-                .update({ stock: nextStock })
-                .eq('id', item.productId);
-              if (error) {
-                console.error(`Erreur de mise à jour du stock pour le produit ${item.productId}:`, error.message);
+                .select('stock')
+                .eq('id', item.productId)
+                .maybeSingle();
+
+              if (!fetchError && realTimeProduct) {
+                const currentDbStock = Number(realTimeProduct.stock) || 0;
+                const nextStock = Math.max(0, currentDbStock - (Number(item.qte) || 1));
+                
+                const { error: updateError } = await supabase
+                  .from('products')
+                  .update({ stock: nextStock })
+                  .eq('id', item.productId);
+
+                if (updateError) {
+                  console.error(`Erreur de mise à jour du stock pour le produit ${item.productId}:`, updateError.message);
+                } else {
+                  console.log(`[Supabase Stock Sync] Produit ${item.productId} mis à jour avec succès. Ancien stock: ${currentDbStock}, nouveau stock: ${nextStock}`);
+                }
+              } else {
+                // Fallback avec l'état local si le fetch en temps réel échoue
+                const currentProd = prev.find(p => p.id === item.productId);
+                if (currentProd) {
+                  const nextStock = Math.max(0, currentProd.stock - item.qte);
+                  await supabase
+                    .from('products')
+                    .update({ stock: nextStock })
+                    .eq('id', item.productId);
+                }
               }
+            } catch (err: any) {
+              console.error(`Exception de mise à jour du stock pour le produit ${item.productId}:`, err.message);
             }
           });
         }
@@ -2301,6 +2529,8 @@ export default function App() {
 
         console.log("[Escrow] Immediate balance transition completed successfully for order:", orderId);
         fetchOrders();
+        // Rafraîchir les produits pour voir la baisse de quantité disponible en temps réel dans l'interface
+        fetchProducts(0, false);
       } catch (err: any) {
         console.error("Error in handleConfirmDelivery immediate transfer:", err.message);
       }
@@ -3479,6 +3709,9 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
   return (
     <div className="min-h-screen bg-slate-50/50 flex flex-col font-sans text-slate-800 antialiased overflow-x-hidden selection:bg-blue-100 selection:text-blue-800 pb-12">
       
+      {/* Dynamic PWA Custom Install Banner */}
+      <InstallBanner />
+
       {/* App Header layout block */}
       <Header
         user={currentUser}
@@ -4027,6 +4260,142 @@ create policy "Insertion publique des messages"
           MONCASH SECURE PAYMENT OVERLAYS AND MODALS
           ======================================================== */}
 
+      {/* Instant Checkout (Acheter Maintenant) Payment Method Selection Modal */}
+      {instantCheckoutModalItem && (() => {
+        const item = instantCheckoutModalItem;
+        const freeCapitalCommunes = ['Port-au-Prince', 'Pétion-Ville', 'Delmas', 'Carrefour'];
+        const isCapitalCity = currentUser ? freeCapitalCommunes.includes(currentUser.commune) : true;
+        const shippingFee = isCapitalCity ? 0 : 200;
+        const finalTotal = item.product.prix * item.quantity + shippingFee;
+
+        return (
+          <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-md z-[998] flex flex-col items-center justify-center p-4 pr-5">
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-300 flex flex-col">
+              {/* Modal Header */}
+              <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse" />
+                  <h3 className="font-sans font-extrabold text-slate-900 text-sm tracking-tight">
+                    Choisir votre méthode de paiement
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setInstantCheckoutModalItem(null)}
+                  className="p-1.5 text-slate-400 hover:text-slate-650 hover:bg-slate-100 rounded-lg transition-all cursor-pointer font-bold text-xs"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-5 overflow-y-auto max-h-[60vh] text-left">
+                {/* Product Preview */}
+                <div className="flex gap-3.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                  <div className="w-16 h-16 rounded-xl overflow-hidden bg-white border border-slate-100 shrink-0 flex items-center justify-center p-1">
+                    {item.product.image_url ? (
+                      <img
+                        src={item.product.image_url}
+                        alt={item.product.nom}
+                        className="w-full h-full object-contain rounded-lg"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-slate-100 rounded-lg flex items-center justify-center text-xs font-bold text-slate-400">
+                        P
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <h4 className="font-sans font-extrabold text-slate-905 text-xs truncate">
+                      {item.product.nom}
+                    </h4>
+                    <p className="text-[10px] text-slate-500 font-medium">
+                      Quantité : <strong className="text-slate-800 font-bold">{item.quantity}</strong>
+                      {item.color && <> • Couleur : <strong className="text-slate-800 font-bold">{item.color}</strong></>}
+                      {item.size && <> • Taille : <strong className="text-slate-800 font-bold">{item.size}</strong></>}
+                    </p>
+                    <p className="font-mono text-xs font-black text-blue-600">
+                      {item.product.prix} HTG
+                    </p>
+                  </div>
+                </div>
+
+                {/* Pricing Summary */}
+                <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 space-y-2.5 font-sans">
+                  <div className="flex justify-between items-center text-xs text-slate-650">
+                    <span>Sous-total</span>
+                    <span className="font-mono font-bold text-slate-800">{item.product.prix * item.quantity} HTG</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs text-slate-650">
+                    <span>Frais de livraison ({currentUser?.commune || 'Pétion-Ville'})</span>
+                    <span className="font-mono font-bold text-slate-800">
+                      {shippingFee > 0 ? `${shippingFee} HTG` : <span className="text-teal-650 font-extrabold">Gratuit</span>}
+                    </span>
+                  </div>
+                  <div className="h-px bg-slate-100" />
+                  <div className="flex justify-between items-center pt-1">
+                    <span className="text-xs font-extrabold text-slate-800">Montant Total</span>
+                    <div className="text-right font-sans">
+                      <span className="font-mono text-sm font-black text-blue-600 block">{finalTotal} HTG</span>
+                      <span className="font-mono text-[10px] font-bold text-slate-400">{(finalTotal / tauxUSD).toFixed(2)} $ USD</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Info alert about secure process */}
+                <div className="p-3 bg-teal-50/50 border border-teal-100 rounded-xl space-y-1 flex items-start gap-2">
+                  <span className="text-sm mt-0.5">🔒</span>
+                  <div className="space-y-0.5 min-w-0">
+                    <p className="text-[9.5px] font-black uppercase tracking-wider text-teal-700">Fonds protégés en Séquestre</p>
+                    <p className="text-[9.5px] text-slate-500 leading-normal font-sans">
+                      Les fonds ne sont versés au vendeur qu'après confirmation par code QR de la livraison par vos soins !
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons for payment choice and close */}
+              <div className="p-5 bg-slate-50/10 border-t border-slate-100 flex flex-col gap-2.5">
+                {/* 1. Digicel MonCash Button */}
+                <button
+                  type="button"
+                  onClick={() => executeInstantCheckout('moncash')}
+                  className="w-full inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#cc0612] hover:bg-[#b0050f] text-white font-extrabold text-xs tracking-wider uppercase transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:scale-[1.01]"
+                >
+                  Payer avec MonCash
+                </button>
+
+                {/* Divider */}
+                <div className="flex items-center justify-center gap-2 text-slate-300 select-none my-0.5">
+                  <div className="h-px bg-slate-200 flex-1" />
+                  <span className="text-[9px] font-extrabold uppercase tracking-widest text-[#94a3b8]">OU</span>
+                  <div className="h-px bg-slate-200 flex-1" />
+                </div>
+
+                {/* 2. Stripe Button */}
+                <button
+                  type="button"
+                  onClick={() => executeInstantCheckout('stripe')}
+                  className="w-full inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-[#635bff] text-white font-extrabold text-xs tracking-wider uppercase transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:scale-[1.01]"
+                >
+                  Payer par Carte
+                </button>
+
+                {/* 3. Cancel */}
+                <button
+                  type="button"
+                  onClick={() => setInstantCheckoutModalItem(null)}
+                  className="mt-1.5 w-full inline-flex items-center justify-center py-2.5 px-4 rounded-xl hover:bg-slate-100 text-slate-500 font-extrabold text-xs transition cursor-pointer"
+                >
+                  Retour
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* 1. Redirection Spinner Overlays */}
       {isRedirectingToMonCash && (
         <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-md z-[999] flex flex-col items-center justify-center p-4">
@@ -4048,6 +4417,30 @@ create policy "Insertion publique des messages"
             <div className="bg-blue-50 text-blue-800 rounded-2xl p-3 text-[10.5px] font-mono text-center flex items-center justify-center gap-1.5 border border-blue-100/80 animate-pulse">
               <span className="inline-block w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
               {redirectPaymentMethod === 'stripe' ? "Sécurisé par Stripe • Visa / Mastercard / Amex" : "Paiement Séquestre Garanti • HTG (Gourdes)"}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 1b. Verification Spinner Overlay */}
+      {isVerifyingPayment && (
+        <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-md z-[999] flex flex-col items-center justify-center p-4">
+          <div className="bg-white p-8 rounded-3xl border border-slate-100/90 shadow-2xl max-w-sm w-full text-center space-y-5 animate-in fade-in zoom-in duration-300">
+            <div className="relative w-16 h-16 mx-auto">
+              <div className="absolute inset-0 rounded-full border-4 border-slate-100"></div>
+              <div className="absolute inset-0 rounded-full border-4 border-teal-600 border-t-transparent animate-spin"></div>
+            </div>
+            <div>
+              <h3 className="font-serif text-lg font-bold tracking-tight text-slate-800">
+                Vérification du paiement...
+              </h3>
+              <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                Veuillez patienter pendant que nous sécurisons votre transaction et finalisons l'enregistrement de votre commande sous séquestre Vendza.
+              </p>
+            </div>
+            <div className="bg-teal-50 text-teal-850 rounded-2xl p-3 text-[10.5px] font-mono text-center flex items-center justify-center gap-1.5 border border-teal-100/80 animate-pulse">
+              <span className="inline-block w-1.5 h-1.5 bg-teal-600 rounded-full"></span>
+              Paiement Sécurisé • Séquestre Actif
             </div>
           </div>
         </div>
@@ -4142,6 +4535,81 @@ create policy "Insertion publique des messages"
                 Fermer
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancellation Confirmation Dialog */}
+      {orderToCancel && (
+        <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-md z-[999] flex flex-col items-center justify-center p-4">
+          <div className="bg-white p-7 rounded-3xl border border-slate-100 shadow-2xl max-w-md w-full space-y-6 animate-in fade-in zoom-in duration-200">
+            <div className="text-center space-y-3">
+              <div className="mx-auto w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center border border-red-100">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="font-serif text-lg font-black text-slate-850 tracking-tight">Annuler la commande ?</h3>
+              <p className="text-xs text-slate-500 leading-relaxed text-left whitespace-pre-wrap">
+                En annulant cette commande, des frais de transaction de 7,50% seront déduits de ton remboursement. Le reste du montant te sera remboursé.{"\n\n"}Cette action est irréversible.
+              </p>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-left space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-400 font-medium">Montant total:</span>
+                <span className="font-bold text-slate-800">{(orderToCancel.total || 0).toFixed(2)} HTG</span>
+              </div>
+              <div className="flex justify-between text-red-600">
+                <span className="font-medium">Frais déduits (7.50%):</span>
+                <span>-{((orderToCancel.total || 0) * 0.075).toFixed(2)} HTG</span>
+              </div>
+              <div className="border-t border-slate-100 pt-2 flex justify-between font-extrabold text-emerald-600 text-sm">
+                <span>Remboursement estimé:</span>
+                <span>{((orderToCancel.total || 0) * 0.925).toFixed(2)} HTG</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setOrderToCancel(null)}
+                className="flex-1 bg-slate-100 cursor-pointer hover:bg-slate-200 font-sans text-xs font-bold text-slate-700 py-3 rounded-2xl transition-all duration-200"
+              >
+                Garder ma commande
+              </button>
+              <button
+                onClick={executeConfirmCancelOrder}
+                className="flex-1 bg-red-600 cursor-pointer hover:bg-red-700 font-sans text-xs font-bold text-white py-3 rounded-2xl transition-all duration-200 shadow-md"
+              >
+                Accepter et annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancellation Success message */}
+      {refundConfirmationMsg && (
+        <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-md z-[999] flex flex-col items-center justify-center p-4">
+          <div className="bg-white p-7 rounded-3xl border border-slate-100 shadow-2xl max-w-md w-full text-center space-y-5 animate-in fade-in zoom-in duration-200">
+            <div className="mx-auto w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center border border-emerald-100">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-serif text-lg font-black text-slate-850 tracking-tight">Commande Annulée</h3>
+              <p className="text-xs text-slate-600 mt-2 leading-relaxed text-left whitespace-pre-wrap">
+                {refundConfirmationMsg}
+              </p>
+            </div>
+
+            <button
+              onClick={() => setRefundConfirmationMsg(null)}
+              className="w-full bg-emerald-600 cursor-pointer hover:bg-emerald-700 font-sans text-xs font-bold text-white py-3 rounded-2xl transition-all duration-200"
+            >
+              Compris
+            </button>
           </div>
         </div>
       )}
