@@ -14,19 +14,6 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-// Netlify serverless functions path-normalization middleware
-app.use((req, res, next) => {
-  if (req.url && req.url.includes('/.netlify/functions/server')) {
-    const cleaned = req.url.replace('/.netlify/functions/server', '');
-    req.url = cleaned.startsWith('/api') ? cleaned : `/api${cleaned}`;
-  }
-  if (req.originalUrl && req.originalUrl.includes('/.netlify/functions/server')) {
-    const cleanedOrig = req.originalUrl.replace('/.netlify/functions/server', '');
-    req.originalUrl = cleanedOrig.startsWith('/api') ? cleanedOrig : `/api${cleanedOrig}`;
-  }
-  next();
-});
-
 // Enable JSON and URL-encoded body parsing middlewares (excluding Stripe & MonCash webhooks)
 app.use((req, res, next) => {
   const isWebhook = req.originalUrl.includes('/api/stripe/webhook') || 
