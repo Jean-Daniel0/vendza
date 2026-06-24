@@ -292,7 +292,7 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
               {isVendor && (
                 <div className="bg-slate-50 border border-teal-150 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-2.5 my-3">
                   <div className="bg-white p-2.5 border border-slate-200 rounded-xl shadow-3xs">
-                    <QRCodeRenderer value={`https://vendza.netlify.app/client/confirmation?id=${order.id}`} size={110} />
+                    <QRCodeRenderer value={`https://vendza2.netlify.app/client/confirmation?id=${order.id}`} size={110} />
                   </div>
                   <div className="space-y-0.5">
                     <span className="text-[10px] uppercase font-black text-[#0d9488] tracking-widest font-sans block">

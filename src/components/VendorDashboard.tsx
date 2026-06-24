@@ -3074,7 +3074,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                     <div className={`p-2.5 bg-white border border-slate-200 rounded-xl shadow-xs relative ${
                       selectedOrderDetails.status === 'livree' ? 'opacity-40' : 'animate-pulse'
                     }`}>
-                      <QRCodeRenderer value={`https://vendza.netlify.app/client/confirmation?id=${selectedOrderDetails.id}`} size={105} />
+                      <QRCodeRenderer value={`https://vendza2.netlify.app/client/confirmation?id=${selectedOrderDetails.id}`} size={105} />
                       {selectedOrderDetails.status === 'livree' && (
                         <div className="absolute inset-0 bg-white/80 flex items-center justify-center p-1 rounded-xl">
                           <span className="bg-emerald-100 text-emerald-800 text-[8px] font-bold px-1.5 py-1 rounded shadow-xs uppercase border border-emerald-300">
