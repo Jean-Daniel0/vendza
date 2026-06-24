@@ -1,4 +1,0 @@
-﻿/* Styles de base pour la page livraisons (fallback). */
-.cards { display: grid; gap: 12px; }
-.card { border: 1px solid #dbe3ef; border-radius: 12px; background: #fff; }
-.badge { border-radius: 999px; font-weight: 700; }

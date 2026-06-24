@@ -656,7 +656,7 @@ export default function App() {
               sessionStorage.removeItem(key);
             }
           }
-          await supabase.auth.signOut();
+          await supabase.auth.signOut({ scope: 'local' });
         } catch (e) {
           console.error("Error during manual auth purge:", e);
         } finally {
@@ -1269,11 +1269,13 @@ export default function App() {
           // Poll up to 10 attempts (10 seconds) for the webhook to create the order in Supabase
           let foundOrder: Order | null = null;
           if (isSupabaseConfigured && supabase && orderId) {
+            const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+            const queryCol = isUuid(orderId) ? 'id' : 'qr_token';
             for (let attempt = 1; attempt <= 10; attempt++) {
               const { data: ord } = await supabase
                 .from('orders')
                 .select('*')
-                .eq('id', orderId)
+                .eq(queryCol, orderId)
                 .maybeSingle();
 
               if (ord) {
@@ -1975,6 +1977,7 @@ export default function App() {
     
     const payload: any = {
       id: rawOrder.id,
+      qr_token: rawOrder.id, // Save friendly payment reference ID in the text column
       
       // Client / Buyer mapping
       buyer_id: rawOrder.clientId,
@@ -2280,10 +2283,12 @@ export default function App() {
     if (!isSupabaseConfigured || !supabase) return;
     try {
       console.log("[Escrow] Processing afterPaymentConfirmed for ID:", orderId);
+      const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+      const queryCol = isUuid(orderId) ? 'id' : 'qr_token';
       const { data: order, error: orderErr } = await supabase
         .from('orders')
         .select('*')
-        .eq('id', orderId)
+        .eq(queryCol, orderId)
         .maybeSingle();
 
       if (!order || orderErr) {
@@ -4025,10 +4030,12 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
                   let finalOrder: any = null;
                   if (isSupabaseConfigured && supabase) {
                     try {
+                      const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+                      const queryCol = isUuid(orderId) ? 'id' : 'qr_token';
                       const { data: ord } = await supabase
                         .from('orders')
                         .select('*')
-                        .eq('id', orderId)
+                        .eq(queryCol, orderId)
                         .maybeSingle();
                       if (ord) {
                         finalOrder = ord;

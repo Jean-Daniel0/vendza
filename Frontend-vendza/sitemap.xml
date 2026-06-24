@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!-- En production et en local (serve.js), /sitemap.xml est généré dynamiquement
-     avec toutes les pages + chaque produit publié (detail-produit?id=...).
-     Ne modifiez pas ce fichier à la main. -->
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://vendza.ht/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>
-</urlset>

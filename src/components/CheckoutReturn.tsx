@@ -116,10 +116,11 @@ export const CheckoutReturn: React.FC<CheckoutReturnProps> = ({
 
         // Check if DB order row has been created by the webhook in the meantime
         if (isSupabaseConfigured && supabase) {
+          const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
           const { data: ord } = await supabase
             .from('orders')
             .select('id, total_price')
-            .eq('id', refParam)
+            .eq(isUuid(refParam) ? 'id' : 'qr_token', refParam)
             .maybeSingle();
 
           if (ord) {

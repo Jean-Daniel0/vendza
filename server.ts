@@ -16,7 +16,13 @@ const PORT = 3000;
 
 // Enable JSON and URL-encoded body parsing middlewares (excluding Stripe & MonCash webhooks)
 app.use((req, res, next) => {
-  if (req.originalUrl === '/api/stripe/webhook' || req.originalUrl === '/api/moncash/webhook' || req.originalUrl === '/api/mcc/webhook') {
+  const isWebhook = req.originalUrl.includes('/api/stripe/webhook') || 
+                    req.originalUrl.includes('/api/moncash/webhook') || 
+                    req.originalUrl.includes('/api/mcc/webhook') ||
+                    req.path.includes('/api/stripe/webhook') || 
+                    req.path.includes('/api/moncash/webhook') || 
+                    req.path.includes('/api/mcc/webhook');
+  if (isWebhook) {
     next();
   } else {
     express.json({ limit: '10mb' })(req, res, next);
@@ -164,10 +170,11 @@ const updateTaux = async () => {
   }
 };
 
-// Initial run
-updateTaux();
-// Run every hour
-setInterval(updateTaux, 60 * 60 * 1000);
+// Initial run and interval only in non-Netlify environments (e.g. local dev)
+if (process.env.NETLIFY !== 'true') {
+  updateTaux();
+  setInterval(updateTaux, 60 * 60 * 1000);
+}
 
 // Initial products fallback list in case Supabase is not connected or empty
 const FALLBACK_PRODUCTS = [
@@ -440,9 +447,11 @@ const verifierExpirationsAbonnements = async () => {
   }
 };
 
-// Start daily check and run on startup
-setInterval(verifierExpirationsAbonnements, 24 * 60 * 60 * 1000);
-setTimeout(verifierExpirationsAbonnements, 5000); // 5 sec after booting
+// Start daily check and run on startup only in non-Netlify environments (e.g. local dev)
+if (process.env.NETLIFY !== 'true') {
+  setInterval(verifierExpirationsAbonnements, 24 * 60 * 60 * 1000);
+  setTimeout(verifierExpirationsAbonnements, 5000); // 5 sec after booting
+}
 
 // Send push notifications direct from server using OneSignal REST API key
 const sendPushNotificationBackend = async (recipientId: string, title: string, message: string) => {
@@ -686,23 +695,60 @@ const creerCommandeApresPaiement = async (
 
     const itemsList = Array.isArray(pendingOrder.items) ? pendingOrder.items : [];
 
-    // 4. Créer la commande définitive (with redundant aliases for total schema compatibility)
+    const firstItem = itemsList[0];
+    const firstProductId = firstItem ? (firstItem.productId || firstItem.product_id || firstItem.id || '') : '';
+    const firstProductName = firstItem ? (firstItem.productNom || firstItem.product_name || firstItem.nom || firstItem.name || '') : '';
+    const firstUnitPrice = firstItem ? (Number(firstItem.prix) || Number(firstItem.price) || Number(firstItem.unit_price) || total_price) : total_price;
+    const firstQuantity = firstItem ? (Number(firstItem.qte) || Number(firstItem.quantity) || 1) : 1;
+
+    let vendorName = 'Boutique';
+    try {
+      const { data: vendorShop } = await supabase
+        .from('shops')
+        .select('name, shop_name')
+        .eq('vendor_id', pendingOrder.vendor_id)
+        .maybeSingle();
+      if (vendorShop) {
+        vendorName = vendorShop.shop_name || vendorShop.name || 'Boutique';
+      } else {
+        const { data: vendorProfile } = await supabase
+          .from('profiles')
+          .select('prenom, nom, shop_name')
+          .eq('id', pendingOrder.vendor_id)
+          .maybeSingle();
+        if (vendorProfile) {
+          vendorName = vendorProfile.shop_name || `${vendorProfile.prenom || ''} ${vendorProfile.nom || ''}`.trim() || 'Boutique';
+        }
+      }
+    } catch {
+      // Ignored
+    }
+
+    const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+    
+    // 4. Créer la commande définitive (with maximum redundant aliases for complete schema compatibility)
     const orderPayload: any = {
-      id: orderId,
+      id: isUuid(orderId) ? orderId : crypto.randomUUID(),
+      qr_token: orderId, // Save the friendly payment reference in the text qr_token column
       buyer_id: pendingOrder.buyer_id,
       client_id: pendingOrder.buyer_id, // alias to prevent write issue
       client_nom: clientNom,
+      client_name: clientNom, // alias
       client_tel: clientTel,
       vendor_id: pendingOrder.vendor_id,
       vendeur_id: pendingOrder.vendor_id, // alias
+      vendor_name: vendorName,
       items: itemsList,
       articles: itemsList, // alias
       total_price: total_price,
       total: total_price, // alias
       frais_livraison: Number(pendingOrder.shipping_fee) || 0,
       shipping_fee: Number(pendingOrder.shipping_fee) || 0,
+      discount: Number(pendingOrder.discount) || 0,
       delivery_commune: pendingOrder.delivery_commune || '',
       delivery_address: pendingOrder.delivery_address || '',
+      departement: pendingOrder.delivery_address || pendingOrder.departement || 'Ouest',
+      commune: pendingOrder.delivery_commune || pendingOrder.commune || 'Pétion-Ville',
       status: 'payee', // 'payee' is standard in Vendza
       statut: 'payee', // alias
       payment_method: paymentMethod,
@@ -715,13 +761,17 @@ const creerCommandeApresPaiement = async (
       vendor_credited: false,
       date: dateStr,
       heure: heureStr,
+      product_id: firstProductId,
+      product_name: firstProductName,
+      unit_price: firstUnitPrice,
+      quantity: firstQuantity,
       created_at: new Date().toISOString()
     };
 
     // Retry insertion loop with resilience just like in frontend to bypass schema changes
     let orderStored: any = null;
     const payloadCopy = { ...orderPayload };
-    for (let attempt = 0; attempt < 15; attempt++) {
+    for (let attempt = 0; attempt < 30; attempt++) {
       try {
         const { data: insertedData, error: insertError } = await supabase
           .from('orders')
@@ -2047,14 +2097,10 @@ app.get('*', async (req, res, next) => {
   if (product) {
     try {
       const isProd = process.env.NODE_ENV === 'production';
-      let htmlFileName = 'index.html';
-      if (req.path.includes('detail-produit')) {
-        htmlFileName = 'detail-produit.html';
-      }
+      const htmlFileName = 'index.html';
 
       // Check all potential paths for the HTML template
       const pathsToTry = [
-        isProd ? path.join(process.cwd(), 'dist', 'Frontend-vendza', htmlFileName) : path.join(process.cwd(), 'Frontend-vendza', htmlFileName),
         isProd ? path.join(process.cwd(), 'dist', htmlFileName) : path.join(process.cwd(), htmlFileName)
       ];
 
@@ -2307,4 +2353,8 @@ async function startServer() {
   });
 }
 
-startServer();
+if (process.env.NETLIFY !== 'true') {
+  startServer();
+}
+
+export { app };

@@ -202,7 +202,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
             image_url: null
           }],
           successUrl: `${window.location.origin}/paiement/abonnement/succes?referenceId=${referenceId}&plan=${selectedPlanModal === 'Pro National' ? 'pro_national' : 'pro_local'}&billing=${billingStr}`,
-          cancelUrl: `${window.location.origin}/vendeur/abonnement`
+          cancelUrl: `${window.location.origin}`
         })
       });
 
