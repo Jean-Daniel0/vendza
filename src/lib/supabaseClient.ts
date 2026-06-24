@@ -1,38 +1,49 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Récupération initiale (généralement vide au build si non défini)
-let supabaseUrl = 
+export let supabaseUrl = 
   (import.meta as any).env.VITE_SUPABASE_URL || 
   (import.meta as any).env.SUPABASE_URL || '';
 
-let supabaseAnonKey = 
+export let supabaseAnonKey = 
   (import.meta as any).env.VITE_SUPABASE_ANON_KEY ||
   (import.meta as any).env.SUPABASE_ANON_KEY || '';
 
-// Si les variables d'environnement ne sont pas disponibles côté client (ex: sur Render ou AI Studio),
-// on tente de les récupérer de manière synchrone depuis le serveur Express (/api/config) avant d'initialiser Supabase
-if ((!supabaseUrl || !supabaseAnonKey) && typeof window !== 'undefined') {
-  try {
-    const xhr = new XMLHttpRequest();
-    xhr.open('GET', '/api/config', false); // Requête synchrone pour bloquer l'initialisation jusqu'à réception des clés
-    xhr.send(null);
-    if (xhr.status === 200) {
-      const config = JSON.parse(xhr.responseText);
-      if (config.supabaseUrl && config.supabaseAnonKey) {
-        supabaseUrl = config.supabaseUrl;
-        supabaseAnonKey = config.supabaseAnonKey;
-      }
-    }
-  } catch (err) {
-    console.warn("[Supabase Fallback Config] Impossible de récupérer la configuration dynamique :", err);
-  }
-}
+export let isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
 
-export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
-
-export const supabase = isSupabaseConfigured
+export let supabase: ReturnType<typeof createClient> | null = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
+
+// Fonction asynchrone appelée avant le montage de l'application React
+export async function initializeSupabaseConfig() {
+  if (isSupabaseConfigured) {
+    console.log("[Supabase Client] Déjà configuré via l'environnement local/build.");
+    return;
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch('/api/config');
+      if (res.ok) {
+        const config = await res.json();
+        if (config.supabaseUrl && config.supabaseAnonKey) {
+          supabaseUrl = config.supabaseUrl;
+          supabaseAnonKey = config.supabaseAnonKey;
+          isSupabaseConfigured = true;
+          supabase = createClient(supabaseUrl, supabaseAnonKey);
+          console.log("[Supabase Client] Initialisation réussie via configuration dynamique (/api/config).");
+        } else {
+          console.warn("[Supabase Client] Le serveur a renvoyé une configuration vide.");
+        }
+      } else {
+        console.warn("[Supabase Client] Impossible d'appeler l'endpoint /api/config. Code statut :", res.status);
+      }
+    } catch (err) {
+      console.error("[Supabase Client] Erreur lors de la récupération de la configuration dynamique :", err);
+    }
+  }
+}
 
 /**
  * GUIDE D'INTÉGRATION SUPABASE POUR VENDZA.HT
@@ -102,7 +113,7 @@ export async function getProductsFromSupabase() {
     console.warn("Supabase n'est pas encore configuré. Remplissez VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY dans vos Secrets.");
     return null;
   }
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('products')
     .select('*')
     .order('date_creation', { ascending: false });
@@ -117,7 +128,7 @@ export async function getProductsFromSupabase() {
 // Exemple pour enregistrer une commande en Séquestre sur Supabase
 export async function createOrderInSupabase(order: any) {
   if (!supabase) return null;
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('orders')
     .insert([order]);
 

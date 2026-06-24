@@ -40,9 +40,19 @@ const supabase = isSupabaseConfigured ? createClient(supabaseUrl, supabaseKey) :
 
 // Endpoint public pour récupérer la configuration non-sensible (Supabase anon key, etc.)
 app.get('/api/config', (req, res) => {
+  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+  const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+  console.log("[Server Config API] Checked keys:", {
+    hasViteUrl: !!process.env.VITE_SUPABASE_URL,
+    hasSupabaseUrl: !!process.env.SUPABASE_URL,
+    hasViteKey: !!process.env.VITE_SUPABASE_ANON_KEY,
+    hasSupabaseKey: !!process.env.SUPABASE_ANON_KEY,
+    urlValueLength: url.length,
+    keyValueLength: anonKey.length
+  });
   res.json({
-    supabaseUrl: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '',
-    supabaseAnonKey: process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '',
+    supabaseUrl: url,
+    supabaseAnonKey: anonKey,
   });
 });
 
