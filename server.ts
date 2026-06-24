@@ -177,40 +177,7 @@ if (process.env.NETLIFY !== 'true') {
 }
 
 // Initial products fallback list in case Supabase is not connected or empty
-const FALLBACK_PRODUCTS = [
-  {
-    id: 'p-iphone-15',
-    nom: 'iPhone 15 Pro Max - 256GB',
-    desc: 'iPhone 15 Pro Max importé à l\'état neuf avec santé batterie de 100%. Livré complet dans la boîte avec tous les accessoires officiels. Modèle sécurisé par Vendza.',
-    prix: 145000,
-    image: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=600&q=80',
-    categorie: 'Électronique'
-  },
-  {
-    id: 'p-macbook-m3',
-    nom: 'MacBook Air M3 13" - 8GB/256GB',
-    desc: 'MacBook Air ultra fin équipé de la dernière puce Apple M3. Parfait pour les étudiants et professionnels. Garantie légale vendeur de 6 mois incluse.',
-    prix: 195000,
-    image: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=600&q=80',
-    categorie: 'Informatique'
-  },
-  {
-    id: 'p-yamaha-generator',
-    nom: 'Génératrice Inverter Yamaha 2200W',
-    desc: 'Génératrice silencieuse et ultra économique pour pallier les coupures d\'EdH. Délivre un courant stable parfait pour les équipements sensibles.',
-    prix: 110000,
-    image: 'https://images.unsplash.com/photo-1590374585152-caec243f114c?auto=format&fit=crop&w=600&q=80',
-    categorie: 'Maison & Énergie'
-  },
-  {
-    id: 'p-nike-dunk',
-    nom: 'Nike Dunk Low Retro Panda',
-    desc: 'Sneakers Nike Dunks coloris classique Noah noir et blanc. Pointures disponibles du 40 au 45. 100% authentiques avec vérification certifiée.',
-    prix: 12500,
-    image: 'https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?auto=format&fit=crop&w=600&q=80',
-    categorie: 'Mode & Mode'
-  }
-];
+const FALLBACK_PRODUCTS: any[] = [];
 
 // ============================================
 // STRIPE & MONCASH COMMON ORDER CREATION FUNCTION
@@ -460,7 +427,7 @@ const sendPushNotificationBackend = async (recipientId: string, title: string, m
     const apiKey = process.env.ONESIGNAL_REST_API_KEY;
 
     if (!apiKey) {
-      console.warn("[OneSignal Backend Helper] API key ONESIGNAL_REST_API_KEY is not configured. Simulating delivery...");
+      console.error("[OneSignal Backend Helper Error] API key ONESIGNAL_REST_API_KEY is not configured.");
       return;
     }
 
@@ -1795,7 +1762,7 @@ app.post('/api/stripe/create-checkout-session', async (req, res) => {
   }, 0);
 
   if (!stripeSecretKey) {
-    console.warn("[Stripe Backend Warning] STRIPE_SECRET_KEY is missing. Falling back to secure interactive Stripe Simulation...");
+    console.error("[Stripe Backend ERROR] STRIPE_SECRET_KEY is missing. Falling back to interactive Stripe Simulation...");
     const simulationUrl = `${baseUrl}/stripe-simulation?orderId=${encodeURIComponent(cleanOrderId)}&totalUSD=${encodeURIComponent(totalUSD.toFixed(2))}&customerEmail=${encodeURIComponent(customerEmail || '')}`;
     return res.json({ url: simulationUrl });
   }
@@ -2162,52 +2129,9 @@ app.post('/api/moderate-image', async (req, res) => {
     const apiSecret = process.env.SIGHTENGINE_API_SECRET;
 
     if (!apiUser || !apiSecret) {
-      console.warn("Sightengine API keys are not configured. Running fallback simulated moderation...");
-      let sharpness = 45;
-      let contrast = 0.8;
-      let brightness = 0.55;
-      let illustrationScore = 0.05;
-      let photoScore = 0.95;
-
-      const base64Len = imageBase64 ? imageBase64.length : 0;
-      if (base64Len > 0 && base64Len < 25000) {
-        sharpness = 12; // simulated blur
-        illustrationScore = 0.85; // simulated illustration
-      }
-
-      // Also let's simulate blurry/illustration images for URLs for demo/testing purposes
-      const testContent = (imageUrl || "").toLowerCase();
-      if (testContent.includes("blur") || testContent.includes("flou") || testContent.includes("lowquality")) {
-        sharpness = 10;
-      }
-      if (testContent.includes("drawing") || testContent.includes("illustration") || testContent.includes("cartoon") || testContent.includes("vector")) {
-        illustrationScore = 0.9;
-        photoScore = 0.1;
-      }
-
-      const isBlurry = sharpness < 20;
-      const isIllustration = illustrationScore > 0.5;
-      const shouldLowerSeo = isBlurry || isIllustration;
-
-      let warning = "";
-      if (isBlurry) {
-        warning += "L'image du produit semble floue ou de basse résolution.";
-      }
-      if (isIllustration) {
-        if (warning) warning += " De plus, ";
-        warning += "l'image ressemble à une illustration/dessin plutôt qu'à une photo physique du produit.";
-      }
-
-      return res.json({
-        status: "simulated",
-        sharpness,
-        contrast,
-        brightness,
-        illustrationScore,
-        photoScore,
-        warning: shouldLowerSeo ? warning : undefined,
-        shouldLowerSeo
-      });
+      const errMsg = "Les clés d'API Sightengine (SIGHTENGINE_API_USER / SIGHTENGINE_API_SECRET) ne sont pas configurées.";
+      console.error("[Vendza Sightengine Config Error]", errMsg);
+      return res.status(500).json({ error: errMsg });
     }
 
     const formData = new FormData();
@@ -2285,14 +2209,9 @@ app.post('/api/onesignal/send', async (req, res) => {
     const apiKey = process.env.ONESIGNAL_REST_API_KEY;
 
     if (!apiKey) {
-      console.warn("[OneSignal Proxy] REST API key ONESIGNAL_REST_API_KEY is not configured. Simulating delivery...");
-      return res.json({
-        status: "simulated",
-        message: "Clé API OneSignal manquante, simulation réussie.",
-        recipientId,
-        title,
-        body: message
-      });
+      const errMsg = "La clé d'API OneSignal (ONESIGNAL_REST_API_KEY) n'est pas configurée.";
+      console.error("[OneSignal Proxy Config Error]", errMsg);
+      return res.status(500).json({ error: errMsg });
     }
 
     const payload = {

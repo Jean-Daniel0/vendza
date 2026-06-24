@@ -36,116 +36,7 @@ let productsCache: any[] | null = null;
 let cacheTime: number | null = null;
 const CACHE_DURATION = 5 * 60 * 1000;
 
-const FRONTEND_FALLBACK_PRODUCTS: Product[] = [
-  {
-    id: 'p-iphone-15',
-    nom: 'iPhone 15 Pro Max - 256GB',
-    cat: 'Électronique',
-    desc: 'iPhone 15 Pro Max importé à l\'état neuf avec santé batterie de 100%. Livré complet dans la boîte avec tous les accessoires officiels. Modèle sécurisé par Vendza.',
-    prix: 145000,
-    oldPrice: 160000,
-    stock: 5,
-    image_url: 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=600&q=80',
-    vendeur: 'TechPlus Haïti',
-    vendeurId: 'v-tph',
-    rating: 5,
-    tags: ['iphone', 'téléphone', 'apple'],
-    couleurs: ['#000000', '#C0C0C0'],
-    tailles: ['Pro Max'],
-    capacites: ['256GB'],
-    gallery: [
-      'https://images.unsplash.com/photo-1695048133142-1a20484d2569?auto=format&fit=crop&w=600&q=80'
-    ],
-    caracteristiques: { 'Origine': 'Delmas, Ouest' },
-    statut: 'actif',
-    dateCreation: '2026-06-05',
-    vendeurPlan: 'Pro National',
-    vendeurPremiumDepts: ['Ouest', 'Nord'],
-    departement: 'Ouest',
-    commune: 'Delmas'
-  },
-  {
-    id: 'p-macbook-m3',
-    nom: 'MacBook Air M3 13" - 8GB/256GB',
-    cat: 'Informatique',
-    desc: 'MacBook Air ultra fin équipé de la dernière puce Apple M3. Parfait pour les étudiants et professionnels. Garantie légale vendeur de 6 mois incluse.',
-    prix: 195000,
-    oldPrice: 210000,
-    stock: 3,
-    image_url: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=600&q=80',
-    vendeur: 'TechPlus Haïti',
-    vendeurId: 'v-tph',
-    rating: 5,
-    tags: ['macbook', 'ordinateur', 'laptop'],
-    couleurs: ['#C0C0C0', '#808080'],
-    tailles: ['13"'],
-    capacites: ['256GB'],
-    gallery: [
-      'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=600&q=80'
-    ],
-    caracteristiques: { 'Origine': 'Delmas, Ouest' },
-    statut: 'actif',
-    dateCreation: '2026-06-05',
-    vendeurPlan: 'Pro National',
-    vendeurPremiumDepts: ['Ouest', 'Nord'],
-    departement: 'Ouest',
-    commune: 'Delmas'
-  },
-  {
-    id: 'p-yamaha-generator',
-    nom: 'Génératrice Inverter Yamaha 2200W',
-    cat: 'Maison & Énergie',
-    desc: 'Génératrice silencieuse et ultra économique pour pallier les coupures d\'EdH. Délivre un courant stable parfait pour les équipements sensibles.',
-    prix: 110000,
-    oldPrice: 130000,
-    stock: 2,
-    image_url: 'https://images.unsplash.com/photo-1590374585152-caec243f114c?auto=format&fit=crop&w=600&q=80',
-    vendeur: 'Boutique Confiance',
-    vendeurId: 'v-bch',
-    rating: 5,
-    tags: ['génératrice', 'yamaha', 'courant'],
-    couleurs: ['#0000FF'],
-    tailles: ['Standard'],
-    capacites: ['2200W'],
-    gallery: [
-      'https://images.unsplash.com/photo-1590374585152-caec243f114c?auto=format&fit=crop&w=600&q=80'
-    ],
-    caracteristiques: { 'Origine': 'Cap-Haïtien, Nord' },
-    statut: 'actif',
-    dateCreation: '2026-06-05',
-    vendeurPlan: 'Pro Local',
-    vendeurPremiumDepts: ['Nord'],
-    departement: 'Nord',
-    commune: 'Cap-Haïtien'
-  },
-  {
-    id: 'p-nike-dunk',
-    nom: 'Nike Dunk Low Retro Panda',
-    cat: 'Mode & Style',
-    desc: 'Sneakers Nike Dunks coloris classique noir et blanc. Pointures disponibles du 40 au 45. 100% authentiques avec vérification certifiée.',
-    prix: 12500,
-    oldPrice: 15000,
-    stock: 8,
-    image_url: 'https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?auto=format&fit=crop&w=600&q=80',
-    vendeur: 'Boutique Confiance',
-    vendeurId: 'v-bch',
-    rating: 4.8,
-    tags: ['sneakers', 'nike', 'chaussure'],
-    couleurs: ['#000000', '#FFFFFF'],
-    tailles: ['40', '41', '42', '43', '44', '45'],
-    capacites: [],
-    gallery: [
-      'https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?auto=format&fit=crop&w=600&q=80'
-    ],
-    caracteristiques: { 'Origine': 'Cap-Haïtien, Nord' },
-    statut: 'actif',
-    dateCreation: '2026-06-05',
-    vendeurPlan: 'Pro Local',
-    vendeurPremiumDepts: ['Nord'],
-    departement: 'Nord',
-    commune: 'Cap-Haïtien'
-  }
-];
+const FRONTEND_FALLBACK_PRODUCTS: Product[] = [];
 
 export default function App() {
   const [currentView, setCurrentView] = useState<string>(() => {
@@ -1713,17 +1604,10 @@ export default function App() {
         window.scrollTo({ top: 0, behavior: 'instant' });
         return;
       } else if (isVendorView && currentUser.userType !== 'vendeur') {
-        // Automatically switch user to vendor mode or log them in with vendor privileges
-        setCurrentUser(prev => {
-          if (!prev) return null;
-          return {
-            ...prev,
-            userType: 'vendeur',
-            shopName: prev.shopName || 'Ma Boutique',
-            plan: prev.plan || 'Pro National',
-            premiumDepts: ['Ouest', 'Nord', 'Sud']
-          };
-        });
+        alert("Accès réservé aux vendeurs. Veuillez créer un compte vendeur.");
+        setCurrentView('become-seller');
+        window.scrollTo({ top: 0, behavior: 'instant' });
+        return;
       }
     }
 
@@ -3588,29 +3472,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
     // Trigger push notification to other participant in the private chat
     sendPushNotification(recipientId, `💬 Message de ${currentUser.prenom}`, text);
 
-    // Fast simulation check: if sent message is from client, automatically respond after 2 seconds to make it interactive!
-    if (currentUser.userType === 'client' && recipientId !== 'system-vendza') {
-      setTimeout(() => {
-        const autoRespSenderNom = recipientId === 'v-tph' ? 'TechPlus Haïti' : 'Bella Chic Boutique';
-        const autoResp: Message = {
-          id: `msg-resp-${Date.now()}`,
-          senderId: recipientId,
-          senderNom: autoRespSenderNom,
-          recipientId: currentUser.id,
-          text: "Merci pour votre message ! Notre équipe prend en charge votre commande et s'occupe de la logistique du QR. On se capte très vite pour la livraison.",
-          time: "Aujourd'hui, " + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-          createdAt: new Date().toISOString(),
-          isRead: false
-        };
-        setMessages(prev => [...prev, autoResp]);
-        if (isSupabaseConfigured && supabase) {
-          insertMessageAdaptive(autoResp);
-        }
 
-        // Notify client of the response text
-        sendPushNotification(currentUser.id, `💬 Message de ${autoRespSenderNom}`, autoResp.text);
-      }, 1800);
-    }
   };
 
   // Mark all messages from a specific sender to the current user as read
