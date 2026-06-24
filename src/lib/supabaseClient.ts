@@ -1,15 +1,32 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Récupération des variables d'environnement configurées dans AI Studio
-const supabaseUrl = 
+// Récupération initiale (généralement vide au build si non défini)
+let supabaseUrl = 
   (import.meta as any).env.VITE_SUPABASE_URL || 
-  (import.meta as any).env.SUPABASE_URL ||
-  (typeof process !== 'undefined' && process.env ? (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL) : '') || '';
+  (import.meta as any).env.SUPABASE_URL || '';
 
-const supabaseAnonKey = 
+let supabaseAnonKey = 
   (import.meta as any).env.VITE_SUPABASE_ANON_KEY ||
-  (import.meta as any).env.SUPABASE_ANON_KEY ||
-  (typeof process !== 'undefined' && process.env ? (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY) : '') || '';
+  (import.meta as any).env.SUPABASE_ANON_KEY || '';
+
+// Si les variables d'environnement ne sont pas disponibles côté client (ex: sur Render ou AI Studio),
+// on tente de les récupérer de manière synchrone depuis le serveur Express (/api/config) avant d'initialiser Supabase
+if ((!supabaseUrl || !supabaseAnonKey) && typeof window !== 'undefined') {
+  try {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', '/api/config', false); // Requête synchrone pour bloquer l'initialisation jusqu'à réception des clés
+    xhr.send(null);
+    if (xhr.status === 200) {
+      const config = JSON.parse(xhr.responseText);
+      if (config.supabaseUrl && config.supabaseAnonKey) {
+        supabaseUrl = config.supabaseUrl;
+        supabaseAnonKey = config.supabaseAnonKey;
+      }
+    }
+  } catch (err) {
+    console.warn("[Supabase Fallback Config] Impossible de récupérer la configuration dynamique :", err);
+  }
+}
 
 export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
 

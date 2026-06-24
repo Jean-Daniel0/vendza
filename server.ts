@@ -38,6 +38,14 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey;
 const isSupabaseConfigured = !!(supabaseUrl && supabaseKey);
 const supabase = isSupabaseConfigured ? createClient(supabaseUrl, supabaseKey) : null;
 
+// Endpoint public pour récupérer la configuration non-sensible (Supabase anon key, etc.)
+app.get('/api/config', (req, res) => {
+  res.json({
+    supabaseUrl: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '',
+    supabaseAnonKey: process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '',
+  });
+});
+
 // Initialize MonCash client using MonCashConnect secret key lazily to prevent server crashes on start if the key is missing in development/environments
 const getMonCashClient = (): MonCashClient => {
   const secretKey = process.env.MONCASHCONNECT_KEY || process.env.VITE_MONCASHCONNECT_KEY;
