@@ -1,0 +1,50 @@
+# Render Blueprint Specification
+# Learn more at: https://render.com/docs/blueprints
+
+services:
+  - type: web
+    name: vendza
+    env: node
+    plan: free # Render's free tier
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000 # Render assigns a port dynamically, but we define a default here
+      - key: GEMINI_API_KEY
+        sync: false
+        description: "Required for Gemini AI features."
+      - key: APP_URL
+        sync: false
+        description: "The deployment URL of your Render service (e.g. https://vendza.onrender.com). Used for redirect links and webhooks."
+      - key: VITE_SUPABASE_URL
+        sync: false
+        description: "Supabase Project URL"
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+        description: "Supabase Anonymous Key (Client-side)"
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+        description: "Supabase Service Role Key (Server-side)"
+      - key: MONCASH_CLIENT_ID
+        sync: false
+      - key: MONCASH_CLIENT_SECRET
+        sync: false
+      - key: MONCASH_MODE
+        value: sandbox
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: EXCHANGE_RATE_API_KEY
+        sync: false
+      - key: SIGHTENGINE_API_USER
+        sync: false
+      - key: SIGHTENGINE_API_SECRET
+        sync: false
+      - key: ONESIGNAL_REST_API_KEY
+        sync: false
