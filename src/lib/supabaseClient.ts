@@ -1,24 +1,60 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Récupération initiale (généralement vide au build si non défini)
-export let supabaseUrl = 
-  (import.meta as any).env.VITE_SUPABASE_URL || 
-  (import.meta as any).env.SUPABASE_URL || '';
+// Récupération initiale statique (Vite remplacera process.env à la compilation)
+let initialUrl = '';
+let initialKey = '';
 
-export let supabaseAnonKey = 
-  (import.meta as any).env.VITE_SUPABASE_ANON_KEY ||
-  (import.meta as any).env.SUPABASE_ANON_KEY || '';
+try {
+  // @ts-ignore
+  initialUrl = import.meta.env.VITE_SUPABASE_URL || '';
+} catch (e) {}
 
+if (!initialUrl) {
+  try {
+    initialUrl = process.env.VITE_SUPABASE_URL || '';
+  } catch (e) {}
+}
+
+try {
+  // @ts-ignore
+  initialKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+} catch (e) {}
+
+if (!initialKey) {
+  try {
+    initialKey = process.env.VITE_SUPABASE_ANON_KEY || '';
+  } catch (e) {}
+}
+
+export let supabaseUrl = initialUrl;
+export let supabaseAnonKey = initialKey;
 export let isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
 
-export let supabase: ReturnType<typeof createClient> | null = isSupabaseConfigured
+// Instance de client réelle
+let internalSupabase: ReturnType<typeof createClient> | null = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
+
+// On exporte un Proxy pour 'supabase' pour garantir que tout accès pointe vers la bonne instance,
+// même si l'initialisation se fait de manière asynchrone après coup ou au boot
+export const supabase = new Proxy({}, {
+  get(target, prop) {
+    if (!internalSupabase) {
+      console.warn("[Supabase Proxy] Appel de la propriété '" + String(prop) + "' alors que Supabase n'est pas encore initialisé.");
+      return undefined;
+    }
+    const val = (internalSupabase as any)[prop];
+    if (typeof val === 'function') {
+      return val.bind(internalSupabase);
+    }
+    return val;
+  }
+}) as ReturnType<typeof createClient>;
 
 // Fonction asynchrone appelée avant le montage de l'application React
 export async function initializeSupabaseConfig() {
   if (isSupabaseConfigured) {
-    console.log("[Supabase Client] Déjà configuré via l'environnement local/build.");
+    console.log("[Supabase Client] Déjà configuré via l'environnement local/build. URL:", supabaseUrl);
     return;
   }
 
@@ -31,7 +67,7 @@ export async function initializeSupabaseConfig() {
           supabaseUrl = config.supabaseUrl;
           supabaseAnonKey = config.supabaseAnonKey;
           isSupabaseConfigured = true;
-          supabase = createClient(supabaseUrl, supabaseAnonKey);
+          internalSupabase = createClient(supabaseUrl, supabaseAnonKey);
           console.log("[Supabase Client] Initialisation réussie via configuration dynamique (/api/config).");
         } else {
           console.warn("[Supabase Client] Le serveur a renvoyé une configuration vide.");
