@@ -1,13 +1,24 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Récupération initiale statique (Vite remplacera process.env à la compilation)
+// Récupération initiale statique (Vite remplacera process.env à la compilation) ou dynamique synchrone
 let initialUrl = '';
 let initialKey = '';
 
-try {
-  // @ts-ignore
-  initialUrl = import.meta.env.VITE_SUPABASE_URL || '';
-} catch (e) {}
+if (typeof window !== 'undefined') {
+  const injected = (window as any).__SUPABASE_CONFIG__;
+  if (injected) {
+    initialUrl = injected.supabaseUrl || '';
+    initialKey = injected.supabaseAnonKey || '';
+    console.log("[Supabase Client] Configuration synchrone injectée détectée.");
+  }
+}
+
+if (!initialUrl) {
+  try {
+    // @ts-ignore
+    initialUrl = import.meta.env.VITE_SUPABASE_URL || '';
+  } catch (e) {}
+}
 
 if (!initialUrl) {
   try {
@@ -15,10 +26,12 @@ if (!initialUrl) {
   } catch (e) {}
 }
 
-try {
-  // @ts-ignore
-  initialKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-} catch (e) {}
+if (!initialKey) {
+  try {
+    // @ts-ignore
+    initialKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+  } catch (e) {}
+}
 
 if (!initialKey) {
   try {
@@ -49,7 +62,7 @@ export const supabase = new Proxy({}, {
     }
     return val;
   }
-}) as ReturnType<typeof createClient>;
+}) as any;
 
 // Fonction asynchrone appelée avant le montage de l'application React
 export async function initializeSupabaseConfig() {

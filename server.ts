@@ -2281,7 +2281,24 @@ async function startServer() {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      const htmlPath = path.join(distPath, 'index.html');
+      fs.readFile(htmlPath, 'utf8', (err, html) => {
+        if (err) {
+          return res.sendFile(htmlPath);
+        }
+        const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+        const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+        const configScript = `
+          <script id="supabase-config">
+            window.__SUPABASE_CONFIG__ = {
+              supabaseUrl: ${JSON.stringify(url)},
+              supabaseAnonKey: ${JSON.stringify(anonKey)}
+            };
+          </script>
+        `;
+        const modifiedHtml = html.replace('<head>', `<head>${configScript}`);
+        res.send(modifiedHtml);
+      });
     });
   }
 
