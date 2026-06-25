@@ -742,6 +742,7 @@ const creerCommandeApresPaiement = async (
       qr_code: qrCode,
       is_validated: false,
       client_confirmed: false,
+      buyer_confirmed: false,
       reception_confirmed: false,
       vendor_credited: false,
       date: dateStr,

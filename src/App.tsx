@@ -1893,6 +1893,7 @@ export default function App() {
       // Trust logic checklist
       is_validated: false,
       client_confirmed: false,
+      buyer_confirmed: false,
       reception_confirmed: false,
       vendor_credited: false,
       
