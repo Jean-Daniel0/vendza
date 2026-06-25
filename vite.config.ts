@@ -17,6 +17,8 @@ export default defineConfig(() => {
         registerType: 'autoUpdate',
         injectRegister: 'inline',
         workbox: {
+          skipWaiting: true,
+          clientsClaim: true,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp}'],
           navigateFallback: '/index.html',
           navigateFallbackDenylist: [
@@ -76,13 +78,13 @@ export default defineConfig(() => {
           scope: '/',
           icons: [
             {
-              src: 'pwa-icon-192.png',
+              src: '/pwa-icon-192.png',
               sizes: '192x192',
               type: 'image/png',
               purpose: 'any'
             },
             {
-              src: 'pwa-icon-512.png',
+              src: '/pwa-icon-512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any'

@@ -22,6 +22,7 @@ import { BecomeSellerView } from './components/BecomeSellerView';
 import { TicketDetailView } from './components/TicketDetailView';
 import { CheckoutReturn } from './components/CheckoutReturn';
 import { InstallBanner } from './components/InstallBanner';
+import { PWAUpdater } from './components/PWAUpdater';
 
 import { Product, CartItem, Order, Review, Message, UserProfile } from './types';
 import { INITIAL_PRODUCTS, INITIAL_REVIEWS } from './data';
@@ -3578,6 +3579,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
       
       {/* Dynamic PWA Custom Install Banner */}
       <InstallBanner />
+      <PWAUpdater />
 
       {/* App Header layout block */}
       <Header
