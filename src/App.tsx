@@ -3549,7 +3549,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
     const origin = window.location.origin;
     const shareUrl = `${origin}/?product=${product.id}`;
     
-    const shareText = `🔍 Découvrez "${product.nom}" - ${product.prix.toLocaleString()} HTG sur Vendza.ht!\n\n📋 Description : ${product.desc}`;
+    const shareText = `🔍 Découvrez "${product.nom}" - ${product.prix.toLocaleString()} HTG sur Vendza.store!\n\n📋 Description : ${product.desc}`;
     
     if (navigator.share) {
       navigator.share({
@@ -3974,7 +3974,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
           <div className="flex items-center gap-1.5 text-xs text-slate-400 font-semibold uppercase tracking-wider select-none">
             <span className="w-4 h-2.5 bg-blue-600 block rounded-xs" />
             <span className="w-4 h-2.5 bg-red-600 block rounded-xs" />
-            <span>Vendza.ht · Garantie mobile Modèle Haïtien</span>
+            <span>Vendza.store · Garantie mobile Modèle Haïtien</span>
           </div>
 
           <div className="flex gap-4 text-[11px] text-slate-400 font-bold">

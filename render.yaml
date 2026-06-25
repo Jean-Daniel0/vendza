@@ -18,7 +18,7 @@ services:
         description: "Required for Gemini AI features."
       - key: APP_URL
         sync: false
-        description: "The deployment URL of your Render service (e.g. https://vendza.onrender.com). Used for redirect links and webhooks."
+        description: "The deployment URL of your service (e.g. https://www.vendza.store). Used for redirect links and webhooks."
       - key: VITE_SUPABASE_URL
         sync: false
         description: "Supabase Project URL"

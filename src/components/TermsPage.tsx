@@ -30,7 +30,7 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onBack }) => {
       </div>
 
       <p className="text-xs sm:text-sm leading-relaxed text-slate-500">
-        Bienvenue sur <strong className="text-slate-800">Vendza.ht</strong>. En accédant ou en utilisant notre plateforme de commerce 
+        Bienvenue sur <strong className="text-slate-800">Vendza.store</strong>. En accédant ou en utilisant notre plateforme de commerce 
         avec séquestre sécurisé en Haïti, vous acceptez de vous conformer aux présentes Conditions Générales d'Utilisation (CGU). 
         Veuillez les lire attentivement.
       </p>
@@ -154,7 +154,7 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onBack }) => {
 
       <div className="pt-4 border-t text-center">
         <p className="text-[11px] text-slate-400">
-          En vous inscrivant sur Vendza.ht, vous déclarez avoir lu, compris et accepté l'ensemble de ces termes.
+          En vous inscrivant sur Vendza.store, vous déclarez avoir lu, compris et accepté l'ensemble de ces termes.
         </p>
       </div>
     </div>

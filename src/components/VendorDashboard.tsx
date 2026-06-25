@@ -3096,8 +3096,8 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
 
                 {/* Footer brand info */}
                 <div className="bg-slate-50 border-t border-slate-100 px-5 py-3 flex justify-between items-center text-[9px] text-slate-400">
-                  <span className="font-semibold">📧 alliance@vendza.ht</span>
-                  <span className="font-bold">© Vendza.ht S.A</span>
+                  <span className="font-semibold">📧 info@vendza.store</span>
+                  <span className="font-bold">© Vendza.store S.A</span>
                 </div>
               </div>
 

@@ -807,7 +807,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 onChange={e => setAcceptTerms(e.target.checked)}
               />
               <label htmlFor="accept-terms-privacy" className="text-[11px] text-slate-500 leading-normal cursor-pointer">
-                J'accepte la <button type="button" onClick={() => setPrivacyModalOpen(true)} className="text-teal-700 font-bold hover:underline bg-transparent border-0 cursor-pointer p-0 inline">Politique de Confidentialité</button> et de concert les <button type="button" onClick={() => setTermsModalOpen(true)} className="text-blue-600 font-bold hover:underline bg-transparent border-0 cursor-pointer p-0 inline">Conditions d'Utilisation</button> de Vendza.ht *
+                J'accepte la <button type="button" onClick={() => setPrivacyModalOpen(true)} className="text-teal-700 font-bold hover:underline bg-transparent border-0 cursor-pointer p-0 inline">Politique de Confidentialité</button> et de concert les <button type="button" onClick={() => setTermsModalOpen(true)} className="text-blue-600 font-bold hover:underline bg-transparent border-0 cursor-pointer p-0 inline">Conditions d'Utilisation</button> de Vendza.store *
               </label>
             </div>
 

@@ -30,7 +30,7 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onBack }) => {
       </div>
 
       <p className="text-xs sm:text-sm leading-relaxed text-slate-500">
-        Chez <strong className="text-slate-800">Vendza.ht</strong>, la protection de votre vie privée est au cœur de notre démarche 
+        Chez <strong className="text-slate-800">Vendza.store</strong>, la protection de votre vie privée est au cœur de notre démarche 
         comme tiers de confiance. Cette politique décrit la manière dont nous collectons, utilisons, divulguons et protégeons 
         vos renseignements personnels lorsque vous utilisez notre site internet et nos systèmes de paiement sécurisé en Haïti.
       </p>
@@ -120,14 +120,14 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onBack }) => {
           </h3>
           <p className="text-slate-600">
             Vous conservez à tout moment le droit de demander l'accès, la rectification ou la suppression complète de vos 
-            renseignements personnels enregistrés sur Vendza.ht en contactant notre service d'assistance par courrier électronique.
+            renseignements personnels enregistrés sur Vendza.store en contactant notre service d'assistance par courrier électronique.
           </p>
         </section>
       </div>
 
       <div className="pt-4 border-t flex flex-col sm:flex-row justify-between items-center gap-3">
         <span className="text-[11px] text-slate-400 flex items-center gap-1">
-          <Mail size={12} /> support@vendza.ht
+          <Mail size={12} /> info@vendza.store
         </span>
         <p className="text-[11px] text-slate-400">
           Vendza protège vos échanges de Port-au-Prince à Cap-Haïtien.

@@ -95,7 +95,7 @@ export async function initializeSupabaseConfig() {
 }
 
 /**
- * GUIDE D'INTÉGRATION SUPABASE POUR VENDZA.HT
+ * GUIDE D'INTÉGRATION SUPABASE POUR VENDZA.STORE
  * 
  * 1. Déclarez vos variables dans le panneau "Secrets" de Google AI Studio :
  *    - VITE_SUPABASE_URL : l'URL de votre projet Supabase (https://xxx.supabase.co)
