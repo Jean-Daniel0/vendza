@@ -5,6 +5,10 @@ import {defineConfig} from 'vite';
 import {VitePWA} from 'vite-plugin-pwa';
 
 export default defineConfig(() => {
+  console.log('[DEBUG BUILD] VITE_SUPABASE_URL présente ?', !!process.env.VITE_SUPABASE_URL);
+  console.log('[DEBUG BUILD] Longueur de la valeur :', (process.env.VITE_SUPABASE_URL || '').length);
+  console.log('[DEBUG BUILD] Liste de TOUTES les variables contenant VITE ou SUPABASE :', Object.keys(process.env).filter(k => k.includes('VITE') || k.includes('SUPABASE')));
+
   return {
     plugins: [
       react(),
