@@ -710,8 +710,8 @@ const creerCommandeApresPaiement = async (
     }
 
     const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-    const cleanBuyerId = pendingOrder.buyer_id && isUuid(String(pendingOrder.buyer_id)) ? pendingOrder.buyer_id : null;
-    const cleanVendorId = pendingOrder.vendor_id && isUuid(String(pendingOrder.vendor_id)) ? pendingOrder.vendor_id : null;
+    const cleanBuyerId = pendingOrder.buyer_id || null;
+    const cleanVendorId = pendingOrder.vendor_id || null;
     
     // 4. Créer la commande définitive (with maximum redundant aliases for complete schema compatibility)
     const orderPayload: any = {
@@ -783,6 +783,26 @@ const creerCommandeApresPaiement = async (
         }
 
         const errMsg = insertError.message || '';
+        if (errMsg.toLowerCase().includes('uuid') || errMsg.toLowerCase().includes('invalid input syntax for uuid')) {
+          if (errMsg.toLowerCase().includes('buyer_id') || errMsg.toLowerCase().includes('client_id') || errMsg.toLowerCase().includes('customer_id') || errMsg.toLowerCase().includes('user_id')) {
+            console.warn("[Webhook resilience] UUID issue on buyer_id, deleting from payload copy...");
+            delete payloadCopy.buyer_id;
+            delete payloadCopy.client_id;
+            delete payloadCopy.customer_id;
+            delete payloadCopy.user_id;
+          } else if (errMsg.toLowerCase().includes('vendor_id') || errMsg.toLowerCase().includes('vendeur_id') || errMsg.toLowerCase().includes('seller_id') || errMsg.toLowerCase().includes('owner_id')) {
+            console.warn("[Webhook resilience] UUID issue on vendor_id, deleting from payload copy...");
+            delete payloadCopy.vendor_id;
+            delete payloadCopy.vendeur_id;
+            delete payloadCopy.seller_id;
+            delete payloadCopy.owner_id;
+          } else {
+            console.log("[Webhook resilience] Detected UUID primary key on orders table, converting ID to UUID...");
+            payloadCopy.id = crypto.randomUUID();
+          }
+          continue;
+        }
+
         const matchCol = errMsg.match(/column "([^"]+)" of relation "([^"]+)" does not exist/i) || 
                          errMsg.match(/Could not find the '([^']+)' column/i) || 
                          errMsg.match(/column "([^"]+)" does not exist/i);

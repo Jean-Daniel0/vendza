@@ -1860,27 +1860,24 @@ export default function App() {
     const firstProductId = firstItem ? (firstItem.productId || '') : '';
     const firstProductName = firstItem ? (firstItem.productNom || '') : '';
     
-    const getUuidOrNull = (idStr: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idStr) ? idStr : null;
-    const clientUuid = getUuidOrNull(rawOrder.clientId || '');
-    const vendorUuid = getUuidOrNull(firstVendorId || '');
-
     const payload: any = {
       id: rawOrder.id,
       qr_token: rawOrder.id, // Save friendly payment reference ID in the text column
       qr_payload: rawOrder.clientId, // Store original client ID here as fallback text in case user ID is not a UUID
       
-      // Client / Buyer mapping with multiple redundant aliases
-      buyer_id: clientUuid,
-      client_id: clientUuid,
-      customer_id: clientUuid,
-      user_id: clientUuid,
+      // Client / Buyer mapping with multiple redundant aliases (preserve original ID, letting database decide type compatibility)
+      buyer_id: rawOrder.clientId,
+      client_id: rawOrder.clientId,
+      customer_id: rawOrder.clientId,
+      user_id: rawOrder.clientId,
       client_name: rawOrder.clientNom,
       client_tel: rawOrder.clientTel,
       
-      // Vendor / Seller mapping with multiple redundant aliases
-      vendor_id: vendorUuid,
-      seller_id: vendorUuid,
-      owner_id: vendorUuid,
+      // Vendor / Seller mapping with multiple redundant aliases (preserve original ID, letting database decide type compatibility)
+      vendor_id: firstVendorId,
+      vendeur_id: firstVendorId,
+      seller_id: firstVendorId,
+      owner_id: firstVendorId,
       vendor_name: firstVendorName,
       product_id: firstProductId,
       product_name: firstProductName,
@@ -1955,8 +1952,22 @@ export default function App() {
 
         // If UUID mapping issue
         if (errMsg.toLowerCase().includes('uuid') || errMsg.toLowerCase().includes('invalid input syntax for uuid')) {
-          console.log("Detected UUID primary key on orders table, converting ID to UUID...");
-          payload.id = generateUUID();
+          if (errMsg.toLowerCase().includes('buyer_id') || errMsg.toLowerCase().includes('client_id') || errMsg.toLowerCase().includes('customer_id') || errMsg.toLowerCase().includes('user_id')) {
+            console.warn("UUID mapping issue on buyer_id inside adaptive insertion, omitting...");
+            delete payload.buyer_id;
+            delete payload.client_id;
+            delete payload.customer_id;
+            delete payload.user_id;
+          } else if (errMsg.toLowerCase().includes('vendor_id') || errMsg.toLowerCase().includes('vendeur_id') || errMsg.toLowerCase().includes('seller_id') || errMsg.toLowerCase().includes('owner_id')) {
+            console.warn("UUID mapping issue on vendor_id inside adaptive insertion, omitting...");
+            delete payload.vendor_id;
+            delete payload.vendeur_id;
+            delete payload.seller_id;
+            delete payload.owner_id;
+          } else {
+            console.log("Detected UUID primary key on orders table, converting ID to UUID...");
+            payload.id = generateUUID();
+          }
           continue;
         }
 
