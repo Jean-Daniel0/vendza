@@ -9,13 +9,22 @@ export default defineConfig(() => {
   console.log('[DEBUG BUILD] Longueur de la valeur :', (process.env.VITE_SUPABASE_URL || '').length);
   console.log('[DEBUG BUILD] Liste de TOUTES les variables contenant VITE ou SUPABASE :', Object.keys(process.env).filter(k => k.includes('VITE') || k.includes('SUPABASE')));
 
+  const isProd = process.env.NODE_ENV === 'production';
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://giakjeanwekipnvyhlxm.supabase.co';
+  const cleanSupabaseUrl = supabaseUrl.replace(/\/$/, '');
+  const pwaIcon192 = supabaseUrl ? `${cleanSupabaseUrl}/storage/v1/object/public/images_systeme/pwa-icon-192.png` : '/pwa-icon-192.png';
+  const pwaIcon512 = supabaseUrl ? `${cleanSupabaseUrl}/storage/v1/object/public/images_systeme/pwa-icon-512.png` : '/pwa-icon-512.png';
+
   return {
     plugins: [
       react(),
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        injectRegister: 'inline',
+        injectRegister: isProd ? 'inline' : null,
+        devOptions: {
+          enabled: false,
+        },
         workbox: {
           skipWaiting: true,
           clientsClaim: true,
@@ -78,13 +87,13 @@ export default defineConfig(() => {
           scope: '/',
           icons: [
             {
-              src: '/pwa-icon-192.png',
+              src: pwaIcon192,
               sizes: '192x192',
               type: 'image/png',
               purpose: 'any'
             },
             {
-              src: '/pwa-icon-512.png',
+              src: pwaIcon512,
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any'
