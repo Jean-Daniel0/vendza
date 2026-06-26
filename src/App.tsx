@@ -1952,21 +1952,37 @@ export default function App() {
 
         // If UUID mapping issue
         if (errMsg.toLowerCase().includes('uuid') || errMsg.toLowerCase().includes('invalid input syntax for uuid')) {
-          if (errMsg.toLowerCase().includes('buyer_id') || errMsg.toLowerCase().includes('client_id') || errMsg.toLowerCase().includes('customer_id') || errMsg.toLowerCase().includes('user_id')) {
-            console.warn("UUID mapping issue on buyer_id inside adaptive insertion, omitting...");
-            delete payload.buyer_id;
-            delete payload.client_id;
-            delete payload.customer_id;
-            delete payload.user_id;
-          } else if (errMsg.toLowerCase().includes('vendor_id') || errMsg.toLowerCase().includes('vendeur_id') || errMsg.toLowerCase().includes('seller_id') || errMsg.toLowerCase().includes('owner_id')) {
-            console.warn("UUID mapping issue on vendor_id inside adaptive insertion, omitting...");
-            delete payload.vendor_id;
-            delete payload.vendeur_id;
-            delete payload.seller_id;
-            delete payload.owner_id;
-          } else {
-            console.log("Detected UUID primary key on orders table, converting ID to UUID...");
-            payload.id = generateUUID();
+          let foundOffendingKey = false;
+          for (const key of Object.keys(payload)) {
+            const valStr = String(payload[key]);
+            if (valStr && errMsg.includes(valStr)) {
+              if (key === 'id') {
+                console.warn(`[Resilience] Detected invalid UUID value '${valStr}' for primary key 'id', replacing with a new random UUID...`);
+                payload.id = generateUUID();
+              } else {
+                console.warn(`[Resilience] Detected invalid UUID value '${valStr}' for column '${key}', removing...`);
+                delete payload[key];
+              }
+              foundOffendingKey = true;
+            }
+          }
+          if (!foundOffendingKey) {
+            if (errMsg.toLowerCase().includes('buyer_id') || errMsg.toLowerCase().includes('client_id') || errMsg.toLowerCase().includes('customer_id') || errMsg.toLowerCase().includes('user_id')) {
+              console.warn("UUID mapping issue on buyer_id inside adaptive insertion, omitting...");
+              delete payload.buyer_id;
+              delete payload.client_id;
+              delete payload.customer_id;
+              delete payload.user_id;
+            } else if (errMsg.toLowerCase().includes('vendor_id') || errMsg.toLowerCase().includes('vendeur_id') || errMsg.toLowerCase().includes('seller_id') || errMsg.toLowerCase().includes('owner_id')) {
+              console.warn("UUID mapping issue on vendor_id inside adaptive insertion, omitting...");
+              delete payload.vendor_id;
+              delete payload.vendeur_id;
+              delete payload.seller_id;
+              delete payload.owner_id;
+            } else {
+              console.log("Detected UUID primary key on orders table, converting ID to UUID...");
+              payload.id = generateUUID();
+            }
           }
           continue;
         }
