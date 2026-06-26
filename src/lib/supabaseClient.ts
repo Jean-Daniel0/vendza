@@ -187,3 +187,16 @@ export async function createOrderInSupabase(order: any) {
   }
   return data;
 }
+
+/**
+ * Retourne l'URL publique d'un fichier stocké dans le bucket 'images_systeme' de Supabase Storage.
+ * Si Supabase n'est pas configuré, retourne le chemin local (fallbackPath).
+ */
+export function getSystemImageUrl(fileName: string, fallbackPath: string): string {
+  if (isSupabaseConfigured && supabaseUrl) {
+    const cleanUrl = supabaseUrl.replace(/\/$/, '');
+    return `${cleanUrl}/storage/v1/object/public/images_systeme/${fileName}`;
+  }
+  return fallbackPath;
+}
+

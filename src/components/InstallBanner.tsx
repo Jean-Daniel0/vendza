@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Download, X, Share, PlusSquare, Info, AppWindow } from 'lucide-react';
+import { getSystemImageUrl } from '../lib/supabaseClient';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -8,6 +9,8 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export function InstallBanner() {
+  const pwaIcon192 = getSystemImageUrl('pwa-icon-192.png', '/pwa-icon-192.png');
+
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showAndroidBanner, setShowAndroidBanner] = useState<boolean>(false);
   const [showIOSBanner, setShowIOSBanner] = useState<boolean>(false);
@@ -164,7 +167,7 @@ export function InstallBanner() {
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl border border-slate-100 flex items-center justify-center p-1 bg-white shadow-sm shrink-0">
               <img 
-                src="/pwa-icon-192.png" 
+                src={pwaIcon192} 
                 alt="Vendza" 
                 className="w-full h-full object-contain rounded-lg"
                 referrerPolicy="no-referrer"
@@ -207,7 +210,7 @@ export function InstallBanner() {
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl border border-slate-100 p-1 bg-white shadow-sm flex items-center justify-center shrink-0">
-                  <img src="/pwa-icon-192.png" alt="Vendza logo" className="w-10 h-10 object-contain rounded-lg" referrerPolicy="no-referrer" />
+                  <img src={pwaIcon192} alt="Vendza logo" className="w-10 h-10 object-contain rounded-lg" referrerPolicy="no-referrer" />
                 </div>
                 <div>
                   <h3 className="font-sans font-extrabold text-slate-900 text-base">Installer l'application Vendza</h3>

@@ -1555,7 +1555,7 @@ export default function App() {
 
             return {
               id: o.id,
-              clientId: o.buyer_id || o.user_id,
+              clientId: o.buyer_id || o.user_id || o.qr_payload,
               clientNom: o.client_name || o.client_nom || 'Client',
               clientTel: o.client_tel || '',
               items: itemsArray,
@@ -1860,17 +1860,27 @@ export default function App() {
     const firstProductId = firstItem ? (firstItem.productId || '') : '';
     const firstProductName = firstItem ? (firstItem.productNom || '') : '';
     
+    const getUuidOrNull = (idStr: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idStr) ? idStr : null;
+    const clientUuid = getUuidOrNull(rawOrder.clientId || '');
+    const vendorUuid = getUuidOrNull(firstVendorId || '');
+
     const payload: any = {
       id: rawOrder.id,
       qr_token: rawOrder.id, // Save friendly payment reference ID in the text column
+      qr_payload: rawOrder.clientId, // Store original client ID here as fallback text in case user ID is not a UUID
       
-      // Client / Buyer mapping
-      buyer_id: rawOrder.clientId,
+      // Client / Buyer mapping with multiple redundant aliases
+      buyer_id: clientUuid,
+      client_id: clientUuid,
+      customer_id: clientUuid,
+      user_id: clientUuid,
       client_name: rawOrder.clientNom,
       client_tel: rawOrder.clientTel,
       
-      // Vendor / Seller mapping
-      vendor_id: firstVendorId,
+      // Vendor / Seller mapping with multiple redundant aliases
+      vendor_id: vendorUuid,
+      seller_id: vendorUuid,
+      owner_id: vendorUuid,
       vendor_name: firstVendorName,
       product_id: firstProductId,
       product_name: firstProductName,

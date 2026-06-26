@@ -710,18 +710,29 @@ const creerCommandeApresPaiement = async (
     }
 
     const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+    const cleanBuyerId = pendingOrder.buyer_id && isUuid(String(pendingOrder.buyer_id)) ? pendingOrder.buyer_id : null;
+    const cleanVendorId = pendingOrder.vendor_id && isUuid(String(pendingOrder.vendor_id)) ? pendingOrder.vendor_id : null;
     
     // 4. Créer la commande définitive (with maximum redundant aliases for complete schema compatibility)
     const orderPayload: any = {
       id: isUuid(orderId) ? orderId : crypto.randomUUID(),
       qr_token: orderId, // Save the friendly payment reference in the text qr_token column
-      buyer_id: pendingOrder.buyer_id,
-      client_id: pendingOrder.buyer_id, // alias to prevent write issue
+      qr_payload: pendingOrder.buyer_id, // Store original client ID here as fallback text in case user ID is not a UUID
+      
+      // Client / Buyer mapping with redundant aliases
+      buyer_id: cleanBuyerId,
+      client_id: cleanBuyerId,
+      customer_id: cleanBuyerId,
+      user_id: cleanBuyerId,
       client_nom: clientNom,
       client_name: clientNom, // alias
       client_tel: clientTel,
-      vendor_id: pendingOrder.vendor_id,
-      vendeur_id: pendingOrder.vendor_id, // alias
+      
+      // Vendor / Seller mapping with redundant aliases
+      vendor_id: cleanVendorId,
+      vendeur_id: cleanVendorId, // alias
+      seller_id: cleanVendorId,
+      owner_id: cleanVendorId,
       vendor_name: vendorName,
       items: itemsList,
       articles: itemsList, // alias
