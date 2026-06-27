@@ -11,6 +11,11 @@ import { MonCashClient, constructEvent, MonCashError } from "@moncashconnect/sdk
 // Load environmental variables
 dotenv.config();
 
+function isValidUuid(id: any): boolean {
+  if (typeof id !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
@@ -652,11 +657,88 @@ const creerCommandeApresPaiement = async (
 
     // Now we loop over each pending order in pendingOrders to create final orders!
     let lastStoredOrder: any = null;
-    const dateStr = new Date().toLocaleDateString('fr-FR');
-    const heureStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const getDbDate = () => new Date().toISOString().split('T')[0];
+    const getDbTime = () => {
+      const d = new Date();
+      return [d.getHours(), d.getMinutes(), d.getSeconds()].map(v => String(v).padStart(2, '0')).join(':');
+    };
+    const dateStr = getDbDate();
+    const heureStr = getDbTime();
 
     for (const pendingOrder of pendingOrders) {
       const subRefId = pendingOrder.reference_id || orderId;
+      const vendor_id = pendingOrder.vendor_id;
+      const buyer_id = pendingOrder.buyer_id;
+
+      const isValidVendor = isValidUuid(vendor_id);
+      const isValidBuyer = isValidUuid(buyer_id);
+
+      if (!isValidVendor || !isValidBuyer) {
+        console.error("======================================================================");
+        console.error(`[CRITICAL WEBHOOK ERROR] Invalid UUID for order creation inside webhook!`);
+        console.error(`Sub-Reference ID: ${subRefId}`);
+        console.error(`Buyer ID: ${buyer_id} (Valid: ${isValidBuyer})`);
+        console.error(`Vendor ID: ${vendor_id} (Valid: ${isValidVendor})`);
+        if (pendingOrder.items && Array.isArray(pendingOrder.items)) {
+          console.error("Order items details:");
+          pendingOrder.items.forEach((item: any, index: number) => {
+            console.error(`  Item ${index + 1}: ID=${item.productId || item.id}, Name=${item.productNom || item.name || 'Unknown'}, VendorID=${item.vendeurId || 'N/A'}`);
+          });
+        } else {
+          console.error(`Items data: ${JSON.stringify(pendingOrder.items)}`);
+        }
+        console.error("======================================================================");
+
+        // Save complete details in orphaned_payments
+        const orphanedPayload: any = {
+          id: `orph-${subRefId.split('-')[1] || Date.now().toString().slice(-4)}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,
+          order_id: subRefId,
+          buyer_id: isValidBuyer ? buyer_id : null,
+          vendor_id: isValidVendor ? vendor_id : null,
+          amount: Number(pendingOrder.total_price) || 0,
+          payment_method: paymentMethod,
+          transaction_id: transactionId || orderId,
+          status: 'invalid_vendor_id',
+          payload_details: JSON.stringify({
+            pendingOrder,
+            error_type: 'invalid_uuid_fields_webhook',
+            invalid_buyer_id: !isValidBuyer ? buyer_id : undefined,
+            invalid_vendor_id: !isValidVendor ? vendor_id : undefined,
+            original_subRefId: subRefId
+          }),
+          created_at: new Date().toISOString()
+        };
+
+        saveOrphanedPayment(orphanedPayload);
+
+        if (isSupabaseConfigured && supabase) {
+          const payloadOrphCopy = { ...orphanedPayload };
+          for (let attempt = 0; attempt < 5; attempt++) {
+            try {
+              const { error: orphError } = await supabase
+                .from('orphaned_payments')
+                .insert([payloadOrphCopy]);
+              if (!orphError) {
+                console.log('[Webhook Orphaned Recovery] Saved UUID validation failure successfully in Supabase: orphaned_payments');
+                break;
+              }
+              const errMsg = orphError.message || '';
+              const matchCol = errMsg.match(/column "([^"]+)"/i);
+              if (matchCol && matchCol[1]) {
+                delete payloadOrphCopy[matchCol[1]];
+              } else {
+                console.error('[Webhook Orphaned Recovery Error] Failed saving UUID validation failure to DB:', orphError.message);
+                break;
+              }
+            } catch (e: any) {
+              console.error('[Webhook Orphaned Recovery Exception]', e.message);
+              break;
+            }
+          }
+        }
+        continue;
+      }
+
       console.log(`[Webhook Processing Sub-order] processing ${subRefId} for vendor ${pendingOrder.vendor_id}`);
 
       // 2. Générer QR code unique per sub-order
@@ -732,9 +814,13 @@ const creerCommandeApresPaiement = async (
         // Ignored
       }
 
-      const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-      const cleanBuyerId = pendingOrder.buyer_id || null;
-      const cleanVendorId = pendingOrder.vendor_id || null;
+      const isUuid = (str: string) => {
+        if (typeof str !== 'string') return false;
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+      };
+      const cleanBuyerId = isUuid(pendingOrder.buyer_id) ? pendingOrder.buyer_id : null;
+      const cleanVendorId = isUuid(pendingOrder.vendor_id) ? pendingOrder.vendor_id : null;
+      const cleanProductId = isUuid(firstProductId) ? firstProductId : null;
       
       // 4. Créer la commande définitive (with maximum redundant aliases for complete schema compatibility)
       const orderPayload: any = {
@@ -782,7 +868,7 @@ const creerCommandeApresPaiement = async (
         vendor_credited: false,
         date: dateStr,
         heure: heureStr,
-        product_id: firstProductId,
+        product_id: cleanProductId,
         product_name: firstProductName,
         unit_price: firstUnitPrice,
         quantity: firstQuantity,
@@ -877,6 +963,7 @@ const creerCommandeApresPaiement = async (
         };
         
         const payloadOrphCopy = { ...orphanedPayload };
+        let isSavedInSupabaseOrph = false;
         for (let attempt = 0; attempt < 5; attempt++) {
           try {
             const { error: orphError } = await supabase
@@ -884,6 +971,7 @@ const creerCommandeApresPaiement = async (
               .insert([payloadOrphCopy]);
             if (!orphError) {
               console.log('[Webhook Recovery] Saved orphaned payment successfully in Supabase: orphaned_payments');
+              isSavedInSupabaseOrph = true;
               break;
             }
             const errMsg = orphError.message || '';
@@ -900,8 +988,10 @@ const creerCommandeApresPaiement = async (
           }
         }
         
-        // Always store locally as guaranteed fallback
-        saveOrphanedPayment(orderPayload);
+        if (!isSavedInSupabaseOrph) {
+          console.warn(`[CRITICAL - FALLBACK WARNING] Storing orphaned payment to local JSON file as a last resort!`);
+          saveOrphanedPayment(orderPayload);
+        }
       } else {
         // Order created successfully, we can safely delete from local pending cache
         deleteLocalPendingOrder(subRefId);
@@ -1448,6 +1538,88 @@ app.post('/api/orders/pending', async (req, res) => {
     return res.status(400).json({ error: "reference_id est manquant" });
   }
 
+  // 1. Validate vendor_id and buyer_id are valid UUIDs
+  const isValidVendor = isValidUuid(vendor_id);
+  const isValidBuyer = isValidUuid(buyer_id);
+
+  if (!isValidVendor || !isValidBuyer) {
+    // Logger une erreur explicite et visible (pas juste un warning silencieux)
+    console.error("======================================================================");
+    console.error("[CRITICAL ERROR] Invalid UUID fields detected for pending order!");
+    console.error(`Reference ID: ${reference_id}`);
+    console.error(`Buyer ID: ${buyer_id} (Valid: ${isValidBuyer})`);
+    console.error(`Vendor ID: ${vendor_id} (Valid: ${isValidVendor})`);
+    if (items && Array.isArray(items)) {
+      console.error("Cart items details:");
+      items.forEach((item, index) => {
+        console.error(`  Item ${index + 1}: ID=${item.productId || item.id}, Name=${item.productNom || item.name || 'Unknown'}, VendorID=${item.vendeurId || 'N/A'}`);
+      });
+    } else {
+      console.error(`Items data: ${JSON.stringify(items)}`);
+    }
+    console.error("======================================================================");
+
+    // Sauvegarder quand même les détails complets de la tentative dans la table orphaned_payments
+    const orphanedPayload: any = {
+      id: `orph-${reference_id.split('-')[1] || Date.now().toString().slice(-4)}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,
+      order_id: reference_id,
+      buyer_id: isValidBuyer ? buyer_id : null,
+      vendor_id: isValidVendor ? vendor_id : null,
+      amount: Number(total_price) || 0,
+      payment_method: 'moncash',
+      transaction_id: reference_id,
+      status: 'invalid_vendor_id',
+      payload_details: JSON.stringify({
+        reference_id,
+        buyer_id,
+        vendor_id,
+        items,
+        total_price,
+        shipping_fee,
+        delivery_commune,
+        delivery_address,
+        error_type: 'invalid_uuid_fields_pending_orders',
+        invalid_buyer_id: !isValidBuyer ? buyer_id : undefined,
+        invalid_vendor_id: !isValidVendor ? vendor_id : undefined
+      }),
+      created_at: new Date().toISOString()
+    };
+
+    saveOrphanedPayment(orphanedPayload);
+
+    if (isSupabaseConfigured && supabase) {
+      const payloadOrphCopy = { ...orphanedPayload };
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          const { error: orphError } = await supabase
+            .from('orphaned_payments')
+            .insert([payloadOrphCopy]);
+          if (!orphError) {
+            console.log('[Orphaned API] Saved invalid pending order UUID error successfully in Supabase: orphaned_payments');
+            break;
+          }
+          const errMsg = orphError.message || '';
+          const matchCol = errMsg.match(/column "([^"]+)"/i);
+          if (matchCol && matchCol[1]) {
+            delete payloadOrphCopy[matchCol[1]];
+          } else {
+            console.error('[Orphaned API Error] Failed saving UUID error to DB:', orphError.message);
+            break;
+          }
+        } catch (e: any) {
+          console.error('[Orphaned API Exception]', e.message);
+          break;
+        }
+      }
+    }
+
+    // Renvoyer une erreur claire au frontend (pas de détail technique)
+    return res.status(400).json({
+      success: false,
+      error: "Une erreur est survenue avec ce produit, veuillez réessayer ou contacter le support"
+    });
+  }
+
   // Define pending order payload
   const pendingPayload = {
     reference_id,
@@ -1464,39 +1636,66 @@ app.post('/api/orders/pending', async (req, res) => {
   try {
     console.log(`[Pending Order Server] Registering pending order: ${reference_id} for buyer: ${buyer_id}`);
     
-    // Always store in our 100% resilient local backup cache file first!
-    saveLocalPendingOrder(pendingPayload);
+    let isSavedInSupabase = false;
+    let supabaseErrorMsg = '';
+    let savedData = null;
 
-    if (!isSupabaseConfigured || !supabase) {
-      console.warn("[Pending Order Server] Supabase is not configured. Saved pending order locally as fallback.");
-      return res.json({ success: true, cachedLocally: true, data: pendingPayload });
+    if (isSupabaseConfigured && supabase) {
+      // First, let's delete any existing pending order with this reference ID to avoid unique-constraint collisions
+      await supabase
+        .from('pending_orders')
+        .delete()
+        .eq('reference_id', reference_id);
+
+      // Insert new pending order using the server client which bypasses Row-Level Security
+      const { data, error } = await supabase
+        .from('pending_orders')
+        .insert([pendingPayload])
+        .select()
+        .maybeSingle();
+
+      if (error) {
+        supabaseErrorMsg = error.message;
+        console.error('[Pending Order Server] Error inserting pending order into Supabase:', error.message);
+      } else {
+        isSavedInSupabase = true;
+        savedData = data;
+        console.log(`[Pending Order Server] Successfully created pending order in database: ${reference_id}`);
+      }
+    } else {
+      supabaseErrorMsg = "Supabase is not configured";
     }
 
-    // First, let's delete any existing pending order with this reference ID to avoid unique-constraint collisions
-    await supabase
-      .from('pending_orders')
-      .delete()
-      .eq('reference_id', reference_id);
+    if (!isSavedInSupabase) {
+      // N'appelle saveLocalPendingOrder QUE si l'insertion Supabase a réellement échoué
+      console.warn(`[Pending Order Server] [FALLBACK WARNING] Supabase pending order insertion failed. Falling back to local file storage as last resort. Reason: ${supabaseErrorMsg}`);
+      saveLocalPendingOrder(pendingPayload);
 
-    // Insert new pending order using the server client which bypasses Row-Level Security
-    const { data, error } = await supabase
-      .from('pending_orders')
-      .insert([pendingPayload])
-      .select()
-      .maybeSingle();
-
-    if (error) {
-      console.error('[Pending Order Server] Warning: Error inserting pending order into Supabase:', error.message);
-      // Don't fail the request if it is at least cached locally!
-      return res.json({ success: true, cachedLocally: true, warning: error.message, data: pendingPayload });
+      return res.json({
+        success: true,
+        source: 'local_fallback',
+        warning: supabaseErrorMsg,
+        data: pendingPayload
+      });
     }
 
-    console.log(`[Pending Order Server] Successfully created pending order in database: ${reference_id}`);
-    return res.json({ success: true, data });
+    return res.json({
+      success: true,
+      source: 'supabase',
+      data: savedData
+    });
   } catch (err: any) {
     console.error('[Pending Order Server] Unexpected exception:', err.message);
-    // Don't crash checkout if we managed to cache it locally
-    return res.json({ success: true, cachedLocally: true, error: err.message, data: pendingPayload });
+    // N'appelle saveLocalPendingOrder QUE si l'insertion Supabase a réellement échoué
+    console.warn(`[Pending Order Server] [FALLBACK WARNING] Exception during Supabase insert. Saving to local file storage as last resort: ${err.message}`);
+    saveLocalPendingOrder(pendingPayload);
+
+    return res.json({
+      success: true,
+      source: 'local_fallback',
+      warning: err.message,
+      data: pendingPayload
+    });
   }
 });
 

@@ -1162,18 +1162,18 @@ export default function App() {
           // Poll up to 10 attempts (10 seconds) for the webhook to create the order in Supabase
           let foundOrder: Order | null = null;
           if (isSupabaseConfigured && supabase && orderId) {
-            const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-            const queryCol = isUuid(orderId) ? 'id' : 'qr_token';
             for (let attempt = 1; attempt <= 10; attempt++) {
-              const { data: ord } = await supabase
+              // Retrieve all orders matching the reference id directly or as split orders (where qr_token starts with orderId)
+              const { data: ords, error: ordsErr } = await supabase
                 .from('orders')
                 .select('*')
-                .eq(queryCol, orderId)
-                .maybeSingle();
+                .or(`id.eq.${orderId},qr_token.eq.${orderId},qr_token.like.${orderId}_sub_%`);
 
-              if (ord) {
-                foundOrder = ord as unknown as Order;
-                console.log('[Payment Verification] Webhook order found in database:', ord);
+              if (!ordsErr && ords && ords.length > 0) {
+                foundOrder = ords[0] as unknown as Order;
+                console.log('[Payment Verification] Webhook order(s) found in database:', ords);
+                // Call fetchOrders to sync everything fully in the background
+                fetchOrders();
                 break;
               }
               await new Promise(resolve => setTimeout(resolve, 1000));
@@ -1554,6 +1554,22 @@ export default function App() {
               }
             }
 
+            // Parse YYYY-MM-DD SQL format to French DD/MM/YYYY
+            if (finalDate && finalDate.includes('-')) {
+              const dateParts = finalDate.split('-');
+              if (dateParts.length === 3 && dateParts[0].length === 4) {
+                finalDate = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
+              }
+            }
+
+            // Slice HH:MM:SS time to HH:MM
+            if (finalHeure && finalHeure.includes(':')) {
+              const timeParts = finalHeure.split(':');
+              if (timeParts.length >= 2) {
+                finalHeure = `${timeParts[0].padStart(2, '0')}:${timeParts[1].padStart(2, '0')}`;
+              }
+            }
+
             if (!finalDate) {
               const now = new Date();
               const day = String(now.getDate()).padStart(2, '0');
@@ -1768,6 +1784,23 @@ export default function App() {
     // Save to pending order session storage
     sessionStorage.setItem('pendingOrder', JSON.stringify(newOrder));
 
+    const isUuid = (str: any) => {
+      if (typeof str !== 'string') return false;
+      return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+    };
+
+    const isValidBuyer = isUuid(newOrder.clientId);
+    const isValidVendor = isUuid(product.vendeurId);
+
+    if (!isValidBuyer || !isValidVendor) {
+      console.error("======================================================================");
+      console.error("[CRITICAL FRONTEND ERROR] Invalid UUID fields detected before pending order registration!");
+      console.error(`Buyer ID: ${newOrder.clientId} (Valid: ${isValidBuyer})`);
+      console.error(`Vendor ID: ${product.vendeurId} (Valid: ${isValidVendor})`);
+      console.error(`Product ID: ${product.id}, Product Name: ${product.nom}`);
+      console.error("======================================================================");
+    }
+
     // Save to database pending orders
     if (isSupabaseConfigured) {
       try {
@@ -1789,11 +1822,20 @@ export default function App() {
         if (!response.ok) {
           const errData = await response.json();
           console.error("Error creating pending order record in Supabase:", errData.error || response.statusText);
+          alert(errData.error || "Une erreur est survenue avec ce produit, veuillez réessayer ou contacter le support");
+          return; // STOP checkout process!
         } else {
-          console.log("Pending order successfully registered on server.");
+          const resData = await response.json();
+          console.log("Pending order successfully registered on server.", resData);
+          if (resData.source === 'local_fallback') {
+            console.warn(`[FALLBACK WARNING] Pending order registration fell back to local file storage on the server!`, resData.warning);
+          }
         }
       } catch (e: any) {
         console.error("Exception creating pending order inside database:", e.message);
+        // Do not fail silently if it is a severe connection/JS error
+        alert("Une erreur de réseau est survenue, veuillez réessayer.");
+        return;
       }
     }
 
@@ -1873,6 +1915,17 @@ export default function App() {
   const insertOrderAdaptive = async (rawOrder: Order) => {
     if (!supabase || !isSupabaseConfigured) return;
     
+    const isUuid = (str: any) => {
+      if (typeof str !== 'string') return false;
+      return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+    };
+
+    const getDbDate = () => new Date().toISOString().split('T')[0];
+    const getDbTime = () => {
+      const d = new Date();
+      return [d.getHours(), d.getMinutes(), d.getSeconds()].map(v => String(v).padStart(2, '0')).join(':');
+    };
+
     const firstItem = rawOrder.items[0];
     const firstVendorId = firstItem ? (firstItem.vendeurId || '') : '';
     const matchedProd = firstItem ? products.find(p => p.id === firstItem.productId) : null;
@@ -1881,25 +1934,25 @@ export default function App() {
     const firstProductName = firstItem ? (firstItem.productNom || '') : '';
     
     const payload: any = {
-      id: rawOrder.id,
+      id: isUuid(rawOrder.id) ? rawOrder.id : generateUUID(),
       qr_token: rawOrder.id, // Save friendly payment reference ID in the text column
       qr_payload: rawOrder.clientId, // Store original client ID here as fallback text in case user ID is not a UUID
       
-      // Client / Buyer mapping with multiple redundant aliases (preserve original ID, letting database decide type compatibility)
-      buyer_id: rawOrder.clientId,
-      client_id: rawOrder.clientId,
-      customer_id: rawOrder.clientId,
-      user_id: rawOrder.clientId,
+      // Client / Buyer mapping with multiple redundant aliases (verify UUID constraints first)
+      buyer_id: isUuid(rawOrder.clientId) ? rawOrder.clientId : null,
+      client_id: isUuid(rawOrder.clientId) ? rawOrder.clientId : null,
+      customer_id: isUuid(rawOrder.clientId) ? rawOrder.clientId : null,
+      user_id: isUuid(rawOrder.clientId) ? rawOrder.clientId : null,
       client_name: rawOrder.clientNom,
       client_tel: rawOrder.clientTel,
       
-      // Vendor / Seller mapping with multiple redundant aliases (preserve original ID, letting database decide type compatibility)
-      vendor_id: firstVendorId,
-      vendeur_id: firstVendorId,
-      seller_id: firstVendorId,
-      owner_id: firstVendorId,
+      // Vendor / Seller mapping with multiple redundant aliases (verify UUID constraints first)
+      vendor_id: isUuid(firstVendorId) ? firstVendorId : null,
+      vendeur_id: isUuid(firstVendorId) ? firstVendorId : null,
+      seller_id: isUuid(firstVendorId) ? firstVendorId : null,
+      owner_id: isUuid(firstVendorId) ? firstVendorId : null,
       vendor_name: firstVendorName,
-      product_id: firstProductId,
+      product_id: isUuid(firstProductId) ? firstProductId : null,
       product_name: firstProductName,
       
       // Core numeric pricing
@@ -1909,10 +1962,10 @@ export default function App() {
       unit_price: firstItem ? (firstItem.prix || 0) : rawOrder.total,
       quantity: firstItem ? (firstItem.qte || 1) : 1,
       
-      // Other metadata
-      status: rawOrder.status,
-      date: rawOrder.date,
-      heure: rawOrder.heure,
+      // Other metadata formatted cleanly for SQL type correctness
+      status: rawOrder.status || 'attente',
+      date: getDbDate(),
+      heure: getDbTime(),
       departement: rawOrder.departement,
       delivery_commune: rawOrder.commune,
       payment_method: rawOrder.paymentMethod || 'moncash',
@@ -2053,6 +2106,11 @@ export default function App() {
     // Save to pending_orders in Supabase (via backend secure proxy to bypass RLS policies) BEFORE redirecting!
     if (isSupabaseConfigured) {
       try {
+        const isUuid = (str: any) => {
+          if (typeof str !== 'string') return false;
+          return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+        };
+
         const uniqueVendors = Array.from(new Set(rawOrder.items.map(item => item.vendeurId || '')));
         
         if (uniqueVendors.length > 1) {
@@ -2068,6 +2126,18 @@ export default function App() {
             const subShippingFee = baseShippingFee + (idx === 0 ? remainderShippingFee : 0);
             const subTotal = subItemsTotal + subShippingFee;
             const subOrderId = `${rawOrder.id}_sub_${vId}`;
+
+            // FRONTEND UUID validation!
+            const isValidBuyer = isUuid(rawOrder.clientId);
+            const isValidVendor = isUuid(vId);
+            if (!isValidBuyer || !isValidVendor) {
+              console.error("======================================================================");
+              console.error("[CRITICAL FRONTEND ERROR] Invalid UUID fields detected before pending split order registration!");
+              console.error(`Buyer ID: ${rawOrder.clientId} (Valid: ${isValidBuyer})`);
+              console.error(`Vendor ID: ${vId} (Valid: ${isValidVendor})`);
+              console.error(`Split items:`, subItems);
+              console.error("======================================================================");
+            }
 
             const response = await fetch('/api/orders/pending', {
               method: 'POST',
@@ -2088,13 +2158,33 @@ export default function App() {
             if (!response.ok) {
               const errData = await response.json();
               console.error(`Error creating split pending order for vendor ${vId}:`, errData.error || response.statusText);
+              alert(errData.error || "Une erreur est survenue avec ce produit, veuillez réessayer ou contacter le support");
+              return; // STOP checkout process!
             } else {
-              console.log(`Pending split order for vendor ${vId} successfully registered on server.`);
+              const resData = await response.json();
+              console.log(`Pending split order for vendor ${vId} successfully registered on server.`, resData);
+              if (resData.source === 'local_fallback') {
+                console.warn(`[FALLBACK WARNING] Split pending order for vendor ${vId} fell back to local file storage on the server!`, resData.warning);
+              }
             }
           }
         } else {
           // Single vendor order
           const firstItem = rawOrder.items[0];
+          const vId = firstItem?.vendeurId || '';
+
+          // FRONTEND UUID validation!
+          const isValidBuyer = isUuid(rawOrder.clientId);
+          const isValidVendor = isUuid(vId);
+          if (!isValidBuyer || !isValidVendor) {
+            console.error("======================================================================");
+            console.error("[CRITICAL FRONTEND ERROR] Invalid UUID fields detected before pending order registration!");
+            console.error(`Buyer ID: ${rawOrder.clientId} (Valid: ${isValidBuyer})`);
+            console.error(`Vendor ID: ${vId} (Valid: ${isValidVendor})`);
+            console.error(`Cart items:`, rawOrder.items);
+            console.error("======================================================================");
+          }
+
           const response = await fetch('/api/orders/pending', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2102,7 +2192,7 @@ export default function App() {
               reference_id: rawOrder.id,
               checkout_group_id: rawOrder.id,
               buyer_id: rawOrder.clientId,
-              vendor_id: firstItem?.vendeurId || '',
+              vendor_id: vId,
               items: rawOrder.items,
               total_price: rawOrder.total,
               shipping_fee: rawOrder.fraisLivraison || 0,
@@ -2114,12 +2204,20 @@ export default function App() {
           if (!response.ok) {
             const errData = await response.json();
             console.error("Error creating pending order record in Supabase:", errData.error || response.statusText);
+            alert(errData.error || "Une erreur est survenue avec ce produit, veuillez réessayer ou contacter le support");
+            return; // STOP checkout process!
           } else {
-            console.log("Pending order successfully registered on server.");
+            const resData = await response.json();
+            console.log("Pending order successfully registered on server.", resData);
+            if (resData.source === 'local_fallback') {
+              console.warn(`[FALLBACK WARNING] Pending order registration fell back to local file storage on the server!`, resData.warning);
+            }
           }
         }
       } catch (e: any) {
         console.error("Exception creating pending order inside database:", e.message);
+        alert("Une erreur de réseau est survenue, veuillez réessayer.");
+        return;
       }
     }
 
