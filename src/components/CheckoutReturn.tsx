@@ -117,15 +117,15 @@ export const CheckoutReturn: React.FC<CheckoutReturnProps> = ({
         // Check if DB order row has been created by the webhook in the meantime
         if (isSupabaseConfigured && supabase) {
           const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-          const { data: ord } = await supabase
+          const { data: ords } = await supabase
             .from('orders')
             .select('id, total_price')
-            .eq(isUuid(refParam) ? 'id' : 'qr_token', refParam)
-            .maybeSingle();
+            .or(`id.eq.${refParam},qr_token.eq.${refParam}`);
 
-          if (ord) {
-            console.log('[MCC Polling Status] Found finalized order in Supabase database:', ord);
-            handleSuccess(ord.total_price || 0);
+          if (ords && ords.length > 0) {
+            console.log('[MCC Polling Status] Found finalized order(s) in Supabase database:', ords);
+            const totalSum = ords.reduce((sum, o) => sum + (Number(o.total_price) || 0), 0);
+            handleSuccess(totalSum);
             return;
           }
         }

@@ -528,6 +528,24 @@ function deleteLocalPendingOrder(referenceId: string) {
   }
 }
 
+// Helper to load all pending orders in a checkout group or starting with referenceId
+function getLocalPendingOrdersByGroup(orderId: string) {
+  try {
+    if (!fs.existsSync(LOCAL_PENDING_PATH)) return [];
+    const content = fs.readFileSync(LOCAL_PENDING_PATH, 'utf8');
+    const list = JSON.parse(content || '[]');
+    return list.filter((item: any) => 
+      item.checkout_group_id === orderId || 
+      item.reference_id === orderId || 
+      item.reference_id === `${orderId}_sub_${item.vendor_id}` ||
+      (typeof item.reference_id === 'string' && item.reference_id.startsWith(`${orderId}_sub_`))
+    );
+  } catch (err: any) {
+    console.error('[Resilient Cache Error] Failed to load local pending orders by group:', err.message);
+    return [];
+  }
+}
+
 // Helper to save orphaned payment
 function saveOrphanedPayment(payment: any) {
   try {
@@ -559,36 +577,35 @@ const creerCommandeApresPaiement = async (
     console.log(`[Webhook] Processing creerCommandeApresPaiement for reference ID: ${orderId} (${paymentMethod})`);
 
     // 1. Récupérer les données depuis Supabase stockées temporairement avant le paiement
-    let pendingOrder: any = null;
+    let pendingOrders: any[] = [];
     try {
       const { data, error: pendingErr } = await supabase
         .from('pending_orders')
         .select('*')
-        .eq('reference_id', orderId)
-        .maybeSingle();
+        .or(`reference_id.eq.${orderId},checkout_group_id.eq.${orderId}`);
       
-      if (!pendingErr && data) {
-        pendingOrder = data;
-        console.log('[Webhook] Pending order found in Supabase:', pendingOrder);
+      if (!pendingErr && data && data.length > 0) {
+        pendingOrders = data;
+        console.log('[Webhook] Pending orders found in Supabase:', pendingOrders);
       } else if (pendingErr) {
-        console.warn('[Webhook] Info: Error retrieving pending order from database:', pendingErr.message);
+        console.warn('[Webhook] Info: Error retrieving pending orders from database:', pendingErr.message);
       }
     } catch (dbErr: any) {
-      console.warn('[Webhook] Info: Exception retrieving pending order from database:', dbErr.message);
+      console.warn('[Webhook] Info: Exception retrieving pending orders from database:', dbErr.message);
     }
 
     // fallback 1.2: Check local cache system
-    if (!pendingOrder) {
-      console.log(`[Webhook Fallback] Fetching pending order from local backup cache for ref: ${orderId}`);
-      const localPending = getLocalPendingOrder(orderId);
-      if (localPending) {
-        pendingOrder = localPending;
-        console.log('[Webhook Fallback] Pending order retrieved successfully from local backup cache:', pendingOrder);
+    if (pendingOrders.length === 0) {
+      console.log(`[Webhook Fallback] Fetching pending orders from local backup cache for ref: ${orderId}`);
+      const localPendings = getLocalPendingOrdersByGroup(orderId);
+      if (localPendings && localPendings.length > 0) {
+        pendingOrders = localPendings;
+        console.log('[Webhook Fallback] Pending orders retrieved successfully from local backup cache:', pendingOrders);
       }
     }
 
     // fallback 1.3: If still missing and it is Stripe, let's recover whatever info we can from Stripe session details
-    if (!pendingOrder && paymentMethod === 'stripe' && transactionId && !transactionId.startsWith('stripe-sim-')) {
+    if (pendingOrders.length === 0 && paymentMethod === 'stripe' && transactionId && !transactionId.startsWith('stripe-sim-')) {
       try {
         console.log(`[Webhook Fallback] Attempting to rebuild order from active Stripe session: ${transactionId}`);
         const stripeSecretKey = process.env.STRIPE_SECRET_KEY || '';
@@ -597,7 +614,7 @@ const creerCommandeApresPaiement = async (
           const session = await stripe.checkout.sessions.retrieve(transactionId, { expand: ['line_items'] });
           if (session) {
             // Reconstruct minimal metadata to allow safe creation
-            pendingOrder = {
+            const reconstructed = {
               reference_id: orderId,
               buyer_id: session.metadata?.userId || 'anonymous_buyer',
               vendor_id: 'reconstructed_from_session',
@@ -612,7 +629,8 @@ const creerCommandeApresPaiement = async (
               delivery_commune: 'Stripe Reconstructed',
               delivery_address: 'Stripe Reconstructed'
             };
-            console.log('[Webhook Fallback] Successfully reconstructed pending order details from Stripe API:', pendingOrder);
+            pendingOrders = [reconstructed];
+            console.log('[Webhook Fallback] Successfully reconstructed pending order details from Stripe API:', pendingOrders);
           }
         }
       } catch (stripeRecErr: any) {
@@ -620,7 +638,7 @@ const creerCommandeApresPaiement = async (
       }
     }
 
-    if (!pendingOrder) {
+    if (pendingOrders.length === 0) {
       console.error('[Webhook Blocked] Commande pending completely untraceable for ID:', orderId);
       // Save this as an orphaned payment with what we have to prevent losing customer details
       saveOrphanedPayment({
@@ -632,328 +650,343 @@ const creerCommandeApresPaiement = async (
       return null;
     }
 
-    // 2. Générer QR code unique
-    const qrCode = `qr-${orderId.split('-')[1] || Date.now().toString().slice(-4)}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
-
-    // 3. Récupérer le plan du vendeur pour la commission
-    const { data: shop, error: shopErr } = await supabase
-      .from('shops')
-      .select('plan')
-      .eq('vendor_id', pendingOrder.vendor_id)
-      .maybeSingle();
-
-    if (shopErr) {
-      console.warn('[Webhook] Error fetching shop plan, defaulting to gratuit:', shopErr.message);
-    }
-
-    const commissions: Record<string, number> = {
-      'gratuit':      0.10,
-      'pro_local':    0.07,
-      'pro_national': 0.03
-    };
-
-    const plan = (shop?.plan || 'gratuit').toLowerCase();
-    const rate = commissions[plan] !== undefined ? commissions[plan] : 0.10;
-    const total_price = Number(pendingOrder.total_price) || 0;
-    const commission = total_price * rate;
-    const montantVendeur = total_price - commission;
-
-    console.log(`[Webhook] Plan=${plan}, Rate=${rate}, Total=${total_price}, Comm=${commission}, VendorAmount=${montantVendeur}`);
-
-    // Create a human readable date and hour for French format matching App.tsx orders
+    // Now we loop over each pending order in pendingOrders to create final orders!
+    let lastStoredOrder: any = null;
     const dateStr = new Date().toLocaleDateString('fr-FR');
     const heureStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
-    // Ensure profiles details are retrieved for client name & phone
-    let clientNom = 'Client Anonyme';
-    let clientTel = '';
-    const { data: clientProfile } = await supabase
-      .from('profiles')
-      .select('prenom, nom, tel')
-      .eq('id', pendingOrder.buyer_id)
-      .maybeSingle();
+    for (const pendingOrder of pendingOrders) {
+      const subRefId = pendingOrder.reference_id || orderId;
+      console.log(`[Webhook Processing Sub-order] processing ${subRefId} for vendor ${pendingOrder.vendor_id}`);
 
-    if (clientProfile) {
-      clientNom = `${clientProfile.prenom || ''} ${clientProfile.nom || ''}`.trim() || 'Client';
-      clientTel = clientProfile.tel || '';
-    }
+      // 2. Générer QR code unique per sub-order
+      const qrCode = `qr-${subRefId.split('-')[1] || Date.now().toString().slice(-4)}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 
-    const itemsList = Array.isArray(pendingOrder.items) ? pendingOrder.items : [];
-
-    const firstItem = itemsList[0];
-    const firstProductId = firstItem ? (firstItem.productId || firstItem.product_id || firstItem.id || '') : '';
-    const firstProductName = firstItem ? (firstItem.productNom || firstItem.product_name || firstItem.nom || firstItem.name || '') : '';
-    const firstUnitPrice = firstItem ? (Number(firstItem.prix) || Number(firstItem.price) || Number(firstItem.unit_price) || total_price) : total_price;
-    const firstQuantity = firstItem ? (Number(firstItem.qte) || Number(firstItem.quantity) || 1) : 1;
-
-    let vendorName = 'Boutique';
-    try {
-      const { data: vendorShop } = await supabase
+      // 3. Récupérer le plan du vendeur pour la commission
+      const { data: shop, error: shopErr } = await supabase
         .from('shops')
-        .select('name, shop_name')
+        .select('plan')
         .eq('vendor_id', pendingOrder.vendor_id)
         .maybeSingle();
-      if (vendorShop) {
-        vendorName = vendorShop.shop_name || vendorShop.name || 'Boutique';
-      } else {
-        const { data: vendorProfile } = await supabase
-          .from('profiles')
-          .select('prenom, nom, shop_name')
-          .eq('id', pendingOrder.vendor_id)
-          .maybeSingle();
-        if (vendorProfile) {
-          vendorName = vendorProfile.shop_name || `${vendorProfile.prenom || ''} ${vendorProfile.nom || ''}`.trim() || 'Boutique';
-        }
+
+      if (shopErr) {
+        console.warn('[Webhook] Error fetching shop plan, defaulting to gratuit:', shopErr.message);
       }
-    } catch {
-      // Ignored
-    }
 
-    const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-    const cleanBuyerId = pendingOrder.buyer_id || null;
-    const cleanVendorId = pendingOrder.vendor_id || null;
-    
-    // 4. Créer la commande définitive (with maximum redundant aliases for complete schema compatibility)
-    const orderPayload: any = {
-      id: isUuid(orderId) ? orderId : crypto.randomUUID(),
-      qr_token: orderId, // Save the friendly payment reference in the text qr_token column
-      qr_payload: pendingOrder.buyer_id, // Store original client ID here as fallback text in case user ID is not a UUID
-      
-      // Client / Buyer mapping with redundant aliases
-      buyer_id: cleanBuyerId,
-      client_id: cleanBuyerId,
-      customer_id: cleanBuyerId,
-      user_id: cleanBuyerId,
-      client_nom: clientNom,
-      client_name: clientNom, // alias
-      client_tel: clientTel,
-      
-      // Vendor / Seller mapping with redundant aliases
-      vendor_id: cleanVendorId,
-      vendeur_id: cleanVendorId, // alias
-      seller_id: cleanVendorId,
-      owner_id: cleanVendorId,
-      vendor_name: vendorName,
-      items: itemsList,
-      articles: itemsList, // alias
-      total_price: total_price,
-      total: total_price, // alias
-      frais_livraison: Number(pendingOrder.shipping_fee) || 0,
-      shipping_fee: Number(pendingOrder.shipping_fee) || 0,
-      discount: Number(pendingOrder.discount) || 0,
-      delivery_commune: pendingOrder.delivery_commune || '',
-      delivery_address: pendingOrder.delivery_address || '',
-      departement: pendingOrder.delivery_address || pendingOrder.departement || 'Ouest',
-      commune: pendingOrder.delivery_commune || pendingOrder.commune || 'Pétion-Ville',
-      status: 'payee', // 'payee' is standard in Vendza
-      statut: 'payee', // alias
-      payment_method: paymentMethod,
-      paymentMethod: paymentMethod, // alias
-      stripe_session_id: paymentMethod === 'stripe' ? transactionId : null,
-      qr_code: qrCode,
-      is_validated: false,
-      client_confirmed: false,
-      buyer_confirmed: false,
-      reception_confirmed: false,
-      vendor_credited: false,
-      date: dateStr,
-      heure: heureStr,
-      product_id: firstProductId,
-      product_name: firstProductName,
-      unit_price: firstUnitPrice,
-      quantity: firstQuantity,
-      created_at: new Date().toISOString()
-    };
+      const commissions: Record<string, number> = {
+        'gratuit':      0.10,
+        'pro_local':    0.07,
+        'pro_national': 0.03
+      };
 
-    // Retry insertion loop with resilience just like in frontend to bypass schema changes
-    let orderStored: any = null;
-    const payloadCopy = { ...orderPayload };
-    for (let attempt = 0; attempt < 30; attempt++) {
+      const plan = (shop?.plan || 'gratuit').toLowerCase();
+      const rate = commissions[plan] !== undefined ? commissions[plan] : 0.10;
+      const total_price = Number(pendingOrder.total_price) || 0;
+      const commission = total_price * rate;
+      const montantVendeur = total_price - commission;
+
+      console.log(`[Webhook Sub] SubRefId=${subRefId}, Plan=${plan}, Rate=${rate}, Total=${total_price}, Comm=${commission}, VendorAmount=${montantVendeur}`);
+
+      // Ensure profiles details are retrieved for client name & phone
+      let clientNom = 'Client Anonyme';
+      let clientTel = '';
+      const { data: clientProfile } = await supabase
+        .from('profiles')
+        .select('prenom, nom, tel')
+        .eq('id', pendingOrder.buyer_id)
+        .maybeSingle();
+
+      if (clientProfile) {
+        clientNom = `${clientProfile.prenom || ''} ${clientProfile.nom || ''}`.trim() || 'Client';
+        clientTel = clientProfile.tel || '';
+      }
+
+      const itemsList = Array.isArray(pendingOrder.items) ? pendingOrder.items : [];
+
+      const firstItem = itemsList[0];
+      const firstProductId = firstItem ? (firstItem.productId || firstItem.product_id || firstItem.id || '') : '';
+      const firstProductName = firstItem ? (firstItem.productNom || firstItem.product_name || firstItem.nom || firstItem.name || '') : '';
+      const firstUnitPrice = firstItem ? (Number(firstItem.prix) || Number(firstItem.price) || Number(firstItem.unit_price) || total_price) : total_price;
+      const firstQuantity = firstItem ? (Number(firstItem.qte) || Number(firstItem.quantity) || 1) : 1;
+
+      let vendorName = 'Boutique';
       try {
-        const { data: insertedData, error: insertError } = await supabase
-          .from('orders')
-          .insert([payloadCopy])
-          .select()
+        const { data: vendorShop } = await supabase
+          .from('shops')
+          .select('name, shop_name')
+          .eq('vendor_id', pendingOrder.vendor_id)
           .maybeSingle();
-
-        if (!insertError) {
-          orderStored = insertedData;
-          console.log('[Webhook] Order created successfully inside database:', orderId);
-          break;
-        }
-
-        const errMsg = insertError.message || '';
-        if (errMsg.toLowerCase().includes('uuid') || errMsg.toLowerCase().includes('invalid input syntax for uuid')) {
-          let foundOffendingKey = false;
-          for (const key of Object.keys(payloadCopy)) {
-            const valStr = String(payloadCopy[key]);
-            if (valStr && errMsg.includes(valStr)) {
-              if (key === 'id') {
-                console.warn(`[Webhook resilience] Detected invalid UUID value '${valStr}' for primary key 'id', replacing with a new random UUID...`);
-                payloadCopy.id = crypto.randomUUID();
-              } else {
-                console.warn(`[Webhook resilience] Detected invalid UUID value '${valStr}' for column '${key}', removing...`);
-                delete payloadCopy[key];
-              }
-              foundOffendingKey = true;
-            }
-          }
-          if (!foundOffendingKey) {
-            if (errMsg.toLowerCase().includes('buyer_id') || errMsg.toLowerCase().includes('client_id') || errMsg.toLowerCase().includes('customer_id') || errMsg.toLowerCase().includes('user_id')) {
-              console.warn("[Webhook resilience] UUID issue on buyer_id, deleting from payload copy...");
-              delete payloadCopy.buyer_id;
-              delete payloadCopy.client_id;
-              delete payloadCopy.customer_id;
-              delete payloadCopy.user_id;
-            } else if (errMsg.toLowerCase().includes('vendor_id') || errMsg.toLowerCase().includes('vendeur_id') || errMsg.toLowerCase().includes('seller_id') || errMsg.toLowerCase().includes('owner_id')) {
-              console.warn("[Webhook resilience] UUID issue on vendor_id, deleting from payload copy...");
-              delete payloadCopy.vendor_id;
-              delete payloadCopy.vendeur_id;
-              delete payloadCopy.seller_id;
-              delete payloadCopy.owner_id;
-            } else {
-              console.log("[Webhook resilience] Detected UUID primary key on orders table, converting ID to UUID...");
-              payloadCopy.id = crypto.randomUUID();
-            }
-          }
-          continue;
-        }
-
-        const matchCol = errMsg.match(/column "([^"]+)" of relation "([^"]+)" does not exist/i) || 
-                         errMsg.match(/Could not find the '([^']+)' column/i) || 
-                         errMsg.match(/column "([^"]+)" does not exist/i);
-        
-        if (matchCol && matchCol[1]) {
-          const offendingCol = matchCol[1];
-          console.warn(`[Webhook resilience] Removing offending column: ${offendingCol}`);
-          delete payloadCopy[offendingCol];
+        if (vendorShop) {
+          vendorName = vendorShop.shop_name || vendorShop.name || 'Boutique';
         } else {
-          console.error('[Webhook error] Fatal database insert error:', insertError);
-          break;
+          const { data: vendorProfile } = await supabase
+            .from('profiles')
+            .select('prenom, nom, shop_name')
+            .eq('id', pendingOrder.vendor_id)
+            .maybeSingle();
+          if (vendorProfile) {
+            vendorName = vendorProfile.shop_name || `${vendorProfile.prenom || ''} ${vendorProfile.nom || ''}`.trim() || 'Boutique';
+          }
         }
-      } catch (err: any) {
-        console.error('[Webhook error] Insertion exception:', err.message);
-        break;
+      } catch {
+        // Ignored
       }
-    }
 
-    if (!orderStored) {
-      console.error(`[CRITICAL] Order insertion failed for reference ${orderId}. Storing inside orphaned_payments table and local backup file.`);
+      const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+      const cleanBuyerId = pendingOrder.buyer_id || null;
+      const cleanVendorId = pendingOrder.vendor_id || null;
       
-      const orphanedPayload = {
-        id: `orph-${orderId.split('-')[1] || Date.now().toString().slice(-4)}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,
-        order_id: orderId,
-        buyer_id: pendingOrder.buyer_id,
-        vendor_id: pendingOrder.vendor_id,
-        amount: total_price,
+      // 4. Créer la commande définitive (with maximum redundant aliases for complete schema compatibility)
+      const orderPayload: any = {
+        id: isUuid(subRefId) ? subRefId : crypto.randomUUID(),
+        checkout_group_id: pendingOrder.checkout_group_id || orderId,
+        qr_token: subRefId, // Save the friendly payment reference in the text qr_token column
+        qr_payload: pendingOrder.buyer_id, // Store original client ID here as fallback text in case user ID is not a UUID
+        
+        // Client / Buyer mapping with redundant aliases
+        buyer_id: cleanBuyerId,
+        client_id: cleanBuyerId,
+        customer_id: cleanBuyerId,
+        user_id: cleanBuyerId,
+        client_nom: clientNom,
+        client_name: clientNom, // alias
+        client_tel: clientTel,
+        
+        // Vendor / Seller mapping with redundant aliases
+        vendor_id: cleanVendorId,
+        vendeur_id: cleanVendorId, // alias
+        seller_id: cleanVendorId,
+        owner_id: cleanVendorId,
+        vendor_name: vendorName,
+        items: itemsList,
+        articles: itemsList, // alias
+        total_price: total_price,
+        total: total_price, // alias
+        frais_livraison: Number(pendingOrder.shipping_fee) || 0,
+        shipping_fee: Number(pendingOrder.shipping_fee) || 0,
+        discount: Number(pendingOrder.discount) || 0,
+        delivery_commune: pendingOrder.delivery_commune || '',
+        delivery_address: pendingOrder.delivery_address || '',
+        departement: pendingOrder.delivery_address || pendingOrder.departement || 'Ouest',
+        commune: pendingOrder.delivery_commune || pendingOrder.commune || 'Pétion-Ville',
+        status: 'payee', // 'payee' is standard in Vendza
+        statut: 'payee', // alias
         payment_method: paymentMethod,
-        transaction_id: transactionId || orderId,
-        payload_details: JSON.stringify(orderPayload),
+        paymentMethod: paymentMethod, // alias
+        stripe_session_id: paymentMethod === 'stripe' ? transactionId : null,
+        qr_code: qrCode,
+        is_validated: false,
+        client_confirmed: false,
+        buyer_confirmed: false,
+        reception_confirmed: false,
+        vendor_credited: false,
+        date: dateStr,
+        heure: heureStr,
+        product_id: firstProductId,
+        product_name: firstProductName,
+        unit_price: firstUnitPrice,
+        quantity: firstQuantity,
         created_at: new Date().toISOString()
       };
-      
-      const payloadOrphCopy = { ...orphanedPayload };
-      for (let attempt = 0; attempt < 5; attempt++) {
+
+      // Retry insertion loop with resilience just like in frontend to bypass schema changes
+      let orderStored: any = null;
+      const payloadCopy = { ...orderPayload };
+      for (let attempt = 0; attempt < 30; attempt++) {
         try {
-          const { error: orphError } = await supabase
-            .from('orphaned_payments')
-            .insert([payloadOrphCopy]);
-          if (!orphError) {
-            console.log('[Webhook Recovery] Saved orphaned payment successfully in Supabase: orphaned_payments');
+          const { data: insertedData, error: insertError } = await supabase
+            .from('orders')
+            .insert([payloadCopy])
+            .select()
+            .maybeSingle();
+
+          if (!insertError) {
+            orderStored = insertedData;
+            console.log('[Webhook] Order created successfully inside database:', subRefId);
             break;
           }
-          const errMsg = orphError.message || '';
-          const matchCol = errMsg.match(/column "([^"]+)"/i);
+
+          const errMsg = insertError.message || '';
+          if (errMsg.toLowerCase().includes('uuid') || errMsg.toLowerCase().includes('invalid input syntax for uuid')) {
+            let foundOffendingKey = false;
+            for (const key of Object.keys(payloadCopy)) {
+              const valStr = String(payloadCopy[key]);
+              if (valStr && errMsg.includes(valStr)) {
+                if (key === 'id') {
+                  console.warn(`[Webhook resilience] Detected invalid UUID value '${valStr}' for primary key 'id', replacing with a new random UUID...`);
+                  payloadCopy.id = crypto.randomUUID();
+                } else {
+                  console.warn(`[Webhook resilience] Detected invalid UUID value '${valStr}' for column '${key}', removing...`);
+                  delete payloadCopy[key];
+                }
+                foundOffendingKey = true;
+              }
+            }
+            if (!foundOffendingKey) {
+              if (errMsg.toLowerCase().includes('buyer_id') || errMsg.toLowerCase().includes('client_id') || errMsg.toLowerCase().includes('customer_id') || errMsg.toLowerCase().includes('user_id')) {
+                console.warn("[Webhook resilience] UUID issue on buyer_id, deleting from payload copy...");
+                delete payloadCopy.buyer_id;
+                delete payloadCopy.client_id;
+                delete payloadCopy.customer_id;
+                delete payloadCopy.user_id;
+              } else if (errMsg.toLowerCase().includes('vendor_id') || errMsg.toLowerCase().includes('vendeur_id') || errMsg.toLowerCase().includes('seller_id') || errMsg.toLowerCase().includes('owner_id')) {
+                console.warn("[Webhook resilience] UUID issue on vendor_id, deleting from payload copy...");
+                delete payloadCopy.vendor_id;
+                delete payloadCopy.vendeur_id;
+                delete payloadCopy.seller_id;
+                delete payloadCopy.owner_id;
+              } else {
+                console.log("[Webhook resilience] Detected UUID primary key on orders table, converting ID to UUID...");
+                payloadCopy.id = crypto.randomUUID();
+              }
+            }
+            continue;
+          }
+
+          const matchCol = errMsg.match(/column "([^"]+)" of relation "([^"]+)" does not exist/i) || 
+                           errMsg.match(/Could not find the '([^']+)' column/i) || 
+                           errMsg.match(/column "([^"]+)" does not exist/i);
+          
           if (matchCol && matchCol[1]) {
-            delete payloadOrphCopy[matchCol[1]];
+            const offendingCol = matchCol[1];
+            console.warn(`[Webhook resilience] Removing offending column: ${offendingCol}`);
+            delete payloadCopy[offendingCol];
           } else {
-            console.error('[Webhook Recovery Error] Failed saving orphaned payment to DB:', orphError.message);
+            console.error('[Webhook error] Fatal database insert error:', insertError);
             break;
           }
-        } catch (e: any) {
-          console.error('[Webhook Recovery Exception]', e.message);
+        } catch (err: any) {
+          console.error('[Webhook error] Insertion exception:', err.message);
           break;
         }
       }
-      
-      // Always store locally as guaranteed fallback
-      saveOrphanedPayment(orderPayload);
-    } else {
-      // Order created successfully, we can safely delete from local pending cache
-      deleteLocalPendingOrder(orderId);
-    }
 
-    // 5. Créditer le wallet vendeur (en séquestre)
-    const { data: wallet } = await supabase
-      .from('vendor_wallets')
-      .select('*')
-      .eq('vendor_id', pendingOrder.vendor_id)
-      .maybeSingle();
+      if (!orderStored) {
+        console.error(`[CRITICAL] Order insertion failed for reference ${subRefId}. Storing inside orphaned_payments table and local backup file.`);
+        
+        const orphanedPayload = {
+          id: `orph-${subRefId.split('-')[1] || Date.now().toString().slice(-4)}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,
+          order_id: subRefId,
+          buyer_id: pendingOrder.buyer_id,
+          vendor_id: pendingOrder.vendor_id,
+          amount: total_price,
+          payment_method: paymentMethod,
+          transaction_id: transactionId || orderId,
+          payload_details: JSON.stringify(orderPayload),
+          created_at: new Date().toISOString()
+        };
+        
+        const payloadOrphCopy = { ...orphanedPayload };
+        for (let attempt = 0; attempt < 5; attempt++) {
+          try {
+            const { error: orphError } = await supabase
+              .from('orphaned_payments')
+              .insert([payloadOrphCopy]);
+            if (!orphError) {
+              console.log('[Webhook Recovery] Saved orphaned payment successfully in Supabase: orphaned_payments');
+              break;
+            }
+            const errMsg = orphError.message || '';
+            const matchCol = errMsg.match(/column "([^"]+)"/i);
+            if (matchCol && matchCol[1]) {
+              delete payloadOrphCopy[matchCol[1]];
+            } else {
+              console.error('[Webhook Recovery Error] Failed saving orphaned payment to DB:', orphError.message);
+              break;
+            }
+          } catch (e: any) {
+            console.error('[Webhook Recovery Exception]', e.message);
+            break;
+          }
+        }
+        
+        // Always store locally as guaranteed fallback
+        saveOrphanedPayment(orderPayload);
+      } else {
+        // Order created successfully, we can safely delete from local pending cache
+        deleteLocalPendingOrder(subRefId);
+        lastStoredOrder = orderStored;
+      }
 
-    if (wallet) {
-      const newPending = (Number(wallet.pending_balance) || 0) + montantVendeur;
-      const newTotal = (Number(wallet.total_earned) || 0) + montantVendeur;
-      await supabase
+      // 5. Créditer le wallet vendeur (en séquestre)
+      const { data: wallet } = await supabase
         .from('vendor_wallets')
-        .update({
-          pending_balance: newPending,
-          total_earned: newTotal,
-          updated_at: new Date().toISOString()
-        })
-        .eq('vendor_id', pendingOrder.vendor_id);
-    } else {
+        .select('*')
+        .eq('vendor_id', pendingOrder.vendor_id)
+        .maybeSingle();
+
+      if (wallet) {
+        const newPending = (Number(wallet.pending_balance) || 0) + montantVendeur;
+        const newTotal = (Number(wallet.total_earned) || 0) + montantVendeur;
+        await supabase
+          .from('vendor_wallets')
+          .update({
+            pending_balance: newPending,
+            total_earned: newTotal,
+            updated_at: new Date().toISOString()
+          })
+          .eq('vendor_id', pendingOrder.vendor_id);
+      } else {
+        await supabase
+          .from('vendor_wallets')
+          .insert({
+            vendor_id: pendingOrder.vendor_id,
+            pending_balance: montantVendeur,
+            available_balance: 0,
+            total_earned: montantVendeur,
+            updated_at: new Date().toISOString()
+          });
+      }
+
+      // 6. Enregistrer transaction wallet
       await supabase
-        .from('vendor_wallets')
+        .from('vendor_wallet_transactions')
         .insert({
           vendor_id: pendingOrder.vendor_id,
-          pending_balance: montantVendeur,
-          available_balance: 0,
-          total_earned: montantVendeur,
-          updated_at: new Date().toISOString()
+          order_id: subRefId,
+          amount: montantVendeur,
+          type: 'pending_escrow',
+          description: `Paiement ${paymentMethod} — en séquestre (commission ${rate * 100}% pour forfait ${plan} déduite)`
         });
+
+      // 7. Supprimer la commande pending
+      await supabase
+        .from('pending_orders')
+        .delete()
+        .eq('reference_id', subRefId);
+
+      // 8. Trigger real-time push notifications from backend (Fail-safe)
+      try {
+        if (pendingOrder.vendor_id) {
+          console.log(`[Webhook Push] Notifying seller '${pendingOrder.vendor_id}'...`);
+          await sendPushNotificationBackend(
+            pendingOrder.vendor_id,
+            "Nouvelle commande reçue",
+            `Tu as reçu une nouvelle commande d'un montant de ${total_price} HTG. Réf: ${subRefId}`
+          );
+        }
+        if (pendingOrder.buyer_id) {
+          console.log(`[Webhook Push] Notifying buyer '${pendingOrder.buyer_id}'...`);
+          await sendPushNotificationBackend(
+            pendingOrder.buyer_id,
+            "Ta commande a été confirmée",
+            `Ton paiement de ${total_price} HTG a été enregistré avec succès et placé en séquestre de sécurité. Réf: ${subRefId}`
+          );
+        }
+      } catch (pushErr: any) {
+        console.error("[Webhook Push Error] Failed to send push notification from backend webhook:", pushErr.message);
+      }
     }
 
-    // 6. Enregistrer transaction wallet
-    await supabase
-      .from('vendor_wallet_transactions')
-      .insert({
-        vendor_id: pendingOrder.vendor_id,
-        order_id: orderId,
-        amount: montantVendeur,
-        type: 'pending_escrow',
-        description: `Paiement ${paymentMethod} — en séquestre (commission ${rate * 100}% pour forfait ${plan} déduite)`
-      });
-
-    // 7. Supprimer la commande pending
+    // Also clean up any parent pending order reference if it exists
     await supabase
       .from('pending_orders')
       .delete()
       .eq('reference_id', orderId);
+    deleteLocalPendingOrder(orderId);
 
-    // 8. Trigger real-time push notifications from backend (Fail-safe)
-    try {
-      if (pendingOrder.vendor_id) {
-        console.log(`[Webhook Push] Notifying seller '${pendingOrder.vendor_id}'...`);
-        await sendPushNotificationBackend(
-          pendingOrder.vendor_id,
-          "Nouvelle commande reçue",
-          `Tu as reçu une nouvelle commande d'un montant de ${total_price} HTG. Réf: ${orderId}`
-        );
-      }
-      if (pendingOrder.buyer_id) {
-        console.log(`[Webhook Push] Notifying buyer '${pendingOrder.buyer_id}'...`);
-        await sendPushNotificationBackend(
-          pendingOrder.buyer_id,
-          "Ta commande a été confirmée",
-          `Ton paiement de ${total_price} HTG a été enregistré avec succès et placé en séquestre de sécurité. Réf: ${orderId}`
-        );
-      }
-    } catch (pushErr: any) {
-      console.error("[Webhook Push Error] Failed to send push notification from backend webhook:", pushErr.message);
-    }
-
-    console.log('[Webhook Success] Finished successfully for order:', orderId);
-    return orderStored;
+    console.log('[Webhook Success] Finished successfully for group order:', orderId);
+    return lastStoredOrder;
   } catch (e: any) {
     console.error('[Webhook] Exception in creerCommandeApresPaiement:', e.message);
     return null;

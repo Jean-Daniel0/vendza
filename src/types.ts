@@ -60,6 +60,9 @@ export interface Order {
   commune: string;
   paymentMethod?: string;
   stripeSessionId?: string;
+  checkout_group_id?: string;
+  vendor_id?: string;
+  vendor_name?: string;
 }
 
 export interface Review {

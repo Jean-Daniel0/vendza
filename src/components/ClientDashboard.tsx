@@ -5,7 +5,7 @@ import {
   User2, ShieldCheck, CreditCard, ChevronRight, HelpCircle,
   Phone, Mail, Lock, Bell, Edit2, Save, X, Sparkles, Plus, ArrowLeft
 } from 'lucide-react';
-import { Order, UserProfile, CartItem } from '../types';
+import { Order, UserProfile, CartItem, OrderStatus } from '../types';
 import { HAITIAN_ZONES } from '../data';
 import { QRCodeRenderer } from './QRCodeRenderer';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
@@ -598,170 +598,251 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                 ))}
               </div>
 
-              {filteredOrders.length > 0 ? (
-                <div className="space-y-4">
-                  {filteredOrders.map(order => (
-                    <div 
-                      key={order.id} 
-                      className={`bg-white border rounded-2xl overflow-hidden shadow-xs transition-all ${
-                        order.status === 'livree' 
-                          ? 'border-emerald-200 hover:border-emerald-300' 
-                          : order.status === 'payee'
-                            ? 'border-blue-200 hover:border-blue-300'
-                            : order.status === 'annulee'
-                              ? 'border-red-100 opacity-80'
-                              : 'border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="p-4 space-y-3">
-                        <div className="flex items-start justify-between gap-4 flex-wrap">
-                          <div>
-                            <span className="font-mono text-[9px] font-black text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
-                              ID: {order.id.slice(0, 13)}...
-                            </span>
-                            <h3 className="font-serif text-xs font-black text-slate-800 tracking-tight mt-1.5">
-                              Commande du {order.date} à {order.heure}
-                            </h3>
-                          </div>
+              {(() => {
+                const getGroupKey = (o: Order) => {
+                  if (o.checkout_group_id) return o.checkout_group_id;
+                  if (typeof o.id === 'string' && o.id.includes('_sub_')) {
+                    return o.id.split('_sub_')[0];
+                  }
+                  return o.id;
+                };
 
-                          <div className="flex flex-col items-end gap-1.5">
-                            <span className={`text-[9px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-full border ${
-                              order.status === 'livree'
-                                ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                                : order.status === 'payee'
-                                  ? 'bg-blue-50 text-blue-600 border-blue-100'
-                                  : order.status === 'annulee'
-                                    ? 'bg-red-50 text-red-600 border-red-100'
-                                    : 'bg-amber-50 text-amber-600 border-amber-100'
-                            }`}>
-                              ● {order.status === 'livree' && 'Livrée & Validée'}
-                              {order.status === 'payee' && 'Payée (En séquestre)'}
-                              {order.status === 'attente' && 'Attente Paiement'}
-                              {order.status === 'annulee' && 'Annulée'}
-                            </span>
-                            
-                            <span className="font-mono text-xs font-extrabold text-blue-600">
-                              {order.total} Gdes
-                            </span>
-                          </div>
-                        </div>
+                const groupedMap: Record<string, Order[]> = {};
+                for (const order of filteredOrders) {
+                  const key = getGroupKey(order);
+                  if (!groupedMap[key]) {
+                    groupedMap[key] = [];
+                  }
+                  groupedMap[key].push(order);
+                }
 
-                        <div className="p-3 bg-slate-50 rounded-xl space-y-1.5 border border-slate-100">
-                          {order.items.map((item, idx) => (
-                            <div key={idx} className="flex justify-between text-slate-600 text-[11px] font-medium leading-relaxed">
-                              <span className="truncate max-w-[80%] pr-4">
-                                ({item.qte}x) {item.productNom}
+                const groupedOrdersList = Object.keys(groupedMap).map(key => {
+                  const subOrders = groupedMap[key];
+                  const firstOrder = subOrders[0];
+                  const totalCombined = subOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+                  
+                  let resolvedStatus: OrderStatus = 'livree';
+                  if (subOrders.some(o => o.status === 'attente')) {
+                    resolvedStatus = 'attente';
+                  } else if (subOrders.some(o => o.status === 'payee')) {
+                    resolvedStatus = 'payee';
+                  } else if (subOrders.some(o => o.status === 'annulee') && subOrders.every(o => o.status === 'annulee')) {
+                    resolvedStatus = 'annulee';
+                  } else if (subOrders.some(o => o.status === 'annulee')) {
+                    resolvedStatus = 'payee';
+                  }
+
+                  return {
+                    groupKey: key,
+                    orders: subOrders,
+                    date: firstOrder.date,
+                    heure: firstOrder.heure,
+                    status: resolvedStatus,
+                    total: totalCombined
+                  };
+                });
+
+                return groupedOrdersList.length > 0 ? (
+                  <div className="space-y-4">
+                    {groupedOrdersList.map(group => (
+                      <div 
+                        key={group.groupKey} 
+                        className={`bg-white border rounded-2xl overflow-hidden shadow-xs transition-all ${
+                          group.status === 'livree' 
+                            ? 'border-emerald-200 hover:border-emerald-300' 
+                            : group.status === 'payee'
+                              ? 'border-blue-200 hover:border-blue-300'
+                              : group.status === 'annulee'
+                                ? 'border-red-100 opacity-80'
+                                : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="p-4 space-y-3">
+                          <div className="flex items-start justify-between gap-4 flex-wrap">
+                            <div>
+                              <span className="font-mono text-[9px] font-black text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">
+                                ID Commande: {group.groupKey.slice(0, 18)}...
                               </span>
-                              <span className="font-mono flex-shrink-0 text-slate-500">
-                                {item.prix * item.qte} Gdes
+                              <h3 className="font-serif text-xs font-black text-slate-800 tracking-tight mt-1.5">
+                                Achat du {group.date} à {group.heure}
+                              </h3>
+                              {group.orders.length > 1 && (
+                                <div className="mt-1">
+                                  <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                                    Multi-vendeurs ({group.orders.length})
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex flex-col items-end gap-1.5">
+                              <span className={`text-[9px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-full border ${
+                                group.status === 'livree'
+                                  ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                                  : group.status === 'payee'
+                                    ? 'bg-blue-50 text-blue-600 border-blue-100'
+                                    : group.status === 'annulee'
+                                      ? 'bg-red-50 text-red-600 border-red-100'
+                                      : 'bg-amber-50 text-amber-600 border-amber-100'
+                              }`}>
+                                ● {group.status === 'livree' && 'Livrée & Validée'}
+                                {group.status === 'payee' && 'Payée (En séquestre)'}
+                                {group.status === 'attente' && 'Attente Paiement'}
+                                {group.status === 'annulee' && 'Annulée'}
+                              </span>
+                              
+                              <span className="font-mono text-xs font-extrabold text-blue-600">
+                                Total global : {group.total} Gdes
                               </span>
                             </div>
-                          ))}
-                        </div>
-
-                        <div className="flex flex-col gap-2 pt-1 border-t border-slate-50">
-                          <div className="flex gap-2 justify-between flex-wrap sm:flex-nowrap">
-                            <button
-                              onClick={() => {
-                                if (onViewTicket) {
-                                  onViewTicket(order);
-                                } else {
-                                  setViewingTicketOrder(order);
-                                }
-                              }}
-                              className="p-1 px-3 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-[10px] font-extrabold uppercase tracking-wider inline-flex items-center gap-1 cursor-pointer"
-                            >
-                              <Eye size={12} /> Voir ticket & QR
-                            </button>
-
-                            {order.status !== 'livree' && order.status !== 'annulee' && (
-                              <button
-                                onClick={() => onCancelOrder(order.id)}
-                                className="p-1 px-3 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-[10px] font-extrabold uppercase tracking-wider cursor-pointer"
-                              >
-                                Annuler l'achat
-                              </button>
-                            )}
-
-                            {order.status === 'payee' && (
-                              <button
-                                onClick={() => {
-                                  setDisputingOrderId(order.id);
-                                  setDisputeReason('');
-                                }}
-                                className="p-1 px-3 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 rounded-lg text-[10px] font-extrabold uppercase tracking-wider cursor-pointer font-sans"
-                              >
-                                ⚠️ Ouvrir un Litige
-                              </button>
-                            )}
                           </div>
 
-                          {disputingOrderId === order.id && (
-                            <div className="mt-2 p-3 bg-rose-50 rounded-xl space-y-2.5 animate-fade-in border border-rose-100 text-left w-full">
-                              <label className="block text-[9.5px] font-black uppercase tracking-wider text-rose-700">
-                                Expliquer le problème (Ex: Article non reçu, cassé ou faux) *
-                              </label>
-                              <textarea
-                                value={disputeReason}
-                                onChange={e => setDisputeReason(e.target.value)}
-                                placeholder="Indiquez le motif précis de votre litige pour examen par l'administration Vendza..."
-                                className="w-full p-2 text-xs bg-white border border-rose-200 rounded-lg focus:outline-none focus:border-rose-600 font-sans"
-                                rows={2}
-                              />
-                              <div className="flex gap-2 justify-end">
-                                <button
-                                  type="button"
-                                  disabled={disputeSubmitting}
-                                  onClick={() => {
-                                    setDisputingOrderId(null);
-                                    setDisputeReason('');
-                                  }}
-                                  className="px-2.5 py-1 text-[10px] border border-slate-200 hover:bg-white rounded-lg font-bold text-slate-500 cursor-pointer"
-                                >
-                                  Annuler
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={disputeSubmitting || !disputeReason.trim()}
-                                  onClick={async () => {
-                                    if (!disputeReason.trim()) return;
-                                    setDisputeSubmitting(true);
-                                    try {
-                                      if (onOpenDispute) {
-                                        const res = await onOpenDispute(order.id, disputeReason);
-                                        alert(res.message);
-                                        if (res.success) {
-                                          setDisputingOrderId(null);
-                                          setDisputeReason('');
+                          {/* List sub-orders per vendor */}
+                          <div className="space-y-3 pt-1">
+                            {group.orders.map((subOrder) => (
+                              <div key={subOrder.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
+                                <div className="flex justify-between items-center pb-1 border-b border-slate-200/50">
+                                  <span className="text-[11px] font-bold text-slate-700">
+                                    Boutique : <span className="text-blue-600 font-black">{subOrder.vendor_name || 'Boutique'}</span>
+                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={`text-[8.5px] font-extrabold px-1.5 py-0.2 rounded border uppercase ${
+                                      subOrder.status === 'livree'
+                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                                        : subOrder.status === 'payee'
+                                          ? 'bg-blue-50 text-blue-600 border-blue-100'
+                                          : subOrder.status === 'annulee'
+                                            ? 'bg-red-50 text-red-600 border-red-100'
+                                            : 'bg-amber-50 text-amber-600 border-amber-100'
+                                    }`}>
+                                      {subOrder.status === 'livree' ? 'Livrée' : subOrder.status === 'payee' ? 'Payée' : subOrder.status === 'attente' ? 'Attente' : 'Annulée'}
+                                    </span>
+                                    <span className="font-mono text-[10.5px] font-extrabold text-slate-800">
+                                      {subOrder.total} Gdes
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                  {subOrder.items.map((item, idx) => (
+                                    <div key={idx} className="flex justify-between text-slate-600 text-[11px] font-medium leading-relaxed">
+                                      <span className="truncate max-w-[80%] pr-4">
+                                        ({item.qte}x) {item.productNom}
+                                      </span>
+                                      <span className="font-mono flex-shrink-0 text-slate-500">
+                                        {item.prix * item.qte} Gdes
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                <div className="flex flex-col gap-2 pt-1 border-t border-slate-200/40">
+                                  <div className="flex gap-2 justify-between flex-wrap sm:flex-nowrap">
+                                    <button
+                                      onClick={() => {
+                                        if (onViewTicket) {
+                                          onViewTicket(subOrder);
+                                        } else {
+                                          setViewingTicketOrder(subOrder);
                                         }
-                                      } else {
-                                        alert("Service de litige indisponible.");
-                                      }
-                                    } catch (e: any) {
-                                      alert(`Erreur: ${e.message}`);
-                                    } finally {
-                                      setDisputeSubmitting(false);
-                                    }
-                                  }}
-                                  className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer disabled:opacity-50"
-                                >
-                                  {disputeSubmitting ? 'Envoi...' : 'Confirmer Litige'}
-                                </button>
+                                      }}
+                                      className="p-1 px-3 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-[10px] font-extrabold uppercase tracking-wider inline-flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <Eye size={12} /> Voir ticket & QR
+                                    </button>
+
+                                    {subOrder.status !== 'livree' && subOrder.status !== 'annulee' && (
+                                      <button
+                                        onClick={() => onCancelOrder(subOrder.id)}
+                                        className="p-1 px-3 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-[10px] font-extrabold uppercase tracking-wider cursor-pointer"
+                                      >
+                                        Annuler l'achat
+                                      </button>
+                                    )}
+
+                                    {subOrder.status === 'payee' && (
+                                      <button
+                                        onClick={() => {
+                                          setDisputingOrderId(subOrder.id);
+                                          setDisputeReason('');
+                                        }}
+                                        className="p-1 px-3 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 rounded-lg text-[10px] font-extrabold uppercase tracking-wider cursor-pointer font-sans"
+                                      >
+                                        ⚠️ Ouvrir un Litige
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {disputingOrderId === subOrder.id && (
+                                    <div className="mt-2 p-3 bg-rose-50 rounded-xl space-y-2.5 animate-fade-in border border-rose-100 text-left w-full">
+                                      <label className="block text-[9.5px] font-black uppercase tracking-wider text-rose-700">
+                                        Expliquer le problème (Ex: Article non reçu, cassé ou faux) *
+                                      </label>
+                                      <textarea
+                                        value={disputeReason}
+                                        onChange={e => setDisputeReason(e.target.value)}
+                                        placeholder="Indiquez le motif précis de votre litige pour examen par l'administration Vendza..."
+                                        className="w-full p-2 text-xs bg-white border border-rose-200 rounded-lg focus:outline-none focus:border-rose-600 font-sans"
+                                        rows={2}
+                                      />
+                                      <div className="flex gap-2 justify-end">
+                                        <button
+                                          type="button"
+                                          disabled={disputeSubmitting}
+                                          onClick={() => {
+                                            setDisputingOrderId(null);
+                                            setDisputeReason('');
+                                          }}
+                                          className="px-2.5 py-1 text-[10px] border border-slate-200 hover:bg-white rounded-lg font-bold text-slate-500 cursor-pointer"
+                                        >
+                                          Annuler
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={disputeSubmitting || !disputeReason.trim()}
+                                          onClick={async () => {
+                                            if (!disputeReason.trim()) return;
+                                            setDisputeSubmitting(true);
+                                            try {
+                                              if (onOpenDispute) {
+                                                const res = await onOpenDispute(subOrder.id, disputeReason);
+                                                alert(res.message);
+                                                if (res.success) {
+                                                  setDisputingOrderId(null);
+                                                  setDisputeReason('');
+                                                }
+                                              } else {
+                                                alert("Service de litige indisponible.");
+                                              }
+                                            } catch (e: any) {
+                                              alert(`Erreur: ${e.message}`);
+                                            } finally {
+                                              setDisputeSubmitting(false);
+                                            }
+                                          }}
+                                          className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider cursor-pointer disabled:opacity-50"
+                                        >
+                                          {disputeSubmitting ? 'Envoi...' : 'Confirmer Litige'}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
-                  <span className="text-3xl">🛍️</span>
-                  <h3 className="font-serif text-xs font-bold text-slate-700 mt-2">Aucun achat historique</h3>
-                  <p className="text-xs text-slate-400 mt-1">Vous n'avez pas encore passé de commande avec ces critères.</p>
-                </div>
-              )}
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
+                    <span className="text-3xl">🛍️</span>
+                    <h3 className="font-serif text-xs font-bold text-slate-700 mt-2">Aucun achat historique</h3>
+                    <p className="text-xs text-slate-400 mt-1">Vous n'avez pas encore passé de commande avec ces critères.</p>
+                  </div>
+                );
+              })()}
             </section>
 
             <section className="md:col-span-4 space-y-4">

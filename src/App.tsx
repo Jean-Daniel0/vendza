@@ -2029,27 +2029,70 @@ export default function App() {
     // Save to pending_orders in Supabase (via backend secure proxy to bypass RLS policies) BEFORE redirecting!
     if (isSupabaseConfigured) {
       try {
-        const firstItem = rawOrder.items[0];
-        const response = await fetch('/api/orders/pending', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            reference_id: rawOrder.id,
-            buyer_id: rawOrder.clientId,
-            vendor_id: firstItem?.vendeurId || '',
-            items: rawOrder.items,
-            total_price: rawOrder.total,
-            shipping_fee: rawOrder.fraisLivraison || 0,
-            delivery_commune: rawOrder.commune,
-            delivery_address: rawOrder.departement || ''
-          })
-        });
+        const uniqueVendors = Array.from(new Set(rawOrder.items.map(item => item.vendeurId || '')));
+        
+        if (uniqueVendors.length > 1) {
+          console.log(`[Order Splitter] Multi-vendor cart detected (${uniqueVendors.length} vendors). Splitting order...`);
+          
+          const baseShippingFee = Math.floor((rawOrder.fraisLivraison || 0) / uniqueVendors.length);
+          const remainderShippingFee = (rawOrder.fraisLivraison || 0) % uniqueVendors.length;
+          
+          for (let idx = 0; idx < uniqueVendors.length; idx++) {
+            const vId = uniqueVendors[idx];
+            const subItems = rawOrder.items.filter(item => (item.vendeurId || '') === vId);
+            const subItemsTotal = subItems.reduce((sum, item) => sum + (item.prix * item.qte), 0);
+            const subShippingFee = baseShippingFee + (idx === 0 ? remainderShippingFee : 0);
+            const subTotal = subItemsTotal + subShippingFee;
+            const subOrderId = `${rawOrder.id}_sub_${vId}`;
 
-        if (!response.ok) {
-          const errData = await response.json();
-          console.error("Error creating pending order record in Supabase:", errData.error || response.statusText);
+            const response = await fetch('/api/orders/pending', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                reference_id: subOrderId,
+                checkout_group_id: rawOrder.id,
+                buyer_id: rawOrder.clientId,
+                vendor_id: vId,
+                items: subItems,
+                total_price: subTotal,
+                shipping_fee: subShippingFee,
+                delivery_commune: rawOrder.commune,
+                delivery_address: rawOrder.departement || ''
+              })
+            });
+
+            if (!response.ok) {
+              const errData = await response.json();
+              console.error(`Error creating split pending order for vendor ${vId}:`, errData.error || response.statusText);
+            } else {
+              console.log(`Pending split order for vendor ${vId} successfully registered on server.`);
+            }
+          }
         } else {
-          console.log("Pending order successfully registered on server.");
+          // Single vendor order
+          const firstItem = rawOrder.items[0];
+          const response = await fetch('/api/orders/pending', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              reference_id: rawOrder.id,
+              checkout_group_id: rawOrder.id,
+              buyer_id: rawOrder.clientId,
+              vendor_id: firstItem?.vendeurId || '',
+              items: rawOrder.items,
+              total_price: rawOrder.total,
+              shipping_fee: rawOrder.fraisLivraison || 0,
+              delivery_commune: rawOrder.commune,
+              delivery_address: rawOrder.departement || ''
+            })
+          });
+
+          if (!response.ok) {
+            const errData = await response.json();
+            console.error("Error creating pending order record in Supabase:", errData.error || response.statusText);
+          } else {
+            console.log("Pending order successfully registered on server.");
+          }
         }
       } catch (e: any) {
         console.error("Exception creating pending order inside database:", e.message);
