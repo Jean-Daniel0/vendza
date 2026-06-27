@@ -245,6 +245,7 @@ export default function App() {
   // State for tracking Supabase Storage Row-Level Security permission failures
   const [storageRlsError, setStorageRlsError] = useState<boolean>(false);
   const [messagesRlsError, setMessagesRlsError] = useState<boolean>(false);
+  const [ordersRlsError, setOrdersRlsError] = useState<boolean>(false);
 
   // Helper utility to compress base64 images to keep database payloads extremely small and avoid failures
   const compressBase64Image = (base64Str: string, maxDimension: number = 400): Promise<string> => {
@@ -1391,9 +1392,24 @@ export default function App() {
       )
       .subscribe();
 
+    // Listen to real-time orders changes to automatically synchronize buyer and seller dashboards
+    const ordersChannel = supabase
+      .channel('orders-realtime-channel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        () => {
+          if (!isSubscribed) return;
+          console.log('[Realtime] Orders database changed, refreshing orders...');
+          fetchOrders();
+        }
+      )
+      .subscribe();
+
     return () => {
       isSubscribed = false;
       supabase.removeChannel(channel);
+      supabase.removeChannel(ordersChannel);
     };
   }, [currentUser]);
 
@@ -1566,7 +1582,11 @@ export default function App() {
               date: finalDate,
               heure: finalHeure,
               departement: o.departement || 'Ouest',
-              commune: o.delivery_commune || o.commune || 'Pétion-Ville'
+              commune: o.delivery_commune || o.commune || 'Pétion-Ville',
+              checkout_group_id: o.checkout_group_id,
+              vendor_id: o.vendor_id || o.vendeur_id,
+              vendor_name: o.vendor_name || o.vendeur_nom || o.vendeur || 'Boutique',
+              paymentMethod: o.payment_method || o.paymentMethod || 'moncash'
             };
           });
 
@@ -1996,6 +2016,10 @@ export default function App() {
           console.warn(`Database schema mismatch helper (Orders): removing unconfigured parameter '${offendingCol}' from payload.`);
           delete payload[offendingCol];
         } else {
+          if (errMsg.toLowerCase().includes('violates row-level security') || errMsg.toLowerCase().includes('row level security') || errMsg.toLowerCase().includes('permission')) {
+            console.warn("Detected Row-Level Security (RLS) violation on public.orders:", errMsg);
+            setOrdersRlsError(true);
+          }
           console.error("Non-recoverable Supabase insert error on orders:", error);
           break;
         }
@@ -4204,6 +4228,80 @@ create policy "Insertion publique des messages"
           <p className="text-[10px] text-blue-850 font-semibold bg-emerald-50 p-2.5 rounded-xl border border-emerald-100 flex items-center gap-1.5 shadow-3xs leading-relaxed">
             <span>💡</span>
             <span><strong>Mode de secours actif :</strong> Votre message a bien été affiché localement en temps réel ! Vos discussions restent fluides et interactives.</span>
+          </p>
+        </div>
+      )}
+
+      {/* Orders Table RLS Error guidance overlay */}
+      {ordersRlsError && (
+        <div className="fixed bottom-4 right-4 max-w-sm sm:max-w-md bg-white border border-rose-200 rounded-2xl shadow-xl z-50 p-5 space-y-3 animate-slide-up mr-2">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-rose-50 rounded-xl text-rose-600 shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-shield-alert"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+            </div>
+            <div className="space-y-1 flex-1">
+              <h4 className="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
+                Règle RLS requise pour les commandes (Orders) !
+              </h4>
+              <p className="text-[11px] text-slate-500 leading-normal">
+                Les politiques de sécurité (RLS) de la table <strong>orders</strong> bloquent l'enregistrement de commandes. Exécutez le script ci-dessous dans l'<strong>éditeur SQL</strong> de votre console de base de données Supabase :
+              </p>
+            </div>
+            <button 
+              onClick={() => setOrdersRlsError(false)} 
+              className="text-slate-400 hover:text-slate-600 transition shrink-0 cursor-pointer"
+              title="Masquer"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+
+          <div className="bg-slate-900 rounded-lg p-3 text-slate-200 text-[10px] font-mono overflow-x-auto relative">
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(`-- Débloquer les droits en lecture/écriture/mise à jour de la table orders (Row Level Security)
+alter table public.orders enable row level security;
+
+create policy "Lecture publique des commandes"
+  on public.orders for select
+  using (true);
+
+create policy "Insertion publique des commandes"
+  on public.orders for insert
+  with check (true);
+
+create policy "Mise à jour publique des commandes"
+  on public.orders for update
+  using (true)
+  with check (true);`);
+                alert("✓ Script SQL copié ! Collez-le dans l'éditeur SQL de votre serveur de base de données Supabase.");
+              }}
+              className="absolute right-2 top-2 bg-slate-800 hover:bg-slate-700 text-[9px] text-teal-400 px-2 py-1 rounded border border-slate-700 font-sans cursor-pointer transition select-none"
+            >
+              Copier SQL
+            </button>
+            <pre className="select-all opacity-95">
+{`-- Débloquer l'accès public à la table orders
+alter table public.orders enable row level security;
+
+create policy "Lecture publique des commandes"
+  on public.orders for select
+  using (true);
+
+create policy "Insertion publique des commandes"
+  on public.orders for insert
+  with check (true);
+
+create policy "Mise à jour publique des commandes"
+  on public.orders for update
+  using (true)
+  with check (true);`}
+            </pre>
+          </div>
+
+          <p className="text-[10px] text-blue-850 font-semibold bg-emerald-50 p-2.5 rounded-xl border border-emerald-100 flex items-center gap-1.5 shadow-3xs leading-relaxed">
+            <span>💡</span>
+            <span><strong>Mode de secours actif :</strong> Votre commande a bien été enregistrée localement en toute sécurité ! Vos transactions restent fluides.</span>
           </p>
         </div>
       )}
