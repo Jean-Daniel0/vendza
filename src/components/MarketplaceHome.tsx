@@ -74,6 +74,10 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
 
   // Filter logic
   const filteredProducts = products.filter(p => {
+    // Normalize seller plan for robust comparison
+    const pPlan = String(p.vendeurPlan || '').toLowerCase().replace(/_/g, ' ').trim();
+    const isProNational = pPlan === 'pro_national' || pPlan === 'pro national';
+
     // 1. Category Filter
     if (selectedCat && selectedCat !== 'Tout' && p.cat !== selectedCat) {
       return false;
@@ -94,7 +98,7 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
       const targetDept = selectedDept.toLowerCase().trim();
       
       const deptMatches = pDept === targetDept || pOrig.includes(targetDept);
-      const isNationalOrPremiumDept = p.vendeurPlan === 'Pro National' || (p.vendeurPremiumDepts && p.vendeurPremiumDepts.some(d => d.toLowerCase().trim() === targetDept));
+      const isNationalOrPremiumDept = isProNational || (p.vendeurPremiumDepts && p.vendeurPremiumDepts.some(d => d.toLowerCase().trim() === targetDept));
       
       if (!deptMatches && !isNationalOrPremiumDept) {
         return false;
@@ -119,7 +123,7 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
       }
       const targetCommuneDeptLower = targetCommuneDept.toLowerCase().trim();
 
-      const isNationalOrPremiumCommune = p.vendeurPlan === 'Pro National' || 
+      const isNationalOrPremiumCommune = isProNational || 
         (targetCommuneDeptLower && p.vendeurPremiumDepts && p.vendeurPremiumDepts.some(d => d.toLowerCase().trim() === targetCommuneDeptLower));
       
       if (!communeMatches && !isNationalOrPremiumCommune) {
@@ -128,6 +132,8 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
     }
     return p.statut === 'actif';
   });
+
+  const hasNoProductsForSelectedLocation = (selectedDept || selectedCommune) && filteredProducts.length === 0;
 
   // Sort products dynamically by referencing/SEO tiers (Pro National > Pro Local > Gratuit) and image verification status
   filteredProducts.sort((a, b) => {
@@ -256,215 +262,217 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
         </div>
       </section>
 
-
-
-      {/* Ventes Flash banner with countdown */}
-      {isFlashActive && (
-        <section 
-          onClick={() => onNavigate('flash-sales')}
-          className="cursor-pointer bg-gradient-to-r from-red-600 to-amber-500 rounded-2xl p-5 text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm hover:from-red-700 hover:to-amber-600 transition-all duration-300 transform active:scale-[0.995]"
-        >
-          <div className="space-y-1 text-center sm:text-left">
-            <h3 className="inline-flex items-center gap-1 text-sm font-black tracking-tight uppercase">
-              <Flame size={16} className="text-yellow-300 animate-pulse animate-bounce" /> Ventes Flash — Jusqu'à -50%
-            </h3>
-            <p className="text-xs text-white/90">Offres limitées sur des dizaines de produits phares (Cliquez pour voir tout à -50%).</p>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="bg-white/20 border border-white/10 rounded-lg p-2 text-center min-w-[50px] shadow-inner">
-                <span className="block font-mono text-base font-extrabold leading-none">{timeLeft.hours.toString().padStart(2, '0')}</span>
-                <small className="text-[9px] text-white/70 font-bold uppercase tracking-wider">H</small>
-              </div>
-              <div className="bg-white/20 border border-white/10 rounded-lg p-2 text-center min-w-[50px] shadow-inner">
-                <span className="block font-mono text-base font-extrabold leading-none">{timeLeft.minutes.toString().padStart(2, '0')}</span>
-                <small className="text-[9px] text-white/70 font-bold uppercase tracking-wider">Min</small>
-              </div>
-              <div className="bg-white/20 border border-white/10 rounded-lg p-2 text-center min-w-[50px] shadow-inner">
-                <span className="block font-mono text-base font-extrabold leading-none">{timeLeft.seconds.toString().padStart(2, '0')}</span>
-                <small className="text-[9px] text-white/70 font-bold uppercase tracking-wider">Sec</small>
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Section Scrolls */}
-      {loading ? (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="font-serif text-sm font-bold tracking-tight text-slate-800">Populaires & Vérifiés</h2>
-            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full uppercase tracking-wider">Premium</span>
-          </div>
-          <div className="flex gap-4 overflow-x-auto pb-3 pl-1 -ml-1 scrollbar-none">
-            {[1, 2, 3, 4, 5].map(i => (
-              <div key={i} className="min-w-[145px] w-[145px] skeleton-card animate-pulse">
-                <div className="skeleton-image h-[100px] rounded-t-lg"></div>
-                <div className="skeleton-body gap-1.5 p-2.5">
-                  <div className="skeleton-category h-[8px] w-1/2"></div>
-                  <div className="skeleton-title h-[12px] w-[85%]"></div>
-                  <div className="skeleton-price h-[10px] w-2/3 pb-1"></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : (
-        popularProducts.length > 0 && (
-          <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="font-serif text-sm font-bold tracking-tight text-slate-800">Populaires & Vérifiés</h2>
-              <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full uppercase tracking-wider">Premium</span>
-            </div>
-            <div className="flex gap-4 overflow-x-auto pb-3 pl-1 -ml-1 scrollbar-none">
-              {popularProducts.map(p => (
-                <ProductScrollCard key={p.id} product={p} rating={getProductRating(p)} onView={() => viewProduct(p)} onAdd={() => onAddToCart(p)} tauxUSD={tauxUSD} />
-              ))}
-            </div>
-          </section>
-        )
-      )}
-
-      {loading ? (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="font-serif text-sm font-bold tracking-tight text-slate-800">Tendances & Mode</h2>
-            <span className="text-[10px] font-bold text-teal-600 bg-teal-50 px-2.5 py-1 rounded-full uppercase tracking-wider">Mode</span>
-          </div>
-          <div className="flex gap-4 overflow-x-auto pb-3 pl-1 -ml-1 scrollbar-none">
-            {[1, 2, 3, 4, 5].map(i => (
-              <div key={i} className="min-w-[145px] w-[145px] skeleton-card animate-pulse">
-                <div className="skeleton-image h-[100px] rounded-t-lg"></div>
-                <div className="skeleton-body gap-1.5 p-2.5">
-                  <div className="skeleton-category h-[8px] w-1/2"></div>
-                  <div className="skeleton-title h-[12px] w-[85%]"></div>
-                  <div className="skeleton-price h-[10px] w-2/3 pb-1"></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : (
-        trendsProducts.length > 0 && (
-          <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="font-serif text-sm font-bold tracking-tight text-slate-800">Tendances & Mode</h2>
-              <span className="text-[10px] font-bold text-teal-600 bg-teal-50 px-2.5 py-1 rounded-full uppercase tracking-wider">Mode</span>
-            </div>
-            <div className="flex gap-4 overflow-x-auto pb-3 pl-1 -ml-1 scrollbar-none">
-              {trendsProducts.map(p => (
-                <ProductScrollCard key={p.id} product={p} rating={getProductRating(p)} onView={() => viewProduct(p)} onAdd={() => onAddToCart(p)} tauxUSD={tauxUSD} />
-              ))}
-            </div>
-          </section>
-        )
-      )}
-
-      {loading ? (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="font-serif text-sm font-bold tracking-tight text-slate-800">Super Aubaines (Promos)</h2>
-            <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2.5 py-1 rounded-full uppercase tracking-wider">Rabais</span>
-          </div>
-          <div className="flex gap-4 overflow-x-auto pb-3 pl-1 -ml-1 scrollbar-none">
-            {[1, 2, 3, 4, 5].map(i => (
-              <div key={i} className="min-w-[145px] w-[145px] skeleton-card animate-pulse">
-                <div className="skeleton-image h-[100px] rounded-t-lg"></div>
-                <div className="skeleton-body gap-1.5 p-2.5">
-                  <div className="skeleton-category h-[8px] w-1/2"></div>
-                  <div className="skeleton-title h-[12px] w-[85%]"></div>
-                  <div className="skeleton-price h-[10px] w-2/3 pb-1"></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : (
-        discountProducts.length > 0 && (
-          <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="font-serif text-sm font-bold tracking-tight text-slate-800">Super Aubaines (Promos)</h2>
-              <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2.5 py-1 rounded-full uppercase tracking-wider">Rabais</span>
-            </div>
-            <div className="flex gap-4 overflow-x-auto pb-3 pl-1 -ml-1 scrollbar-none">
-              {discountProducts.map(p => (
-                <ProductScrollCard key={p.id} product={p} rating={getProductRating(p)} onView={() => viewProduct(p)} onAdd={() => onAddToCart(p)} tauxUSD={tauxUSD} />
-              ))}
-            </div>
-          </section>
-        )
-      )}
-
-      {/* Main Grid Catalogue Products */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between pb-1 border-b border-slate-100">
-          <h2 className="font-serif text-sm font-bold tracking-tight text-slate-800">
-            {selectedCat ? `${selectedCat} - Catalogue` : 'Tous les produits disponibles'}
-          </h2>
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-mono">
-            {loading ? 'Chargement...' : `${filteredProducts.length} articles`}
-          </span>
-        </div>
-
-        {loading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => (
-              <div key={i} className="skeleton-card bg-white rounded-xl overflow-hidden border border-slate-100">
-                <div className="skeleton-image h-[160px] sm:h-[180px]"></div>
-                <div className="skeleton-body p-3 flex flex-col gap-2">
-                  <div className="skeleton-category h-[10px] w-[40%] rounded"></div>
-                  <div className="skeleton-title h-[14px] w-[85%] rounded"></div>
-                  <div className="skeleton-shop h-[10px] w-[55%] rounded"></div>
-                  <div className="skeleton-price h-[16px] w-[45%] rounded"></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : filteredProducts.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
-            {filteredProducts.map(p => (
-              <ProductGridCard key={p.id} product={p} rating={getProductRating(p)} onView={() => viewProduct(p)} onAdd={() => onAddToCart(p)} tauxUSD={tauxUSD} />
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
-            <span className="text-3xl">📦</span>
-            <h3 className="font-serif text-sm font-bold text-slate-700 mt-2">Aucun produit trouvé</h3>
-            <p className="text-xs text-slate-400 mt-1">Essayez de retirer vos filtres de recherche ou de localisation.</p>
-          </div>
-        )}
-
-        {hasMore && !loading && (
-          <div className="flex justify-center pt-4">
-            <button
-              onClick={onLoadMore}
-              className="px-6 py-2.5 bg-slate-100 hover:bg-slate-250 text-slate-700 hover:text-slate-900 rounded-full text-xs font-bold transition-all shadow-sm flex items-center gap-2 border border-slate-200 hover:border-slate-300 active:scale-95 duration-200 cursor-pointer"
+      {!hasNoProductsForSelectedLocation ? (
+        <>
+          {/* Ventes Flash banner with countdown */}
+          {isFlashActive && (
+            <section 
+              onClick={() => onNavigate('flash-sales')}
+              className="cursor-pointer bg-gradient-to-r from-red-600 to-amber-500 rounded-2xl p-5 text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm hover:from-red-700 hover:to-amber-600 transition-all duration-300 transform active:scale-[0.995]"
             >
-              <span>Voir plus de produits</span>
-              <Plus size={14} className="text-slate-500" />
-            </button>
-          </div>
-        )}
-      </section>
+              <div className="space-y-1 text-center sm:text-left">
+                <h3 className="inline-flex items-center gap-1 text-sm font-black tracking-tight uppercase">
+                  <Flame size={16} className="text-yellow-300 animate-pulse animate-bounce" /> Ventes Flash — Jusqu'à -50%
+                </h3>
+                <p className="text-xs text-white/90">Offres limitées sur des dizaines de produits phares (Cliquez pour voir tout à -50%).</p>
+              </div>
 
-      {/* Hero Banner style with Premium Look - Re-positioned just above the footer */}
-      <section className="relative bg-gradient-to-br from-[#0c1445] via-[#1e3a8a] to-[#0d9488] rounded-3xl p-6 sm:p-8 text-white overflow-hidden shadow-md mt-6">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent opacity-35" />
-        <div className="absolute right-0 bottom-0 top-0 w-1/3 bg-radial bg-cover hidden md:block opacity-10 pointer-events-none" />
-        
-        <div className="relative z-10 max-w-lg space-y-2">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/12 border border-white/15 text-[10px] font-extrabold uppercase tracking-widest text-[#4fd1c5]">
-            <Sparkles size={11} /> Marketplace active en Haïti
-          </span>
-          <h1 className="font-serif text-2xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
-            Achetez et vendez en toute <span className="text-teal-300">confiance</span>
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-sans font-medium">
-            Paiement sécurisé par séquestre et vérification de livraison par code QR unique. Vendre ou acheter localement n'a jamais été aussi sûr.
-          </p>
-        </div>
-      </section>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="bg-white/20 border border-white/10 rounded-lg p-2 text-center min-w-[50px] shadow-inner">
+                    <span className="block font-mono text-base font-extrabold leading-none">{timeLeft.hours.toString().padStart(2, '0')}</span>
+                    <small className="text-[9px] text-white/70 font-bold uppercase tracking-wider">H</small>
+                  </div>
+                  <div className="bg-white/20 border border-white/10 rounded-lg p-2 text-center min-w-[50px] shadow-inner">
+                    <span className="block font-mono text-base font-extrabold leading-none">{timeLeft.minutes.toString().padStart(2, '0')}</span>
+                    <small className="text-[9px] text-white/70 font-bold uppercase tracking-wider">Min</small>
+                  </div>
+                  <div className="bg-white/20 border border-white/10 rounded-lg p-2 text-center min-w-[50px] shadow-inner">
+                    <span className="block font-mono text-base font-extrabold leading-none">{timeLeft.seconds.toString().padStart(2, '0')}</span>
+                    <small className="text-[9px] text-white/70 font-bold uppercase tracking-wider">Sec</small>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Section Scrolls */}
+          {loading ? (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="font-serif text-sm font-bold tracking-tight text-slate-800">Populaires & Vérifiés</h2>
+                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full uppercase tracking-wider">Premium</span>
+              </div>
+              <div className="flex gap-4 overflow-x-auto pb-3 pl-1 -ml-1 scrollbar-none">
+                {[1, 2, 3, 4, 5].map(i => (
+                  <div key={i} className="min-w-[145px] w-[145px] skeleton-card animate-pulse">
+                    <div className="skeleton-image h-[100px] rounded-t-lg"></div>
+                    <div className="skeleton-body gap-1.5 p-2.5">
+                      <div className="skeleton-category h-[8px] w-1/2"></div>
+                      <div className="skeleton-title h-[12px] w-[85%]"></div>
+                      <div className="skeleton-price h-[10px] w-2/3 pb-1"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : (
+            popularProducts.length > 0 && (
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-serif text-sm font-bold tracking-tight text-slate-800">Populaires & Vérifiés</h2>
+                  <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full uppercase tracking-wider">Premium</span>
+                </div>
+                <div className="flex gap-4 overflow-x-auto pb-3 pl-1 -ml-1 scrollbar-none">
+                  {popularProducts.map(p => (
+                    <ProductScrollCard key={p.id} product={p} rating={getProductRating(p)} onView={() => viewProduct(p)} onAdd={() => onAddToCart(p)} tauxUSD={tauxUSD} />
+                  ))}
+                </div>
+              </section>
+            )
+          )}
+
+          {loading ? (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="font-serif text-sm font-bold tracking-tight text-slate-800">Tendances & Mode</h2>
+                <span className="text-[10px] font-bold text-teal-600 bg-teal-50 px-2.5 py-1 rounded-full uppercase tracking-wider">Mode</span>
+              </div>
+              <div className="flex gap-4 overflow-x-auto pb-3 pl-1 -ml-1 scrollbar-none">
+                {[1, 2, 3, 4, 5].map(i => (
+                  <div key={i} className="min-w-[145px] w-[145px] skeleton-card animate-pulse">
+                    <div className="skeleton-image h-[100px] rounded-t-lg"></div>
+                    <div className="skeleton-body gap-1.5 p-2.5">
+                      <div className="skeleton-category h-[8px] w-1/2"></div>
+                      <div className="skeleton-title h-[12px] w-[85%]"></div>
+                      <div className="skeleton-price h-[10px] w-2/3 pb-1"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : (
+            trendsProducts.length > 0 && (
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-serif text-sm font-bold tracking-tight text-slate-800">Tendances & Mode</h2>
+                  <span className="text-[10px] font-bold text-teal-600 bg-teal-50 px-2.5 py-1 rounded-full uppercase tracking-wider">Mode</span>
+                </div>
+                <div className="flex gap-4 overflow-x-auto pb-3 pl-1 -ml-1 scrollbar-none">
+                  {trendsProducts.map(p => (
+                    <ProductScrollCard key={p.id} product={p} rating={getProductRating(p)} onView={() => viewProduct(p)} onAdd={() => onAddToCart(p)} tauxUSD={tauxUSD} />
+                  ))}
+                </div>
+              </section>
+            )
+          )}
+
+          {loading ? (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="font-serif text-sm font-bold tracking-tight text-slate-800">Super Aubaines (Promos)</h2>
+                <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2.5 py-1 rounded-full uppercase tracking-wider">Rabais</span>
+              </div>
+              <div className="flex gap-4 overflow-x-auto pb-3 pl-1 -ml-1 scrollbar-none">
+                {[1, 2, 3, 4, 5].map(i => (
+                  <div key={i} className="min-w-[145px] w-[145px] skeleton-card animate-pulse">
+                    <div className="skeleton-image h-[100px] rounded-t-lg"></div>
+                    <div className="skeleton-body gap-1.5 p-2.5">
+                      <div className="skeleton-category h-[8px] w-1/2"></div>
+                      <div className="skeleton-title h-[12px] w-[85%]"></div>
+                      <div className="skeleton-price h-[10px] w-2/3 pb-1"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : (
+            discountProducts.length > 0 && (
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-serif text-sm font-bold tracking-tight text-slate-800">Super Aubaines (Promos)</h2>
+                  <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2.5 py-1 rounded-full uppercase tracking-wider">Rabais</span>
+                </div>
+                <div className="flex gap-4 overflow-x-auto pb-3 pl-1 -ml-1 scrollbar-none">
+                  {discountProducts.map(p => (
+                    <ProductScrollCard key={p.id} product={p} rating={getProductRating(p)} onView={() => viewProduct(p)} onAdd={() => onAddToCart(p)} tauxUSD={tauxUSD} />
+                  ))}
+                </div>
+              </section>
+            )
+          )}
+
+          {/* Main Grid Catalogue Products */}
+          <section className="space-y-3">
+            <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+              <h2 className="font-serif text-sm font-bold tracking-tight text-slate-800">
+                {selectedCat ? `${selectedCat} - Catalogue` : 'Tous les produits disponibles'}
+              </h2>
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-mono">
+                {loading ? 'Chargement...' : `${filteredProducts.length} articles`}
+              </span>
+            </div>
+
+            {loading ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => (
+                  <div key={i} className="skeleton-card bg-white rounded-xl overflow-hidden border border-slate-100">
+                    <div className="skeleton-image h-[160px] sm:h-[180px]"></div>
+                    <div className="skeleton-body p-3 flex flex-col gap-2">
+                      <div className="skeleton-category h-[10px] w-[40%] rounded"></div>
+                      <div className="skeleton-title h-[14px] w-[85%] rounded"></div>
+                      <div className="skeleton-shop h-[10px] w-[55%] rounded"></div>
+                      <div className="skeleton-price h-[16px] w-[45%] rounded"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : filteredProducts.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
+                {filteredProducts.map(p => (
+                  <ProductGridCard key={p.id} product={p} rating={getProductRating(p)} onView={() => viewProduct(p)} onAdd={() => onAddToCart(p)} tauxUSD={tauxUSD} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
+                <span className="text-3xl">📦</span>
+                <h3 className="font-serif text-sm font-bold text-slate-700 mt-2">Aucun produit trouvé</h3>
+                <p className="text-xs text-slate-400 mt-1">Essayez de retirer vos filtres de recherche ou de localisation.</p>
+              </div>
+            )}
+
+            {hasMore && !loading && (
+              <div className="flex justify-center pt-4">
+                <button
+                  onClick={onLoadMore}
+                  className="px-6 py-2.5 bg-slate-100 hover:bg-slate-250 text-slate-700 hover:text-slate-900 rounded-full text-xs font-bold transition-all shadow-sm flex items-center gap-2 border border-slate-200 hover:border-slate-300 active:scale-95 duration-200 cursor-pointer"
+                >
+                  <span>Voir plus de produits</span>
+                  <Plus size={14} className="text-slate-500" />
+                </button>
+              </div>
+            )}
+          </section>
+
+          {/* Hero Banner style with Premium Look - Re-positioned just above the footer */}
+          <section className="relative bg-gradient-to-br from-[#0c1445] via-[#1e3a8a] to-[#0d9488] rounded-3xl p-6 sm:p-8 text-white overflow-hidden shadow-md mt-6">
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent opacity-35" />
+            <div className="absolute right-0 bottom-0 top-0 w-1/3 bg-radial bg-cover hidden md:block opacity-10 pointer-events-none" />
+            
+            <div className="relative z-10 max-w-lg space-y-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/12 border border-white/15 text-[10px] font-extrabold uppercase tracking-widest text-[#4fd1c5]">
+                <Sparkles size={11} /> Marketplace active en Haïti
+              </span>
+              <h1 className="font-serif text-2xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
+                Achetez et vendez en toute <span className="text-teal-300">confiance</span>
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-sans font-medium">
+                Paiement sécurisé par séquestre et vérification de livraison par code QR unique. Vendre ou acheter localement n'a jamais été aussi sûr.
+              </p>
+            </div>
+          </section>
+        </>
+      ) : null}
     </div>
   );
 };
