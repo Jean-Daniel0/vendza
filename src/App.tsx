@@ -3414,14 +3414,29 @@ export default function App() {
     let resolvedBuyerId = null;
     let resolvedVendorId = null;
 
-    // 1. Resolve from orderId if available
+    // 1. Resolve from orderId if available (with fallback direct fetch from Supabase)
     if (rawMsg.orderId) {
-      const order = orders.find(o => o.id === rawMsg.orderId);
+      let order = orders.find(o => o.id === rawMsg.orderId);
+      if (!order && isSupabaseConfigured && supabase) {
+        try {
+          const { data: dbOrder } = await supabase
+            .from('orders')
+            .select('*')
+            .eq('id', rawMsg.orderId)
+            .maybeSingle();
+          if (dbOrder) {
+            order = dbOrder;
+          }
+        } catch (err) {
+          console.warn("[insertMessageAdaptive] Could not fetch order from Supabase:", err);
+        }
+      }
+
       if (order) {
-        resolvedBuyerId = order.clientId;
-        resolvedVendorId = order.vendor_id || order.items?.[0]?.vendeurId || null;
+        resolvedBuyerId = order.client_id || order.clientId || order.buyer_id || null;
+        resolvedVendorId = order.vendor_id || order.vendorId || order.items?.[0]?.vendeurId || null;
         if (!resolvedProductId) {
-          resolvedProductId = order.items?.[0]?.productId || null;
+          resolvedProductId = order.product_id || order.productId || order.items?.[0]?.productId || null;
         }
       }
     }
@@ -3463,13 +3478,12 @@ export default function App() {
     const validProduct = isUUID(resolvedProductId || '');
 
     if (!validBuyer || !validVendor || !validProduct) {
-      console.error("======================================================================");
-      console.error("[CRITICAL ERROR] Invalid UUIDs for conversation lookup/insertion!");
-      console.error(`Buyer: ${resolvedBuyerId} (Valid: ${validBuyer})`);
-      console.error(`Vendor: ${resolvedVendorId} (Valid: ${validVendor})`);
-      console.error(`Product: ${resolvedProductId} (Valid: ${validProduct})`);
-      console.error("======================================================================");
-      alert("Erreur de messagerie : identifiants de conversation invalides.");
+      console.warn("======================================================================");
+      console.warn("[Background Sync Check] Invalid UUIDs for conversation lookup/insertion (Skipping DB write):");
+      console.warn(`Buyer: ${resolvedBuyerId} (Valid: ${validBuyer})`);
+      console.warn(`Vendor: ${resolvedVendorId} (Valid: ${validVendor})`);
+      console.warn(`Product: ${resolvedProductId} (Valid: ${validProduct})`);
+      console.warn("======================================================================");
       return;
     }
 
