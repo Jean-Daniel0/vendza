@@ -327,7 +327,10 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
           </div>
 
           <button
-            onClick={() => onOpenChat(vendorProfile.id, vendorProfile.nom)}
+            onClick={() => {
+              const firstProd = vendorProducts[0]?.id || '';
+              onOpenChat(vendorProfile.id, vendorProfile.nom, firstProd);
+            }}
             className="mb-2 px-5 py-3 bg-gradient-to-r from-blue-600 to-teal-600 hover:opacity-95 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md hover:scale-[1.01] transition-all cursor-pointer w-full sm:w-fit"
           >
             <MessageSquare size={14} />

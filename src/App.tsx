@@ -143,6 +143,7 @@ export default function App() {
   // Active inbox vendor chat focus routing
   const [activeChatRecipientId, setActiveChatRecipientId] = useState<string | null>(null);
   const [activeChatRecipientNom, setActiveChatRecipientNom] = useState<string | null>(null);
+  const [activeChatProductId, setActiveChatProductId] = useState<string | null>(null);
 
   // Selected vendor profile view state
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
@@ -1164,10 +1165,15 @@ export default function App() {
           if (isSupabaseConfigured && supabase && orderId) {
             for (let attempt = 1; attempt <= 10; attempt++) {
               // Retrieve all orders matching the reference id directly or as split orders (where qr_token starts with orderId)
+              const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+              const orClause = isUuid(orderId)
+                ? `id.eq.${orderId},qr_token.eq.${orderId},qr_token.like.${orderId}_sub_%`
+                : `qr_token.eq.${orderId},qr_token.like.${orderId}_sub_%`;
+
               const { data: ords, error: ordsErr } = await supabase
                 .from('orders')
                 .select('*')
-                .or(`id.eq.${orderId},qr_token.eq.${orderId},qr_token.like.${orderId}_sub_%`);
+                .or(orClause);
 
               if (!ordsErr && ords && ords.length > 0) {
                 foundOrder = ords[0] as unknown as Order;
@@ -3404,26 +3410,79 @@ export default function App() {
     // Helper to check UUID format
     const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
-    let buyerId = rawMsg.senderId;
-    let vendorId = rawMsg.recipientId;
+    let resolvedProductId = rawMsg.productId || null;
+    let resolvedBuyerId = null;
+    let resolvedVendorId = null;
 
-    // Fallbacks to user UUID to prevent foreign key errors (sender_id references auth.users/profiles)
-    const currentUserId = currentUser?.id || '00000000-0000-0000-0000-000000000000';
-    if (!isUUID(buyerId)) {
-      buyerId = isUUID(vendorId) ? vendorId : currentUserId;
+    // 1. Resolve from orderId if available
+    if (rawMsg.orderId) {
+      const order = orders.find(o => o.id === rawMsg.orderId);
+      if (order) {
+        resolvedBuyerId = order.clientId;
+        resolvedVendorId = order.vendor_id || order.items?.[0]?.vendeurId || null;
+        if (!resolvedProductId) {
+          resolvedProductId = order.items?.[0]?.productId || null;
+        }
+      }
     }
-    if (!isUUID(vendorId)) {
-      vendorId = isUUID(buyerId) ? buyerId : currentUserId;
+
+    // 2. Resolve vendor from product if product is known
+    if (resolvedProductId) {
+      const prod = products.find(p => p.id === resolvedProductId);
+      if (prod) {
+        resolvedVendorId = prod.vendeurId;
+      }
+    }
+
+    // 3. Resolve role-based IDs from currentUser involvement
+    if (currentUser) {
+      const otherParticipantId = currentUser.id === rawMsg.senderId ? rawMsg.recipientId : rawMsg.senderId;
+      if (currentUser.userType === 'vendeur') {
+        if (!resolvedVendorId) resolvedVendorId = currentUser.id;
+        if (!resolvedBuyerId) resolvedBuyerId = otherParticipantId;
+      } else {
+        if (!resolvedBuyerId) resolvedBuyerId = currentUser.id;
+        if (!resolvedVendorId) resolvedVendorId = otherParticipantId;
+      }
+    }
+
+    // 4. Ultimate fallback using sender/recipient raw details
+    if (!resolvedBuyerId && isUUID(rawMsg.senderId)) resolvedBuyerId = rawMsg.senderId;
+    if (!resolvedVendorId && isUUID(rawMsg.recipientId)) resolvedVendorId = rawMsg.recipientId;
+
+    // 5. Hard validations & mandatory product_id constraint satisfaction
+    if (!resolvedProductId) {
+      // Find any product of the resolved vendor
+      const assocProd = products.find(p => p.vendeurId === resolvedVendorId);
+      resolvedProductId = assocProd ? assocProd.id : (products[0]?.id || null);
+    }
+
+    // Ensure they are valid UUIDs before executing DB queries
+    const validBuyer = isUUID(resolvedBuyerId || '');
+    const validVendor = isUUID(resolvedVendorId || '');
+    const validProduct = isUUID(resolvedProductId || '');
+
+    if (!validBuyer || !validVendor || !validProduct) {
+      console.error("======================================================================");
+      console.error("[CRITICAL ERROR] Invalid UUIDs for conversation lookup/insertion!");
+      console.error(`Buyer: ${resolvedBuyerId} (Valid: ${validBuyer})`);
+      console.error(`Vendor: ${resolvedVendorId} (Valid: ${validVendor})`);
+      console.error(`Product: ${resolvedProductId} (Valid: ${validProduct})`);
+      console.error("======================================================================");
+      alert("Erreur de messagerie : identifiants de conversation invalides.");
+      return;
     }
 
     let conversation_id = null;
 
-    // Try finding existing conversation
+    // Try finding existing conversation matching (product_id, buyer_id, vendor_id)
     try {
       const { data: match } = await supabase
         .from('conversations')
         .select('id')
-        .or(`buyer_id.eq.${buyerId},buyer_id.eq.${vendorId}`)
+        .eq('product_id', resolvedProductId)
+        .eq('buyer_id', resolvedBuyerId)
+        .eq('vendor_id', resolvedVendorId)
         .limit(1);
       if (match && match.length > 0) {
         conversation_id = match[0].id;
@@ -3435,13 +3494,11 @@ export default function App() {
     // Try creating a conversation if none found
     if (!conversation_id) {
       try {
-        const convoPayload: any = {
-          buyer_id: buyerId,
-          buyerId: buyerId,
-          vendor_id: vendorId,
-          vendorId: vendorId,
-          last_message_at: new Date().toISOString(),
-          lastMessageAt: new Date().toISOString()
+        const convoPayload = {
+          product_id: resolvedProductId,
+          buyer_id: resolvedBuyerId,
+          vendor_id: resolvedVendorId,
+          last_message_at: new Date().toISOString()
         };
         const { data: created, error: createErr } = await supabase
           .from('conversations')
@@ -3449,53 +3506,38 @@ export default function App() {
           .select();
         if (!createErr && created && created[0]) {
           conversation_id = created[0].id;
-        } else {
-          // Retry with absolute bare columns
-          const { data: createdFallback, error: fallbackErr } = await supabase
-            .from('conversations')
-            .insert([{ buyer_id: buyerId, vendor_id: vendorId, last_message_at: new Date().toISOString() }])
-            .select();
-          if (!fallbackErr && createdFallback && createdFallback[0]) {
-            conversation_id = createdFallback[0].id;
-          }
+        } else if (createErr) {
+          console.error("Error creating conversation in DB:", createErr.message);
         }
-      } catch (e) {
-        console.warn("Exception during fallback convo creation", e);
+      } catch (e: any) {
+        console.warn("Exception during convo creation", e.message);
       }
     }
 
-    // If still no conversation_id, pull ANY existing or use a dummy UUID
     if (!conversation_id) {
-      try {
-        const { data: anyConvo } = await supabase.from('conversations').select('id').limit(1);
-        if (anyConvo && anyConvo[0]) {
-          conversation_id = anyConvo[0].id;
-        } else {
-          conversation_id = '00000000-0000-0000-0000-000000000000'; // fallback
-        }
-      } catch (_) {
-        conversation_id = '00000000-0000-0000-0000-000000000000';
-      }
+      console.error("[CRITICAL] Conversation could not be created or found for message:", rawMsg);
+      alert("Une erreur de sécurité est survenue : impossible de lier le message à une conversation valide. Veuillez réessayer.");
+      return;
     }
 
     const payload: any = {
       id: rawMsg.id,
       conversation_id: conversation_id,
-      sender_id: buyerId,
+      sender_id: rawMsg.senderId === 'system-vendza' ? resolvedBuyerId : (isUUID(rawMsg.senderId) ? rawMsg.senderId : resolvedBuyerId),
       senderId: rawMsg.senderId,
       sender_nom: rawMsg.senderNom,
       senderNom: rawMsg.senderNom,
-      recipient_id: vendorId,
+      recipient_id: rawMsg.recipientId === 'system-vendza' ? resolvedVendorId : (isUUID(rawMsg.recipientId) ? rawMsg.recipientId : resolvedVendorId),
       recipientId: rawMsg.recipientId,
       text: rawMsg.text,
       content: rawMsg.text || '', // fallback content column
       image: rawMsg.image || null,
       attachment_path: rawMsg.image || null, // fallback attachment column
       time: rawMsg.time,
-      product_id: rawMsg.productId,
-      productId: rawMsg.productId,
-      order_id: rawMsg.orderId,
-      orderId: rawMsg.orderId,
+      product_id: resolvedProductId,
+      productId: resolvedProductId,
+      order_id: rawMsg.orderId || null,
+      orderId: rawMsg.orderId || null,
       created_at: new Date(),
       is_read: false,
       isRead: false
@@ -3652,7 +3694,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
   };
 
   // Instant messaging sender helper
-  const handleSendMessage = (text: string, recipientId: string, image?: string, orderId?: string) => {
+  const handleSendMessage = (text: string, recipientId: string, image?: string, orderId?: string, productId?: string) => {
     if (!currentUser) return;
     const newMsg: Message = {
       id: `msg-${Date.now()}`,
@@ -3662,6 +3704,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
       text,
       image,
       orderId,
+      productId: productId || activeChatProductId || undefined,
       time: "Aujourd'hui, " + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
       createdAt: new Date().toISOString(),
       isRead: false
@@ -3906,9 +3949,10 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
               onNavigate={navigateTo}
               onAddToCart={handleAddToCart}
               onCheckoutNow={handleCheckoutNow}
-              onOpenChat={(id, name) => {
+              onOpenChat={(id, name, productId) => {
                 setActiveChatRecipientId(id);
                 setActiveChatRecipientNom(name);
+                setActiveChatProductId(productId || null);
                 navigateTo('inbox');
               }}
               onAddReview={handleAddReview}
@@ -3931,9 +3975,10 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
               orders={orders}
               onNavigate={navigateTo}
               onSetProduct={setSelectedProduct}
-              onOpenChat={(id, name) => {
+              onOpenChat={(id, name, productId) => {
                 setActiveChatRecipientId(id);
                 setActiveChatRecipientNom(name);
+                setActiveChatProductId(productId || null);
                 navigateTo('inbox');
               }}
               onAddReview={handleAddReview}
@@ -4079,6 +4124,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
               orders={orders}
               initialRecipientId={activeChatRecipientId}
               initialRecipientNom={activeChatRecipientNom}
+              initialProductId={activeChatProductId}
             />
           )}
 

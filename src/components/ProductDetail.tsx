@@ -830,7 +830,7 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({
               <button
                 onClick={() => {
                   setShowVendorStats(false);
-                  onOpenChat(product.vendeurId, product.vendeur);
+                  onOpenChat(product.vendeurId, product.vendeur, product.id);
                 }}
                 className="w-full py-2.5 bg-[#0c1445] hover:bg-[#1a2355] text-white text-xs font-bold rounded-xl text-center flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer"
               >

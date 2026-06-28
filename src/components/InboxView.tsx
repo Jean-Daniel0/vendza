@@ -6,12 +6,13 @@ import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 interface InboxViewProps {
   messages: Message[];
   user: UserProfile | null;
-  onSendMessage: (text: string, recipientId: string, image?: string, orderId?: string) => void;
+  onSendMessage: (text: string, recipientId: string, image?: string, orderId?: string, productId?: string) => void;
   onMarkMessagesAsRead?: (senderId: string) => void;
   products: Product[];
   orders: Order[];
   initialRecipientId?: string | null;
   initialRecipientNom?: string | null;
+  initialProductId?: string | null;
 }
 
 const formatMessageTime = (timeStr: string, createdAtStr?: string) => {
@@ -57,12 +58,14 @@ export const InboxView: React.FC<InboxViewProps> = ({
   products,
   orders,
   initialRecipientId,
-  initialRecipientNom
+  initialRecipientNom,
+  initialProductId
 }) => {
   const [selectedRecipientId, setSelectedRecipientId] = useState<string>(initialRecipientId || 'system-vendza');
   const [selectedRecipientNom, setSelectedRecipientNom] = useState<string>(initialRecipientNom || 'Vendza');
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(initialProductId || null);
   const [typedMessage, setTypedMessage] = useState<string>('');
-  const [contacts, setContacts] = useState<{ id: string; nom: string; type: string; subtitle: string }[]>([]);
+  const [contacts, setContacts] = useState<{ id: string; nom: string; type: string; subtitle: string; productId?: string }[]>([]);
   
   // Tab-filter: 'all' = showing everything, 'system' = only Vendza official, 'chats' = customers & sellers
   const [activeTab, setActiveTab] = useState<'all' | 'system' | 'chats'>('all');
@@ -78,7 +81,10 @@ export const InboxView: React.FC<InboxViewProps> = ({
     if (initialRecipientNom) {
       setSelectedRecipientNom(initialRecipientNom);
     }
-  }, [initialRecipientId, initialRecipientNom]);
+    if (initialProductId) {
+      setSelectedProductId(initialProductId);
+    }
+  }, [initialRecipientId, initialRecipientNom, initialProductId]);
 
   // Mark incoming messages as read instantly when active chat conversation is open
   useEffect(() => {
@@ -212,13 +218,15 @@ export const InboxView: React.FC<InboxViewProps> = ({
           const dbMapped = convs.map((conv: any) => {
             const partner = isVendor ? conv.buyer : conv.vendor;
             const partnerId = isVendor ? conv.buyer_id : conv.vendor_id;
+            const pId = conv.product_id || conv.product?.id || '';
 
             if (!partner) {
               return {
                 id: partnerId || '',
                 nom: 'Utilisateur Vendza',
                 type: isVendor ? 'client' : 'vendeur',
-                subtitle: conv.product?.name ? `Produit : ${conv.product.name}` : 'Discussion sécurisée'
+                subtitle: conv.product?.name ? `Produit : ${conv.product.name}` : 'Discussion sécurisée',
+                productId: pId
               };
             }
 
@@ -236,7 +244,8 @@ export const InboxView: React.FC<InboxViewProps> = ({
               id: partnerId || partner.id || '',
               nom: nomAffiche,
               type: isVendor ? 'client' : 'vendeur',
-              subtitle: subtitle
+              subtitle: subtitle,
+              productId: pId
             };
           }).filter((c: any) => c.id && c.id !== user.id);
 
@@ -312,18 +321,18 @@ export const InboxView: React.FC<InboxViewProps> = ({
 
   const handleSend = () => {
     if (!typedMessage.trim()) return;
-    onSendMessage(typedMessage, selectedRecipientId);
+    onSendMessage(typedMessage, selectedRecipientId, undefined, undefined, selectedProductId || undefined);
     setTypedMessage('');
   };
 
   const handleSendSimulateImage = () => {
-    onSendMessage('Voici une capture d\'écran de la couleur choisie pour la livraison !', selectedRecipientId, '#e4e9f5');
+    onSendMessage('Voici une capture d\'écran de la couleur choisie pour la livraison !', selectedRecipientId, '#e4e9f5', undefined, selectedProductId || undefined);
   };
 
   const handleShareOrderUuid = () => {
     const activeOrder = orders.find(o => o.clientId === user.id || o.clientId === selectedRecipientId);
     const orderUuid = activeOrder ? activeOrder.id : 'order-101-vendza-haiti';
-    onSendMessage(`Voici l'ID de ma commande pour confirmer la préparation : ${orderUuid}`, selectedRecipientId, undefined, orderUuid);
+    onSendMessage(`Voici l'ID de ma commande pour confirmer la préparation : ${orderUuid}`, selectedRecipientId, undefined, orderUuid, selectedProductId || undefined);
   };
 
   return (
@@ -393,6 +402,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
                     onClick={() => {
                       setSelectedRecipientId(contact.id);
                       setSelectedRecipientNom(contact.nom);
+                      setSelectedProductId(contact.productId || null);
                       setIsChatOpen(true);
                     }}
                     className={`p-4 flex items-center justify-between gap-3 cursor-pointer transition select-none ${
