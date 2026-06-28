@@ -94,12 +94,10 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
       const targetDept = selectedDept.toLowerCase().trim();
       
       const deptMatches = pDept === targetDept || pOrig.includes(targetDept);
-      const isNational = p.vendeurPlan === 'Pro National' || (p.vendeurPremiumDepts && p.vendeurPremiumDepts.some(d => d.toLowerCase().trim() === targetDept));
+      const isNationalOrPremiumDept = p.vendeurPlan === 'Pro National' || (p.vendeurPremiumDepts && p.vendeurPremiumDepts.some(d => d.toLowerCase().trim() === targetDept));
       
-      if (!deptMatches && !isNational) {
-        if (!(selectedDept === 'Ouest' && p.vendeurId === 'v-bch')) {
-          return false;
-        }
+      if (!deptMatches && !isNationalOrPremiumDept) {
+        return false;
       }
     }
 
@@ -109,9 +107,22 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
       const targetCommune = selectedCommune.toLowerCase().trim();
       
       const communeMatches = pCommune === targetCommune || pOrig.includes(targetCommune);
-      const isNational = p.vendeurPlan === 'Pro National';
       
-      if (!communeMatches && !isNational) {
+      // Find department of the selected commune
+      let targetCommuneDept = '';
+      const targetCommuneLower = targetCommune.toLowerCase().trim();
+      for (const [deptName, communes] of Object.entries(HAITIAN_ZONES)) {
+        if (communes.some(c => c.toLowerCase().trim() === targetCommuneLower)) {
+          targetCommuneDept = deptName;
+          break;
+        }
+      }
+      const targetCommuneDeptLower = targetCommuneDept.toLowerCase().trim();
+
+      const isNationalOrPremiumCommune = p.vendeurPlan === 'Pro National' || 
+        (targetCommuneDeptLower && p.vendeurPremiumDepts && p.vendeurPremiumDepts.some(d => d.toLowerCase().trim() === targetCommuneDeptLower));
+      
+      if (!communeMatches && !isNationalOrPremiumCommune) {
         return false;
       }
     }
