@@ -295,29 +295,33 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onBack }) => {
                   <tr>
                     <td className="p-3 font-bold text-slate-800">Plan Gratuit</td>
                     <td className="p-3">0 Gdes</td>
-                    <td className="p-3 text-center text-blue-600 font-mono font-bold">12%</td>
-                    <td className="p-3 text-right font-mono">Le vendeur reçoit 880 Gdes</td>
+                    <td className="p-3 text-center text-blue-600 font-mono font-bold">20%</td>
+                    <td className="p-3 text-right font-mono">Le vendeur reçoit 800 Gdes</td>
                   </tr>
                   <tr>
                     <td className="p-3 font-bold text-slate-800">Pro Local</td>
                     <td className="p-3 text-blue-600">350 Gdes/mois</td>
-                    <td className="p-3 text-center text-blue-600 font-mono font-bold">10%</td>
-                    <td className="p-3 text-right font-mono">Le vendeur reçoit 900 Gdes</td>
+                    <td className="p-3 text-center text-blue-600 font-mono font-bold">15%</td>
+                    <td className="p-3 text-right font-mono">Le vendeur reçoit 850 Gdes</td>
                   </tr>
                   <tr>
                     <td className="p-3 font-bold text-slate-800">Pro National</td>
                     <td className="p-3 text-emerald-600">499 Gdes/mois</td>
-                    <td className="p-3 text-center text-emerald-600 font-mono font-bold">5%</td>
-                    <td className="p-3 text-right font-mono">Le vendeur reçoit 950 Gdes</td>
+                    <td className="p-3 text-center text-emerald-600 font-mono font-bold">10%</td>
+                    <td className="p-3 text-right font-mono">Le vendeur reçoit 900 Gdes</td>
                   </tr>
                 </tbody>
               </table>
             </div>
 
+            <p className="text-[11px] sm:text-xs text-slate-500 italic mt-1.5 bg-slate-50 p-3 rounded-xl border border-slate-100 leading-relaxed">
+              <strong>Note sur les frais de service :</strong> Sur l'ensemble de la commission prélevée par la plateforme, un taux fixe de <strong>12,55%</strong> est directement affecté et prélevé par la passerelle de paiement (frais d'intégration technique et d'infrastructure de transfert). Le reste de la commission est alloué au financement des services d'hébergement, de bande passante et de maintenance continue des boutiques des vendeurs sur Vendza.
+            </p>
+
             <div className="p-3.5 bg-indigo-50/50 border border-indigo-150/60 rounded-xl mt-3 flex gap-2.5">
               <span className="text-indigo-600 shrink-0 mt-0.5 font-bold">💡</span>
               <p className="text-[11px] sm:text-xs text-indigo-800 leading-normal">
-                <strong>Conseil.</strong> Un vendeur Pro National qui réalise des ventes régulières rentabilisera rapidement son abonnement grâce à la commission réduite à 5%. Pour une vente de 10 000 Gdes, la différence entre le plan Gratuit (12%) et le plan Pro National (5%) représente une économie de 700 Gdes sur une seule transaction.
+                <strong>Conseil.</strong> Un vendeur Pro National qui réalise des ventes régulières rentabilisera rapidement son abonnement grâce à la commission réduite à 10%. Pour une vente de 10 000 Gdes, la différence entre le plan Gratuit (20%) et le plan Pro National (10%) représente une économie de 1 000 Gdes sur une seule transaction.
               </p>
             </div>
 

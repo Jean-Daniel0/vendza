@@ -2404,12 +2404,12 @@ export default function App() {
       }
 
       const commissions: Record<string, number> = {
-        'gratuit':      0.10,
-        'pro_local':    0.07,
-        'pro_national': 0.03
+        'gratuit':      0.20,
+        'pro_local':    0.15,
+        'pro_national': 0.10
       };
       
-      const rate = commissions[planStr] !== undefined ? commissions[planStr] : 0.10;
+      const rate = commissions[planStr] !== undefined ? commissions[planStr] : 0.20;
       const amountToPay = Number(order.total_price) || 0;
       const commission = amountToPay * rate;
       const montantVendeur = amountToPay - commission;
@@ -2550,11 +2550,11 @@ export default function App() {
 
         const plan = order?.profiles?.plan || 'gratuit';
         const commissions: Record<string, number> = {
-          'gratuit':      0.10,
-          'pro_local':    0.07,
-          'pro_national': 0.03
+          'gratuit':      0.20,
+          'pro_local':    0.15,
+          'pro_national': 0.10
         };
-        const rate = commissions[plan] !== undefined ? commissions[plan] : 0.10;
+        const rate = commissions[plan] !== undefined ? commissions[plan] : 0.20;
         const totalPrice = order ? (Number(order.total_price) || 0) : (targetOrder ? targetOrder.totalPrice : 0);
         const commission = totalPrice * rate;
         const montantVendeur = totalPrice - commission;

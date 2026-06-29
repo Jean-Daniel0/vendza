@@ -285,7 +285,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
               {user.plan === 'Pro National' || user.plan === 'pro_national'
                 ? "Vous bénéficiez d'une couverture nationale intégrale en Haïti. Votre badge ⭐ Vedette est affiché partout." 
                 : user.plan === 'Pro Local' || user.plan === 'pro_local'
-                  ? "Vous livrez régionalement dans vos départements sélectionnés. Votre commission est réduite à 7% !" 
+                  ? "Vous livrez régionalement dans vos départements sélectionnés. Votre commission est réduite à 15% !" 
                   : "Votre visibilité et vos zones de livraison sont limitées. Mettez à niveau pour réduire vos commissions."}
             </p>
 
@@ -351,7 +351,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
             <div className="h-px bg-slate-100" />
             <div className="space-y-2 text-xs text-slate-500 font-medium">
               <p className="flex items-center gap-2"><Check size={13} className="text-emerald-500" /> 1 département de livraison ({user.departement || 'Ouest'})</p>
-              <p className="flex items-center gap-2 animate-pulse"><Check size={13} className="text-emerald-500" /> Commission standard : <strong>10%</strong></p>
+              <p className="flex items-center gap-2 animate-pulse"><Check size={13} className="text-emerald-500" /> Commission standard : <strong>20%</strong></p>
               <p className="flex items-center gap-2 text-slate-300">✕ Badge Vérifié non disponible</p>
             </div>
           </div>
@@ -385,7 +385,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
             <div className="h-px bg-slate-100" />
             <div className="space-y-2 text-xs text-slate-600 font-bold">
               <p className="flex items-center gap-2"><Check size={13} className="text-blue-600" /> 5 départements de livraison</p>
-              <p className="flex items-center gap-2"><Check size={13} className="text-blue-600" /> Commission réduite à <strong>7%</strong></p>
+              <p className="flex items-center gap-2"><Check size={13} className="text-blue-600" /> Commission réduite à <strong>15%</strong></p>
               <p className="flex items-center gap-2"><Check size={13} className="text-blue-600" /> Badge Vendeur Vérifié & Priorité</p>
             </div>
           </div>
@@ -415,7 +415,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
             <div className="h-px bg-slate-100" />
             <div className="space-y-2 text-xs text-slate-600 font-bold">
               <p className="flex items-center gap-2"><Check size={13} className="text-teal-600" /> Tous les départements (Haïti entier)</p>
-              <p className="flex items-center gap-2"><Check size={13} className="text-teal-600" /> Commission ultra réduite : <strong>3%</strong></p>
+              <p className="flex items-center gap-2"><Check size={13} className="text-teal-600" /> Commission ultra réduite : <strong>10%</strong></p>
               <p className="flex items-center gap-2"><Check size={13} className="text-teal-600" /> Badge Or Vedette & visibilité maximale</p>
             </div>
           </div>
@@ -500,7 +500,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                     Abonnement {selectedPlanModal} ({isAnnual ? 'Facturation Annuelle' : 'Facturation Mensuelle'})
                   </p>
                   <p className="text-[11px] text-emerald-600 font-bold">
-                    ✓ Commission réduite à {selectedPlanModal === 'Pro National' ? '3%' : '7%'}
+                    ✓ Commission réduite à {selectedPlanModal === 'Pro National' ? '10%' : '15%'}
                   </p>
                 </div>
 

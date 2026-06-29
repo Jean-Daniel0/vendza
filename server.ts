@@ -386,7 +386,7 @@ const activerAbonnement = async (
       .from('platform_messages')
       .insert({
         title:     `✅ Abonnement ${planCodeLower === 'pro_national' ? 'Pro National ⭐' : 'Pro Local'} activé !`,
-        message:   `Votre abonnement ${planCodeLower} est actif jusqu'au ${expiresAt.toLocaleDateString('fr-FR')}. Profitez de votre commission réduite à ${planCodeLower === 'pro_national' ? '3%' : planCodeLower === 'pro_local' ? '7%' : '10%'}.`,
+        message:   `Votre abonnement ${planCodeLower} est actif jusqu'au ${expiresAt.toLocaleDateString('fr-FR')}. Profitez de votre commission de ${planCodeLower === 'pro_national' ? '10%' : planCodeLower === 'pro_local' ? '15%' : '20%'}.`,
         audience:  userId,
         is_active: true
       });
@@ -454,6 +454,9 @@ const sendPushNotificationBackend = async (recipientId: string, title: string, m
       return;
     }
 
+    const cleanUrl = supabaseUrl ? supabaseUrl.replace(/\/$/, '') : 'https://giakjeanwekipnvyhlxm.supabase.co';
+    const badgeUrl = `${cleanUrl}/storage/v1/object/public/images_systeme/notification-icon-96.png`;
+
     const payload = {
       app_id: apiAppId,
       contents: {
@@ -464,6 +467,7 @@ const sendPushNotificationBackend = async (recipientId: string, title: string, m
         fr: title,
         en: title
       },
+      chrome_web_badge: badgeUrl,
       target_channel: "push",
       include_aliases: {
         external_id: [recipientId]
@@ -756,13 +760,13 @@ const creerCommandeApresPaiement = async (
       }
 
       const commissions: Record<string, number> = {
-        'gratuit':      0.10,
-        'pro_local':    0.07,
-        'pro_national': 0.03
+        'gratuit':      0.20,
+        'pro_local':    0.15,
+        'pro_national': 0.10
       };
 
       const plan = (shop?.plan || 'gratuit').toLowerCase();
-      const rate = commissions[plan] !== undefined ? commissions[plan] : 0.10;
+      const rate = commissions[plan] !== undefined ? commissions[plan] : 0.20;
       const total_price = Number(pendingOrder.total_price) || 0;
       const commission = total_price * rate;
       const montantVendeur = total_price - commission;
@@ -2512,6 +2516,9 @@ app.post('/api/onesignal/send', async (req, res) => {
       return res.status(500).json({ error: errMsg });
     }
 
+    const cleanUrl = supabaseUrl ? supabaseUrl.replace(/\/$/, '') : 'https://giakjeanwekipnvyhlxm.supabase.co';
+    const badgeUrl = `${cleanUrl}/storage/v1/object/public/images_systeme/notification-icon-96.png`;
+
     const payload = {
       app_id: apiAppId,
       contents: {
@@ -2522,6 +2529,7 @@ app.post('/api/onesignal/send', async (req, res) => {
         fr: title,
         en: title
       },
+      chrome_web_badge: badgeUrl,
       target_channel: "push",
       include_aliases: {
         external_id: [recipientId]

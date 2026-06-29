@@ -355,11 +355,11 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
   // Compute stats of sales
   const completedOrders = vendorOrders.filter(o => o.status === 'livree');
   
-  // Fee rate based on user plan (Gratuit = 10%, Pro Local = 7%, Pro National = 3%)
+  // Fee rate based on user plan (Gratuit = 20%, Pro Local = 15%, Pro National = 10%)
   const planStr = String(user?.plan || 'gratuit').toLowerCase();
   const feePercent = planStr === 'pro_national' || planStr === 'pro national' 
-    ? 3 
-    : (planStr === 'pro_local' || planStr === 'pro local' ? 7 : 10);
+    ? 10 
+    : (planStr === 'pro_local' || planStr === 'pro local' ? 15 : 20);
 
   // Volume des ventes brutes
   const grossSalesVolume = completedOrders.reduce((sum, order) => {
@@ -2940,8 +2940,8 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
         const planName = user.plan || 'Gratuit';
         const planStrLocal = planName.toLowerCase();
         const feePercent = planStrLocal === 'pro_national' || planStrLocal === 'pro national' 
-          ? 3 
-          : (planStrLocal === 'pro_local' || planStrLocal === 'pro local' ? 7 : 10);
+          ? 10 
+          : (planStrLocal === 'pro_local' || planStrLocal === 'pro local' ? 15 : 20);
         const planLabel = planName;
 
         // Subtotal for merchant items
