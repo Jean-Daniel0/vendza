@@ -66,6 +66,9 @@ export const InboxView: React.FC<InboxViewProps> = ({
   const [selectedProductId, setSelectedProductId] = useState<string | null>(initialProductId || null);
   const [typedMessage, setTypedMessage] = useState<string>('');
   const [contacts, setContacts] = useState<{ id: string; nom: string; type: string; subtitle: string; productId?: string }[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
   
   // Tab-filter: 'all' = showing everything, 'system' = only Vendza official, 'chats' = customers & sellers
   const [activeTab, setActiveTab] = useState<'all' | 'system' | 'chats'>('all');
@@ -104,170 +107,212 @@ export const InboxView: React.FC<InboxViewProps> = ({
       return;
     }
 
-    async function fetchDatabaseSellers() {
-      try {
-        const isVendor = user.userType === 'vendeur';
-        let query = supabase
-          .from('conversations')
-          .select(`
+    async function executeFetch() {
+      const isVendor = user.userType === 'vendeur';
+      let query = supabase
+        .from('conversations')
+        .select(`
+          id,
+          buyer_id,
+          vendor_id,
+          last_message_at,
+          product_id,
+          product:product_id (
             id,
-            buyer_id,
-            vendor_id,
-            last_message_at,
-            product:product_id (
-              id,
-              name,
-              image_url
-            ),
-            buyer:buyer_id (
-              prenom,
-              nom,
-              avatar_url,
-              email
-            ),
-            vendor:vendor_id (
-              prenom,
-              nom,
-              avatar_url,
-              email
-            )
-          `);
+            name,
+            image_url
+          ),
+          buyer:buyer_id (
+            prenom,
+            nom,
+            avatar_url,
+            email
+          ),
+          vendor:vendor_id (
+            prenom,
+            nom,
+            avatar_url,
+            email
+          )
+        `);
 
-        if (isVendor) {
-          query = query.eq('vendor_id', user.id);
-        } else {
-          query = query.eq('buyer_id', user.id);
-        }
+      if (isVendor) {
+        query = query.eq('vendor_id', user.id);
+      } else {
+        query = query.eq('buyer_id', user.id);
+      }
 
-        let convs: any[] = [];
-        let error: any = null;
+      let convs: any[] = [];
+      let error: any = null;
 
-        try {
-          const { data, error: fetchErr } = await query.order('last_message_at', { ascending: false });
-          if (fetchErr) {
-            console.warn("Nesting join failed, executing resilient flat fallback query...", fetchErr.message);
-            
-            let flatQuery = supabase
-              .from('conversations')
-              .select('id, buyer_id, vendor_id, product_id, last_message_at');
-            
-            if (isVendor) {
-              flatQuery = flatQuery.eq('vendor_id', user.id);
-            } else {
-              flatQuery = flatQuery.eq('buyer_id', user.id);
-            }
-            
-            const { data: flatConvs, error: flatErr } = await flatQuery.order('last_message_at', { ascending: false });
-            if (flatErr) {
-              error = flatErr;
-            } else if (flatConvs && flatConvs.length > 0) {
-              const partnerIds = flatConvs.map((c: any) => isVendor ? c.buyer_id : c.vendor_id).filter(Boolean);
-              const productIds = flatConvs.map((c: any) => c.product_id).filter(Boolean);
-              
-              let profilesMap: Record<string, any> = {};
-              if (partnerIds.length > 0) {
-                const { data: profiles } = await supabase
-                  .from('profiles')
-                  .select('id, prenom, nom, avatar_url, email')
-                  .in('id', partnerIds);
-                if (profiles) {
-                  profiles.forEach((p: any) => {
-                    profilesMap[p.id] = p;
-                  });
-                }
-              }
-              
-              let productsMap: Record<string, any> = {};
-              if (productIds.length > 0) {
-                const { data: products } = await supabase
-                  .from('products')
-                  .select('id, name, image_url')
-                  .in('id', productIds);
-                if (products) {
-                  products.forEach((pd: any) => {
-                    productsMap[pd.id] = pd;
-                  });
-                }
-              }
-              
-              convs = flatConvs.map((c: any) => ({
-                id: c.id,
-                buyer_id: c.buyer_id,
-                vendor_id: c.vendor_id,
-                last_message_at: c.last_message_at,
-                product: c.product_id ? productsMap[c.product_id] : null,
-                buyer: c.buyer_id ? profilesMap[c.buyer_id] : null,
-                vendor: c.vendor_id ? profilesMap[c.vendor_id] : null,
-              }));
-            }
+      try {
+        const { data, error: fetchErr } = await query.order('last_message_at', { ascending: false });
+        if (fetchErr) {
+          console.warn("Nesting join failed, executing resilient flat fallback query...", fetchErr.message);
+          
+          let flatQuery = supabase
+            .from('conversations')
+            .select('id, buyer_id, vendor_id, product_id, last_message_at');
+          
+          if (isVendor) {
+            flatQuery = flatQuery.eq('vendor_id', user.id);
           } else {
-            convs = data || [];
+            flatQuery = flatQuery.eq('buyer_id', user.id);
           }
-        } catch (e: any) {
-          console.error("Resilient fallback error:", e);
-          error = e;
-        }
-
-        if (error) {
-          console.warn("Retrying fetch user profiles or conversations for chat...", error.message);
-          setContacts([{ id: 'system-vendza', nom: 'Vendza', type: 'system', subtitle: 'Notifications de sécurité' }]);
-          return;
-        }
-
-        if (convs && convs.length > 0) {
-          const dbMapped = convs.map((conv: any) => {
-            const partner = isVendor ? conv.buyer : conv.vendor;
-            const partnerId = isVendor ? conv.buyer_id : conv.vendor_id;
-            const pId = conv.product_id || conv.product?.id || '';
-
-            if (!partner) {
-              return {
-                id: partnerId || '',
-                nom: 'Utilisateur Vendza',
-                type: isVendor ? 'client' : 'vendeur',
-                subtitle: conv.product?.name ? `Produit : ${conv.product.name}` : 'Discussion sécurisée',
-                productId: pId
-              };
+          
+          const { data: flatConvs, error: flatErr } = await flatQuery.order('last_message_at', { ascending: false });
+          if (flatErr) {
+            error = flatErr;
+          } else if (flatConvs && flatConvs.length > 0) {
+            const partnerIds = flatConvs.map((c: any) => isVendor ? c.buyer_id : c.vendor_id).filter(Boolean);
+            const productIds = flatConvs.map((c: any) => c.product_id).filter(Boolean);
+            
+            let profilesMap: Record<string, any> = {};
+            if (partnerIds.length > 0) {
+              const { data: profiles } = await supabase
+                .from('profiles')
+                .select('id, prenom, nom, avatar_url, email')
+                .in('id', partnerIds);
+              if (profiles) {
+                profiles.forEach((p: any) => {
+                  profilesMap[p.id] = p;
+                });
+              }
             }
+            
+            let productsMap: Record<string, any> = {};
+            if (productIds.length > 0) {
+              const { data: products } = await supabase
+                .from('products')
+                .select('id, name, image_url')
+                .in('id', productIds);
+              if (products) {
+                products.forEach((pd: any) => {
+                  productsMap[pd.id] = pd;
+                });
+              }
+            }
+            
+            convs = flatConvs.map((c: any) => ({
+              id: c.id,
+              buyer_id: c.buyer_id,
+              vendor_id: c.vendor_id,
+              last_message_at: c.last_message_at,
+              product: c.product_id ? productsMap[c.product_id] : null,
+              buyer: c.buyer_id ? profilesMap[c.buyer_id] : null,
+              vendor: c.vendor_id ? profilesMap[c.vendor_id] : null,
+            }));
+          }
+        } else {
+          convs = data || [];
+        }
+      } catch (e: any) {
+        console.error("Resilient fallback error in executeFetch:", e);
+        error = e;
+      }
 
-            const prenomStr = partner.prenom || '';
-            const nomStr = partner.nom || '';
-            const nomAffiche = prenomStr 
-              ? `${prenomStr} ${nomStr}`.trim() 
-              : partner.email || 'Utilisateur Vendza';
+      if (error) {
+        throw error;
+      }
+      return convs;
+    }
 
-            const subtitle = conv.product?.name 
-              ? `Produit : ${conv.product.name}` 
-              : (isVendor ? 'Acheteur de confiance' : 'Marchand Partenaire');
+    async function fetchDatabaseSellers() {
+      setIsRefreshing(true);
+      let convs: any[] = [];
+      let success = false;
+      let lastError: any = null;
+      
+      const retryDelays = [0, 2000, 5000]; // Immediately, then wait 2s, then wait 5s
 
+      for (let attempt = 0; attempt < retryDelays.length; attempt++) {
+        try {
+          if (retryDelays[attempt] > 0) {
+            console.log(`[Inbox Retry] Waiting ${retryDelays[attempt] / 1000}s before retry attempt ${attempt}...`);
+            await new Promise(resolve => setTimeout(resolve, retryDelays[attempt]));
+          }
+          convs = await executeFetch();
+          success = true;
+          setLoadError(null);
+          break;
+        } catch (err: any) {
+          console.warn(`[Inbox Fetch Attempt ${attempt + 1} Failed]:`, err?.message || err);
+          lastError = err;
+        }
+      }
+
+      setIsRefreshing(false);
+
+      if (!success) {
+        console.error("[Inbox Fetch Ultimate Failure]: All retries failed.", lastError);
+        setLoadError("Impossible de synchroniser vos messages. Réessai en cours...");
+        
+        // Retain existing contacts list if any loaded successfully before (has more than just 'system-vendza')
+        setContacts(prev => {
+          if (prev && prev.length > 1) {
+            return prev;
+          }
+          return [{ id: 'system-vendza', nom: 'Vendza', type: 'system', subtitle: 'Notifications de sécurité' }];
+        });
+        return;
+      }
+
+      const isVendor = user.userType === 'vendeur';
+      if (convs && convs.length > 0) {
+        const dbMapped = convs.map((conv: any) => {
+          const partner = isVendor ? conv.buyer : conv.vendor;
+          const partnerId = isVendor ? conv.buyer_id : conv.vendor_id;
+          const pId = conv.product_id || conv.product?.id || '';
+
+          if (!partner) {
             return {
-              id: partnerId || partner.id || '',
-              nom: nomAffiche,
+              id: partnerId || '',
+              nom: 'Utilisateur Vendza',
               type: isVendor ? 'client' : 'vendeur',
-              subtitle: subtitle,
+              subtitle: conv.product?.name ? `Produit : ${conv.product.name}` : 'Discussion sécurisée',
               productId: pId
             };
-          }).filter((c: any) => c.id && c.id !== user.id);
-
-          const unique = dbMapped.filter((item, index, self) => 
-            index === self.findIndex((t) => t.id === item.id)
-          );
-
-          const withSystem = [
-            { id: 'system-vendza', nom: 'Vendza', type: 'system', subtitle: 'Alertes de livraison & séquestre' },
-            ...unique
-          ];
-
-          setContacts(withSystem);
-          
-          if (withSystem.length > 0 && !withSystem.some(c => c.id === selectedRecipientId)) {
-            if (!initialRecipientId) {
-              setSelectedRecipientId('system-vendza');
-              setSelectedRecipientNom('Vendza');
-            }
           }
-        } else {
-          // Fallback to Profiles if no existing conversations, so users can still see contacts to start a chat
+
+          const prenomStr = partner.prenom || '';
+          const nomStr = partner.nom || '';
+          const nomAffiche = prenomStr 
+            ? `${prenomStr} ${nomStr}`.trim() 
+            : partner.email || 'Utilisateur Vendza';
+
+          const subtitle = conv.product?.name 
+            ? `Produit : ${conv.product.name}` 
+            : (isVendor ? 'Acheteur de confiance' : 'Marchand Partenaire');
+
+          return {
+            id: partnerId || partner.id || '',
+            nom: nomAffiche,
+            type: isVendor ? 'client' : 'vendeur',
+            subtitle: subtitle,
+            productId: pId
+          };
+        }).filter((c: any) => c.id && c.id !== user.id);
+
+        const unique = dbMapped.filter((item, index, self) => 
+          index === self.findIndex((t) => t.id === item.id)
+        );
+
+        const withSystem = [
+          { id: 'system-vendza', nom: 'Vendza', type: 'system', subtitle: 'Alertes de livraison & séquestre' },
+          ...unique
+        ];
+
+        setContacts(withSystem);
+        
+        if (withSystem.length > 0 && !withSystem.some(c => c.id === selectedRecipientId)) {
+          if (!initialRecipientId) {
+            setSelectedRecipientId('system-vendza');
+            setSelectedRecipientNom('Vendza');
+          }
+        }
+      } else {
+        // Fallback to Profiles if no existing conversations, so users can still see contacts to start a chat
+        try {
           const { data: profiles, error: profErr } = await supabase
             .from('profiles')
             .select('*');
@@ -295,19 +340,65 @@ export const InboxView: React.FC<InboxViewProps> = ({
             setSelectedRecipientId('system-vendza');
             setSelectedRecipientNom('Vendza');
           }
+        } catch (e) {
+          setContacts([{ id: 'system-vendza', nom: 'Vendza', type: 'system', subtitle: 'Notifications de sécurité' }]);
         }
-      } catch (e) {
-        setContacts([{ id: 'system-vendza', nom: 'Vendza', type: 'system', subtitle: 'Notifications de sécurité' }]);
       }
     }
 
     fetchDatabaseSellers();
-  }, [user]);
+  }, [user, refreshTrigger]);
+
+  // Realtime subscription to conversations updates in InboxView for instant dynamic lists
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || !user) return;
+
+    console.log('[InboxView Realtime] Subscribing to conversations channel...');
+    const convoChannel = supabase
+      .channel('inbox-conversations-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'conversations' },
+        (payload) => {
+          console.log('[InboxView Realtime] Conversation table updated, refreshing contact list...', payload);
+          setRefreshTrigger(prev => prev + 1);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(convoChannel);
+    };
+  }, [user, isSupabaseConfigured, supabase]);
 
   if (!user) return null;
 
+  // Dynamically sort contacts so that the ones with the most recent messages appear first
+  const sortedContacts = contacts.slice().sort((a, b) => {
+    if (a.id === 'system-vendza') return -1;
+    if (b.id === 'system-vendza') return 1;
+
+    // Sort other contacts by last message timestamp
+    const getContactLastTime = (contactId: string) => {
+      const contactMsgs = messages.filter(m => 
+        (m.senderId === contactId && m.recipientId === user?.id) ||
+        (m.senderId === user?.id && m.recipientId === contactId)
+      );
+      if (contactMsgs.length === 0) return 0;
+      const times = contactMsgs.map(m => {
+        if (m.createdAt) return new Date(m.createdAt).getTime();
+        return 0;
+      });
+      return Math.max(...times);
+    };
+
+    const timeA = getContactLastTime(a.id);
+    const timeB = getContactLastTime(b.id);
+    return timeB - timeA;
+  });
+
   // Filter contacts by active category tab
-  const filteredContacts = contacts.filter(c => {
+  const filteredContacts = sortedContacts.filter(c => {
     if (activeTab === 'system') return c.id === 'system-vendza';
     if (activeTab === 'chats') return c.id !== 'system-vendza';
     return true; // 'all'
@@ -388,6 +479,28 @@ export const InboxView: React.FC<InboxViewProps> = ({
               <MessageSquare size={12} /> 💬 Messages Privés
             </button>
           </div>
+
+          {loadError && (
+            <div className="bg-rose-50 border-b border-rose-100 p-3 text-xs text-rose-700 flex items-center justify-between">
+              <span className="flex items-center gap-1.5 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                {loadError}
+              </span>
+              <button 
+                onClick={() => setRefreshTrigger(prev => prev + 1)}
+                className="text-[10px] font-bold bg-white text-rose-700 hover:bg-rose-100 px-2 py-1 rounded border border-rose-200 shadow-3xs cursor-pointer transition"
+              >
+                Réessayer
+              </button>
+            </div>
+          )}
+
+          {isRefreshing && (
+            <div className="bg-slate-50 border-b border-slate-100 p-2 text-[10px] text-slate-500 flex items-center justify-center gap-1.5 font-sans">
+              <span className="w-2 h-2 border border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+              Actualisation en cours...
+            </div>
+          )}
 
           <div className="divide-y divide-slate-100 max-h-[460px] overflow-y-auto">
             {filteredContacts.length > 0 ? (
@@ -504,11 +617,11 @@ export const InboxView: React.FC<InboxViewProps> = ({
             </div>
 
             <button
-              onClick={() => {}}
+              onClick={() => setRefreshTrigger(prev => prev + 1)}
               className="p-1.5 rounded-lg bg-white/5 hover:bg-white/15 text-slate-300 border border-white/5 cursor-pointer"
               title="Actualiser les messages"
             >
-              <RefreshCw size={12} className="animate-spin-slow" />
+              <RefreshCw size={12} className={isRefreshing ? "animate-spin" : "animate-spin-slow"} />
             </button>
           </div>
 

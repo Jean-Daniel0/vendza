@@ -43,6 +43,88 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey;
 const isSupabaseConfigured = !!(supabaseUrl && supabaseKey);
 const supabase = isSupabaseConfigured ? createClient(supabaseUrl, supabaseKey) : null;
 
+// ====================================================================
+// REAL-TIME MESSAGE LISTENER FOR SECURE ONESIGNAL PUSH NOTIFICATIONS
+// ====================================================================
+if (isSupabaseConfigured && supabase) {
+  console.log("[Server Realtime Push] Initializing message database listener...");
+  supabase
+    .channel('server-messages-realtime')
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'messages' },
+      async (payload) => {
+        try {
+          const m = payload.new;
+          if (!m || !m.recipient_id) return;
+
+          console.log(`[Server Realtime Push] Detected new message in DB (ID: ${m.id}). Preparing push...`);
+
+          // Fetch sender name from profiles
+          let senderName = "Un utilisateur";
+          if (m.sender_id) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('prenom')
+              .eq('id', m.sender_id)
+              .maybeSingle();
+            if (profile && profile.prenom) {
+              senderName = profile.prenom;
+            }
+          }
+
+          const title = `💬 Message de ${senderName}`;
+          const text = m.text || "Vous avez reçu un nouveau message.";
+          const apiAppId = '75a4d965-5500-4694-abfa-69b8a88c9d1d';
+          const apiKey = process.env.ONESIGNAL_REST_API_KEY;
+
+          if (!apiKey) {
+            console.warn("[Server Realtime Push] ONESIGNAL_REST_API_KEY is not configured, skipping OneSignal dispatch.");
+            return;
+          }
+
+          const cleanUrl = supabaseUrl ? supabaseUrl.replace(/\/$/, '') : 'https://giakjeanwekipnvyhlxm.supabase.co';
+          const badgeUrl = `${cleanUrl}/storage/v1/object/public/images_systeme/notification-icon-96.png`;
+
+          const pushPayload = {
+            app_id: apiAppId,
+            contents: {
+              fr: text,
+              en: text
+            },
+            headings: {
+              fr: title,
+              en: title
+            },
+            chrome_web_badge: badgeUrl,
+            target_channel: "push",
+            include_aliases: {
+              external_id: [m.recipient_id]
+            }
+          };
+
+          console.log(`[Server Realtime Push] Transmitting push request to OneSignal for recipient ${m.recipient_id}...`);
+          const response = await fetch('https://onesignal.com/api/v1/notifications', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Key ${apiKey}`
+            },
+            body: JSON.stringify(pushPayload)
+          });
+
+          const data = await response.json();
+          console.log("[Server Realtime Push] OneSignal Response:", data);
+        } catch (err: any) {
+          console.error("[Server Realtime Push] Failed executing database-triggered push notification:", err.message);
+        }
+      }
+    )
+    .subscribe((status) => {
+      console.log(`[Server Realtime Push] Real-time message channel subscription status: ${status}`);
+    });
+}
+
 // Endpoint public pour récupérer la configuration non-sensible (Supabase anon key, etc.)
 app.get('/api/config', (req, res) => {
   const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';

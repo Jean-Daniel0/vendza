@@ -3469,7 +3469,7 @@ export default function App() {
     if (!resolvedProductId) {
       // Find any product of the resolved vendor
       const assocProd = products.find(p => p.vendeurId === resolvedVendorId);
-      resolvedProductId = assocProd ? assocProd.id : (products[0]?.id || null);
+      resolvedProductId = assocProd ? assocProd.id : null;
     }
 
     // Ensure they are valid UUIDs before executing DB queries
@@ -3479,11 +3479,12 @@ export default function App() {
 
     if (!validBuyer || !validVendor || !validProduct) {
       console.warn("======================================================================");
-      console.warn("[Background Sync Check] Invalid UUIDs for conversation lookup/insertion (Skipping DB write):");
+      console.warn("[Background Sync Check] Invalid UUIDs for conversation lookup/insertion:");
       console.warn(`Buyer: ${resolvedBuyerId} (Valid: ${validBuyer})`);
       console.warn(`Vendor: ${resolvedVendorId} (Valid: ${validVendor})`);
       console.warn(`Product: ${resolvedProductId} (Valid: ${validProduct})`);
       console.warn("======================================================================");
+      alert("Impossible d'ouvrir la conversation, veuillez réessayer.");
       return;
     }
 
@@ -3530,7 +3531,7 @@ export default function App() {
 
     if (!conversation_id) {
       console.error("[CRITICAL] Conversation could not be created or found for message:", rawMsg);
-      alert("Une erreur de sécurité est survenue : impossible de lier le message à une conversation valide. Veuillez réessayer.");
+      alert("Impossible d'ouvrir la conversation, veuillez réessayer.");
       return;
     }
 
@@ -3581,19 +3582,6 @@ export default function App() {
         if (errMsg.toLowerCase().includes('uuid') || errMsg.toLowerCase().includes('invalid input syntax for uuid')) {
           payload.id = generateUUID();
           continue;
-        }
-
-        // Null value constraint fallback (like conversation_id)
-        if (errMsg.toLowerCase().includes('null value in column') && errMsg.toLowerCase().includes('violates not-null constraint')) {
-          const matchNullCol = errMsg.match(/column "([^"]+)"/i);
-          if (matchNullCol && matchNullCol[1]) {
-            const nullCol = matchNullCol[1];
-            if (nullCol === 'conversation_id') {
-              // Try to generate a fresh random UUID for it as fallback
-              payload.conversation_id = generateUUID();
-              continue;
-            }
-          }
         }
 
         const matchCol = errMsg.match(/column "([^"]+)" of relation "([^"]+)" does not exist/i) || 
@@ -3729,11 +3717,6 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
     if (isSupabaseConfigured && supabase) {
       insertMessageAdaptive(newMsg);
     }
-
-    // Trigger push notification to other participant in the private chat
-    sendPushNotification(recipientId, `💬 Message de ${currentUser.prenom}`, text);
-
-
   };
 
   // Mark all messages from a specific sender to the current user as read
