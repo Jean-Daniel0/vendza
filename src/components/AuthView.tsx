@@ -186,33 +186,54 @@ export const AuthView: React.FC<AuthViewProps> = ({
           .eq('id', authData.user.id)
           .single();
 
-        if (profileError) {
+        if (profileError && profileError.code !== 'PGRST116') {
           console.error("[Vendza Supabase Profile Error]", profileError);
         }
 
-        // Step 3.3 — Si profil est null → le créer automatiquement
+        // Step 3.3 — Si profil est null ou erreur de non-existence -> le créer automatiquement avec tous les champs requis
         if (profileError || !profil) {
-          console.warn("Profil introuvable, création automatique...");
-          const { error: insertError } = await supabase.from('profiles').insert({
-            id: authData.user.id,
-            email: authData.user.email,
-            type: 'client',
-            plan: 'gratuit',
-            statut_verification: 'non_verifie',
-            created_at: new Date()
-          });
+          console.warn("Profil introuvable, création automatique de sécurité...");
+          
+          const emailValue = authData.user.email || '';
+          const parts = emailValue.split('@')[0].split('.');
+          const prenomText = parts[0] ? (parts[0].charAt(0).toUpperCase() + parts[0].slice(1)) : 'Acheteur';
+          const nomText = parts[1] ? (parts[1].charAt(0).toUpperCase() + parts[1].slice(1)) : 'Vendza';
+          const shopNameVal = loginType === 'vendeur' ? `Boutique de ${prenomText}` : undefined;
 
-          if (insertError) {
-            console.error("[Vendza Supabase Profile Insert Error]", insertError);
+          const autoPayload: any = {
+            id: authData.user.id,
+            prenom: prenomText,
+            first_name: prenomText,
+            nom: nomText,
+            last_name: nomText,
+            full_name: `${prenomText} ${nomText}`.trim(),
+            email: emailValue,
+            user_type: loginType, // Respect the selected loginType from the form tab!
+            type: loginType,
+            plan: 'gratuit',
+            departement: 'Ouest',
+            commune: 'Pétion-Ville',
+            shop_name: shopNameVal || null,
+            boutique: shopNameVal || null,
+            boutique_nom: shopNameVal || null,
+            statut_verification: 'non_verifie'
+          };
+
+          const insertRes = await adaptiveInsert('profiles', autoPayload);
+
+          if (!insertRes.ok) {
+            console.error("[Vendza Supabase Profile Insert Error]", insertRes.error);
           } else {
             // Re-fetch to load default/new structure completely
-            const { data: newProfil } = await supabase
+            const { data: newProfil, error: reFetchErr } = await supabase
               .from('profiles')
               .select('*, shops(*)')
               .eq('id', authData.user.id)
               .single();
             if (newProfil) {
               profil = newProfil;
+            } else if (reFetchErr) {
+              console.error("[Vendza Supabase Profile Re-fetch Error]", reFetchErr);
             }
           }
         }

@@ -121,18 +121,6 @@ export const InboxView: React.FC<InboxViewProps> = ({
             id,
             name,
             image_url
-          ),
-          buyer:buyer_id (
-            prenom,
-            nom,
-            avatar_url,
-            email
-          ),
-          vendor:vendor_id (
-            prenom,
-            nom,
-            avatar_url,
-            email
           )
         `);
 
@@ -148,66 +136,54 @@ export const InboxView: React.FC<InboxViewProps> = ({
       try {
         const { data, error: fetchErr } = await query.order('last_message_at', { ascending: false });
         if (fetchErr) {
-          console.warn("Nesting join failed, executing resilient flat fallback query...", fetchErr.message);
+          throw fetchErr;
+        }
+
+        if (data && data.length > 0) {
+          const partnerIds = data.map((c: any) => [c.buyer_id, c.vendor_id]).flat().filter(Boolean);
+          const uniquePartnerIds = [...new Set(partnerIds)];
           
-          let flatQuery = supabase
-            .from('conversations')
-            .select('id, buyer_id, vendor_id, product_id, last_message_at');
-          
-          if (isVendor) {
-            flatQuery = flatQuery.eq('vendor_id', user.id);
-          } else {
-            flatQuery = flatQuery.eq('buyer_id', user.id);
+          let profilesMap: Record<string, any> = {};
+          if (uniquePartnerIds.length > 0) {
+            const { data: profiles, error: profErr } = await supabase
+              .from('profiles')
+              .select('id, prenom, nom, avatar_url, email')
+              .in('id', uniquePartnerIds);
+            
+            if (profErr) {
+              console.warn("Secondary profiles fetch failed in executeFetch:", profErr.message);
+            } else if (profiles) {
+              profiles.forEach((p: any) => {
+                profilesMap[p.id] = p;
+              });
+            }
           }
-          
-          const { data: flatConvs, error: flatErr } = await flatQuery.order('last_message_at', { ascending: false });
-          if (flatErr) {
-            error = flatErr;
-          } else if (flatConvs && flatConvs.length > 0) {
-            const partnerIds = flatConvs.map((c: any) => isVendor ? c.buyer_id : c.vendor_id).filter(Boolean);
-            const productIds = flatConvs.map((c: any) => c.product_id).filter(Boolean);
-            
-            let profilesMap: Record<string, any> = {};
-            if (partnerIds.length > 0) {
-              const { data: profiles } = await supabase
-                .from('profiles')
-                .select('id, prenom, nom, avatar_url, email')
-                .in('id', partnerIds);
-              if (profiles) {
-                profiles.forEach((p: any) => {
-                  profilesMap[p.id] = p;
-                });
-              }
-            }
-            
-            let productsMap: Record<string, any> = {};
-            if (productIds.length > 0) {
-              const { data: products } = await supabase
-                .from('products')
-                .select('id, name, image_url')
-                .in('id', productIds);
-              if (products) {
-                products.forEach((pd: any) => {
-                  productsMap[pd.id] = pd;
-                });
-              }
-            }
-            
-            convs = flatConvs.map((c: any) => ({
+
+          convs = data.map((c: any) => {
+            const defaultProfile = {
+              prenom: 'Utilisateur',
+              nom: 'Vendza',
+              avatar_url: null,
+              email: ''
+            };
+
+            const buyerProf = c.buyer_id ? (profilesMap[c.buyer_id] || defaultProfile) : defaultProfile;
+            const vendorProf = c.vendor_id ? (profilesMap[c.vendor_id] || defaultProfile) : defaultProfile;
+
+            return {
               id: c.id,
               buyer_id: c.buyer_id,
               vendor_id: c.vendor_id,
               last_message_at: c.last_message_at,
-              product: c.product_id ? productsMap[c.product_id] : null,
-              buyer: c.buyer_id ? profilesMap[c.buyer_id] : null,
-              vendor: c.vendor_id ? profilesMap[c.vendor_id] : null,
-            }));
-          }
-        } else {
-          convs = data || [];
+              product_id: c.product_id,
+              product: c.product,
+              buyer: buyerProf,
+              vendor: vendorProf
+            };
+          });
         }
       } catch (e: any) {
-        console.error("Resilient fallback error in executeFetch:", e);
+        console.error("Resilient executeFetch error:", e);
         error = e;
       }
 
