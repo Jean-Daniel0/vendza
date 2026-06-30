@@ -61,7 +61,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
   initialRecipientNom,
   initialProductId
 }) => {
-  const [selectedRecipientId, setSelectedRecipientId] = useState<string>(initialRecipientId || 'system-vendza');
+  const [selectedRecipientId, setSelectedRecipientId] = useState<string>(initialRecipientId || '99999999-9999-4999-9999-999999999999');
   const [selectedRecipientNom, setSelectedRecipientNom] = useState<string>(initialRecipientNom || 'Vendza');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(initialProductId || null);
   const [typedMessage, setTypedMessage] = useState<string>('');
@@ -103,7 +103,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
     if (!user) return;
 
     if (!isSupabaseConfigured || !supabase) {
-      setContacts([{ id: 'system-vendza', nom: 'Vendza', type: 'system', subtitle: 'Notifications de sécurité' }]);
+      setContacts([{ id: '99999999-9999-4999-9999-999999999999', nom: 'Vendza', type: 'system', subtitle: 'Notifications de sécurité' }]);
       return;
     }
 
@@ -223,12 +223,12 @@ export const InboxView: React.FC<InboxViewProps> = ({
         console.error("[Inbox Fetch Ultimate Failure]: All retries failed.", lastError);
         setLoadError("Impossible de synchroniser vos messages. Réessai en cours...");
         
-        // Retain existing contacts list if any loaded successfully before (has more than just 'system-vendza')
+        // Retain existing contacts list if any loaded successfully before (has more than just the system user)
         setContacts(prev => {
           if (prev && prev.length > 1) {
             return prev;
           }
-          return [{ id: 'system-vendza', nom: 'Vendza', type: 'system', subtitle: 'Notifications de sécurité' }];
+          return [{ id: '99999999-9999-4999-9999-999999999999', nom: 'Vendza', type: 'system', subtitle: 'Notifications de sécurité' }];
         });
         return;
       }
@@ -274,7 +274,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
         );
 
         const withSystem = [
-          { id: 'system-vendza', nom: 'Vendza', type: 'system', subtitle: 'Alertes de livraison & séquestre' },
+          { id: '99999999-9999-4999-9999-999999999999', nom: 'Vendza', type: 'system', subtitle: 'Alertes de livraison & séquestre' },
           ...unique
         ];
 
@@ -282,7 +282,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
         
         if (withSystem.length > 0 && !withSystem.some(c => c.id === selectedRecipientId)) {
           if (!initialRecipientId) {
-            setSelectedRecipientId('system-vendza');
+            setSelectedRecipientId('99999999-9999-4999-9999-999999999999');
             setSelectedRecipientNom('Vendza');
           }
         }
@@ -306,18 +306,18 @@ export const InboxView: React.FC<InboxViewProps> = ({
             }).filter((p: any) => p.id !== user.id);
 
             const withSystem = [
-              { id: 'system-vendza', nom: 'Vendza', type: 'system', subtitle: 'Alertes de livraison & séquestre' },
+              { id: '99999999-9999-4999-9999-999999999999', nom: 'Vendza', type: 'system', subtitle: 'Alertes de livraison & séquestre' },
               ...mappedProfiles
             ];
 
             setContacts(withSystem);
           } else {
-            setContacts([{ id: 'system-vendza', nom: 'Vendza', type: 'system', subtitle: 'Notifications de sécurité' }]);
-            setSelectedRecipientId('system-vendza');
+            setContacts([{ id: '99999999-9999-4999-9999-999999999999', nom: 'Vendza', type: 'system', subtitle: 'Notifications de sécurité' }]);
+            setSelectedRecipientId('99999999-9999-4999-9999-999999999999');
             setSelectedRecipientNom('Vendza');
           }
         } catch (e) {
-          setContacts([{ id: 'system-vendza', nom: 'Vendza', type: 'system', subtitle: 'Notifications de sécurité' }]);
+          setContacts([{ id: '99999999-9999-4999-9999-999999999999', nom: 'Vendza', type: 'system', subtitle: 'Notifications de sécurité' }]);
         }
       }
     }
@@ -351,8 +351,8 @@ export const InboxView: React.FC<InboxViewProps> = ({
 
   // Dynamically sort contacts so that the ones with the most recent messages appear first
   const sortedContacts = contacts.slice().sort((a, b) => {
-    if (a.id === 'system-vendza') return -1;
-    if (b.id === 'system-vendza') return 1;
+    if (a.id === '99999999-9999-4999-9999-999999999999') return -1;
+    if (b.id === '99999999-9999-4999-9999-999999999999') return 1;
 
     // Sort other contacts by last message timestamp
     const getContactLastTime = (contactId: string) => {
@@ -375,8 +375,8 @@ export const InboxView: React.FC<InboxViewProps> = ({
 
   // Filter contacts by active category tab
   const filteredContacts = sortedContacts.filter(c => {
-    if (activeTab === 'system') return c.id === 'system-vendza';
-    if (activeTab === 'chats') return c.id !== 'system-vendza';
+    if (activeTab === 'system') return c.id === '99999999-9999-4999-9999-999999999999';
+    if (activeTab === 'chats') return c.id !== '99999999-9999-4999-9999-999999999999';
     return true; // 'all'
   });
 
@@ -481,7 +481,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
           <div className="divide-y divide-slate-100 max-h-[460px] overflow-y-auto">
             {filteredContacts.length > 0 ? (
               filteredContacts.map(contact => {
-                const isSystem = contact.id === 'system-vendza';
+                const isSystem = contact.id === '99999999-9999-4999-9999-999999999999';
                 const hasLastSystemMsg = messages.some(m => m.senderId === contact.id || m.recipientId === contact.id);
                 const contactUnread = messages.filter(m => m.senderId === contact.id && m.recipientId === user.id && m.isRead !== true).length;
 
@@ -574,13 +574,13 @@ export const InboxView: React.FC<InboxViewProps> = ({
               </button>
 
               <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center font-bold text-xs uppercase text-teal-300 border border-white/10">
-                {selectedRecipientId === 'system-vendza' ? 'V' : selectedRecipientNom[0]}
+                {selectedRecipientId === '99999999-9999-4999-9999-999999999999' ? 'V' : selectedRecipientNom[0]}
               </div>
 
               <div>
                 <h4 className="text-xs font-bold leading-tight flex items-center gap-1.5">
                   {selectedRecipientNom}
-                  {selectedRecipientId === 'system-vendza' && (
+                  {selectedRecipientId === '99999999-9999-4999-9999-999999999999' && (
                     <span className="bg-amber-400 text-[#0c1445] font-black text-[8px] tracking-widest uppercase px-1 py-0.2 rounded-xs">
                       Official
                     </span>
@@ -606,7 +606,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
             {chatMessages.length > 0 ? (
               chatMessages.map(m => {
                 const isMe = m.senderId === user.id;
-                const isSystem = m.senderId === 'system-vendza';
+                const isSystem = m.senderId === '99999999-9999-4999-9999-999999999999';
 
                 return (
                   <div
@@ -652,7 +652,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
           </div>
 
           {/* Bottom input actions drawer */}
-          {selectedRecipientId === 'system-vendza' ? (
+          {selectedRecipientId === '99999999-9999-4999-9999-999999999999' ? (
             <div className="p-3 bg-amber-50/30 border-t border-amber-100 text-center shrink-0">
               <p className="text-[10px] text-amber-800/80 leading-normal flex items-center justify-center gap-1 font-bold">
                 ⚠️ Canal non répondeur : Vous ne pouvez pas envoyer de messages directs à ce robot système.

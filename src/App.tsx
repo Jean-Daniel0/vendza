@@ -1339,7 +1339,7 @@ export default function App() {
             orderId: m.order_id || m.orderId,
             createdAt: m.created_at,
             isRead: m.is_read !== undefined ? m.is_read : (m.isRead !== undefined ? m.isRead : false)
-          })).filter((m: Message) => m.senderId === currentUser.id || m.recipientId === currentUser.id || (m.senderId === 'system-vendza' && m.recipientId === currentUser.id));
+          })).filter((m: Message) => m.senderId === currentUser.id || m.recipientId === currentUser.id || (m.senderId === '99999999-9999-4999-9999-999999999999' && m.recipientId === currentUser.id));
           
           setMessages(prev => {
             const prevFiltered = prev.filter(p => !mapped.some(m => m.id === p.id));
@@ -1385,7 +1385,7 @@ export default function App() {
 
             const isRelevant = mappedMsg.senderId === currentUser.id || 
                                mappedMsg.recipientId === currentUser.id || 
-                               (mappedMsg.senderId === 'system-vendza' && mappedMsg.recipientId === currentUser.id);
+                               (mappedMsg.senderId === '99999999-9999-4999-9999-999999999999' && mappedMsg.recipientId === currentUser.id);
 
             if (isRelevant) {
               setMessages(prev => {
@@ -3538,11 +3538,11 @@ export default function App() {
     const payload: any = {
       id: rawMsg.id,
       conversation_id: conversation_id,
-      sender_id: rawMsg.senderId === 'system-vendza' ? resolvedBuyerId : (isUUID(rawMsg.senderId) ? rawMsg.senderId : resolvedBuyerId),
+      sender_id: rawMsg.senderId === '99999999-9999-4999-9999-999999999999' ? '99999999-9999-4999-9999-999999999999' : (isUUID(rawMsg.senderId) ? rawMsg.senderId : resolvedBuyerId),
       senderId: rawMsg.senderId,
       sender_nom: rawMsg.senderNom,
       senderNom: rawMsg.senderNom,
-      recipient_id: rawMsg.recipientId === 'system-vendza' ? resolvedVendorId : (isUUID(rawMsg.recipientId) ? rawMsg.recipientId : resolvedVendorId),
+      recipient_id: rawMsg.recipientId === '99999999-9999-4999-9999-999999999999' ? '99999999-9999-4999-9999-999999999999' : (isUUID(rawMsg.recipientId) ? rawMsg.recipientId : resolvedVendorId),
       recipientId: rawMsg.recipientId,
       text: rawMsg.text,
       content: rawMsg.text || '', // fallback content column
@@ -3644,7 +3644,7 @@ Veuillez préparer la commande. À la livraison, demandez le code QR de l'achete
 
       const notificationMsg: Message = {
         id: `msg-notif-${Date.now()}-${vId}-${Math.random().toString(36).substring(2, 6)}`,
-        senderId: 'system-vendza',
+        senderId: '99999999-9999-4999-9999-999999999999',
         senderNom: 'Vendza',
         recipientId: vId,
         text: messageText,
@@ -3676,7 +3676,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
 
       const clientNotifMsg: Message = {
         id: `msg-notif-buyer-${Date.now()}-${order.clientId}`,
-        senderId: 'system-vendza',
+        senderId: '99999999-9999-4999-9999-999999999999',
         senderNom: 'Vendza',
         recipientId: order.clientId,
         text: clientMessageText,
