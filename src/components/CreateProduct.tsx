@@ -11,6 +11,7 @@ interface CreateProductProps {
   productToEdit?: Product | null;
   clearProductToEdit?: () => void;
   onNavigate: (view: string) => void;
+  user?: any;
 }
 
 const COMMUNES: Record<string, string[]> = {
@@ -40,11 +41,13 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
   onUpdateProduct,
   productToEdit = null,
   clearProductToEdit,
-  onNavigate
+  onNavigate,
+  user = null
 }) => {
   const [step, setStep] = useState<number>(1);
   const isEditing = !!productToEdit;
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const isPaidPlan = user?.plan === 'Pro Local' || user?.plan === 'Pro National';
 
   // Form Field States
   const [nom, setNom] = useState<string>('');
@@ -85,8 +88,13 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
 
   const sizeOptions = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'];
 
-  // Seed product data on edit
+  // Seed product data on edit or force free plan registration location
   useEffect(() => {
+    if (!isPaidPlan && user) {
+      setSelectedDept(user.departement || '');
+      setSelectedCommune(user.commune || '');
+    }
+
     if (productToEdit) {
       setNom(productToEdit.nom || '');
       setCat(productToEdit.cat || '');
@@ -114,19 +122,21 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
       delete originSpecs['Origine'];
       setSpecs(originSpecs);
 
-      if (originStr) {
-        const parts = originStr.split(',');
-        if (parts.length >= 2) {
-          const comm = parts[0].trim();
-          const dept = parts[1].trim();
-          setSelectedDept(dept);
-          setSelectedCommune(comm);
-        } else if (parts.length === 1 && parts[0].trim()) {
-          setSelectedCommune(parts[0].trim());
+      if (isPaidPlan) {
+        if (originStr) {
+          const parts = originStr.split(',');
+          if (parts.length >= 2) {
+            const comm = parts[0].trim();
+            const dept = parts[1].trim();
+            setSelectedDept(dept);
+            setSelectedCommune(comm);
+          } else if (parts.length === 1 && parts[0].trim()) {
+            setSelectedCommune(parts[0].trim());
+          }
+        } else {
+          setSelectedDept('');
+          setSelectedCommune('');
         }
-      } else {
-        setSelectedDept('');
-        setSelectedCommune('');
       }
 
       setMainPreviewUrl(productToEdit.image_url || '');
@@ -153,13 +163,15 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
       setCapacitesStr('');
       setDelaiLivraison('48h');
       setStatut('actif');
-      setSelectedDept('');
-      setSelectedCommune('');
+      if (isPaidPlan) {
+        setSelectedDept('');
+        setSelectedCommune('');
+      }
       setSpecs({});
       setMainPreviewUrl('');
       setGalleryPreview(['', '', '', '', '']);
     }
-  }, [productToEdit]);
+  }, [productToEdit, isPaidPlan, user?.id, user?.departement, user?.commune]);
 
   // Completion criteria evaluation
   const checks = [
@@ -490,7 +502,7 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
                 <option value="Électronique">📱 Électronique</option>
                 <option value="Audio">🎧 Audio</option>
                 <option value="Wearable">⌚ Wearable</option>
-                <option value="Maison font-bold">🏠 Maison</option>
+                <option value="Maison">🏠 Maison</option>
                 <option value="Photo">📷 Photo</option>
                 <option value="Gaming">🎮 Gaming</option>
                 <option value="Beauté">🧴 Beauté</option>
@@ -950,12 +962,13 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">Département d'origine *</label>
                 <select
-                  className="w-full py-2.5 px-3.5 border border-slate-200 rounded-xl text-xs bg-slate-50 font-bold text-slate-700 outline-none hover:bg-white transition"
+                  className="w-full py-2.5 px-3.5 border border-slate-200 rounded-xl text-xs bg-slate-50 font-bold text-slate-700 outline-none hover:bg-white transition disabled:opacity-60 disabled:bg-slate-100"
                   value={selectedDept}
                   onChange={e => {
                     setSelectedDept(e.target.value);
                     setSelectedCommune('');
                   }}
+                  disabled={!isPaidPlan}
                 >
                   <option value="">Sélectionnez un Département…</option>
                   {Object.keys(COMMUNES).map(deptKey => (
@@ -967,10 +980,10 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">Commune d'origine *</label>
                 <select
-                  className="w-full py-2.5 px-3.5 border border-slate-200 rounded-xl text-xs bg-slate-50 font-bold text-slate-700 outline-none hover:bg-white transition disabled:opacity-50"
+                  className="w-full py-2.5 px-3.5 border border-slate-200 rounded-xl text-xs bg-slate-50 font-bold text-slate-700 outline-none hover:bg-white transition disabled:opacity-60 disabled:bg-slate-100"
                   value={selectedCommune}
                   onChange={e => setSelectedCommune(e.target.value)}
-                  disabled={!selectedDept}
+                  disabled={!selectedDept || !isPaidPlan}
                 >
                   <option value="">Sélectionnez une Commune…</option>
                   {(COMMUNES[selectedDept] || []).map(commKey => (
@@ -979,6 +992,15 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
                 </select>
               </div>
             </div>
+
+            {!isPaidPlan && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5">
+                <span className="text-amber-500 text-sm mt-0.5">💡</span>
+                <p className="text-[11px] leading-relaxed text-amber-800">
+                  <strong>Plan Gratuit:</strong> Vos produits sont automatiquement rattachés à votre commune d'inscription (<strong>{user?.commune || 'Pétion-Ville'}, {user?.departement || 'Ouest'}</strong>). Passez à un plan payant (<strong>Pro Local</strong> ou <strong>Pro National</strong>) pour choisir librement d'autres localités d'expédition pour chaque article.
+                </p>
+              </div>
+            )}
 
             {/* Estimated delivery delay dropdown */}
             <div className="space-y-1 border-t pt-3 border-slate-100">

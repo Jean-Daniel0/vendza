@@ -98,6 +98,9 @@ if (isSupabaseConfigured && supabase) {
             },
             chrome_web_badge: badgeUrl,
             target_channel: "push",
+            data: {
+              category: "message"
+            },
             include_aliases: {
               external_id: [m.recipient_id]
             }
@@ -526,7 +529,7 @@ if (process.env.NETLIFY !== 'true') {
 }
 
 // Send push notifications direct from server using OneSignal REST API key
-const sendPushNotificationBackend = async (recipientId: string, title: string, message: string) => {
+const sendPushNotificationBackend = async (recipientId: string, title: string, message: string, category: 'order' | 'message' | 'promo' = 'order') => {
   try {
     const apiAppId = '75a4d965-5500-4694-abfa-69b8a88c9d1d';
     const apiKey = process.env.ONESIGNAL_REST_API_KEY;
@@ -551,6 +554,9 @@ const sendPushNotificationBackend = async (recipientId: string, title: string, m
       },
       chrome_web_badge: badgeUrl,
       target_channel: "push",
+      data: {
+        category: category
+      },
       include_aliases: {
         external_id: [recipientId]
       }
@@ -2587,7 +2593,7 @@ app.post('/api/moderate-image', async (req, res) => {
 // ONESIGNAL MULTI-USER NOTIFICATION PROXY
 // ============================================
 app.post('/api/onesignal/send', async (req, res) => {
-  const { recipientId, title, message } = req.body;
+  const { recipientId, title, message, category } = req.body;
   try {
     const apiAppId = '75a4d965-5500-4694-abfa-69b8a88c9d1d';
     const apiKey = process.env.ONESIGNAL_REST_API_KEY;
@@ -2613,6 +2619,9 @@ app.post('/api/onesignal/send', async (req, res) => {
       },
       chrome_web_badge: badgeUrl,
       target_channel: "push",
+      data: {
+        category: category || 'order'
+      },
       include_aliases: {
         external_id: [recipientId]
       }

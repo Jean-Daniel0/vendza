@@ -170,6 +170,124 @@ export default function App() {
   // Real-time exchange rate Gdes/USD
   const [tauxUSD, setTauxUSD] = useState<number>(130);
   const [oneSignalInitDone, setOneSignalInitDone] = useState<boolean>(false);
+  const [permissionState, setPermissionState] = useState<NotificationPermission>(() => {
+    return typeof Notification !== 'undefined' ? Notification.permission : 'default';
+  });
+  const [showPermissionBanner, setShowPermissionBanner] = useState<boolean>(true);
+
+  // Catch-up notification metrics (Part 3)
+  const [showCatchUpModal, setShowCatchUpModal] = useState<boolean>(false);
+  const [catchUpStats, setCatchUpStats] = useState<{
+    unreadMessages: number;
+    unseenOrders: number;
+    newPromos: number;
+  }>({ unreadMessages: 0, unseenOrders: 0, newPromos: 0 });
+
+  // Update permission state when app mounts or focus changes
+  useEffect(() => {
+    if (typeof Notification !== 'undefined') {
+      setPermissionState(Notification.permission);
+    }
+  }, []);
+
+  // Request native permission + sync with OneSignal (Part 1)
+  const requestNotificationPermission = async () => {
+    if (typeof Notification === 'undefined') return;
+
+    try {
+      console.log('[Notification] Requesting native permission...');
+      const result = await Notification.requestPermission();
+      setPermissionState(result);
+
+      if (result === 'granted') {
+        if (typeof window !== 'undefined' && (window as any).OneSignal) {
+          try {
+            console.log('[OneSignal] Triggering push registration sync...');
+            const os = (window as any).OneSignal;
+            if (typeof os.registerForPushNotifications === 'function') {
+              await os.registerForPushNotifications();
+            } else if (os.Notifications && typeof os.Notifications.requestPermission === 'function') {
+              await os.Notifications.requestPermission();
+            } else if (typeof os.showNativePrompt === 'function') {
+              await os.showNativePrompt();
+            }
+          } catch (err) {
+            console.warn('[OneSignal] SDK permission sync failed:', err);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[Notification] Permission request failed:', err);
+    }
+  };
+
+  // Register online/offline event handlers to trigger syncs immediately (Part 3)
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('[Network Status] Regained internet connection! Performing immediate sync of data...');
+      if (currentUser?.id) {
+        loadUserProfile(currentUser.id);
+      }
+    };
+    
+    window.addEventListener('online', handleOnline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [currentUser?.id]);
+
+  // Analyze offline-missed activities upon return (Part 3)
+  useEffect(() => {
+    if (!currentUser) {
+      setShowCatchUpModal(false);
+      return;
+    }
+
+    const lastActiveStr = localStorage.getItem('vendza_last_active_time');
+    const lastActiveTime = lastActiveStr ? new Date(lastActiveStr).getTime() : 0;
+
+    // 1. Missed messages
+    const unreadMessagesCount = messages.filter(
+      m => m.recipientId === currentUser.id && m.isRead !== true
+    ).length;
+
+    // 2. Missed orders
+    let unseenOrdersCount = 0;
+    if (currentUser.type === 'vendeur' || currentUser.user_type === 'vendeur') {
+      unseenOrdersCount = orders.filter(o => {
+        const isMyOrder = o.vendeurId === currentUser.id || o.vendor_id === currentUser.id || o.items?.some((item: any) => item.vendeurId === currentUser.id);
+        const orderTime = o.createdAt ? new Date(o.createdAt).getTime() : 0;
+        return isMyOrder && o.status === 'payee' && orderTime > lastActiveTime;
+      }).length;
+    } else {
+      unseenOrdersCount = orders.filter(o => {
+        const isMyOrder = o.clientId === currentUser.id || o.buyer_id === currentUser.id;
+        const orderTime = o.createdAt ? new Date(o.createdAt).getTime() : 0;
+        return isMyOrder && orderTime > lastActiveTime;
+      }).length;
+    }
+
+    // 3. Missed products / promos
+    const newPromosCount = products.filter(p => {
+      if (p.vendeurId === currentUser.id) return false;
+      const productTime = p.dateCreation ? new Date(p.dateCreation).getTime() : 0;
+      return productTime > lastActiveTime;
+    }).length;
+
+    const sessionSeen = sessionStorage.getItem('vendza_catchup_shown_session');
+    if ((unreadMessagesCount > 0 || unseenOrdersCount > 0 || newPromosCount > 0) && !sessionSeen) {
+      setCatchUpStats({
+        unreadMessages: unreadMessagesCount,
+        unseenOrders: unseenOrdersCount,
+        newPromos: newPromosCount
+      });
+      setShowCatchUpModal(true);
+      sessionStorage.setItem('vendza_catchup_shown_session', 'true');
+    }
+
+    // Keep active time updated
+    localStorage.setItem('vendza_last_active_time', new Date().toISOString());
+  }, [currentUser?.id, messages.length, orders.length, products.length]);
 
   // Canceled order process states
   const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
@@ -917,9 +1035,21 @@ export default function App() {
             ? `${originCity}, ${originDept}` 
             : (originDept || originCity || 'Haïti');
 
+          const vPlan = vInfo.plan || 'Gratuit';
+          const isPaidPlan = vPlan === 'Pro Local' || vPlan === 'Pro National';
+
+          const finalDept = isPaidPlan 
+            ? String(originDept || vInfo.departement || '').trim() 
+            : String(vInfo.departement || 'Ouest').trim();
+          const finalCommune = isPaidPlan 
+            ? String(originCity || vInfo.commune || '').trim() 
+            : String(vInfo.commune || 'Pétion-Ville').trim();
+
           const originFeatures = { ...(p.caracteristiques || p.features || {}) };
-          if (!originFeatures['Origine']) {
-            originFeatures['Origine'] = originString;
+          if (!isPaidPlan) {
+            originFeatures['Origine'] = `${finalCommune}, ${finalDept}`;
+          } else if (!originFeatures['Origine']) {
+            originFeatures['Origine'] = (finalCommune && finalDept) ? `${finalCommune}, ${finalDept}` : (finalDept || finalCommune || 'Haïti');
           }
 
           const galleryUrls = resolveGallery(p);
@@ -943,10 +1073,10 @@ export default function App() {
             statut: finalStatus,
             dateCreation: p.date_creation || p.created_at || new Date().toISOString().split('T')[0],
             cat: p.cat || p.category || p.categorie || 'Électronique',
-            vendeurPlan: vInfo.plan || 'Gratuit',
+            vendeurPlan: vPlan,
             vendeurPremiumDepts: vInfo.premiumDepts || [],
-            departement: String(originDept || vInfo.departement || '').trim(),
-            commune: String(originCity || vInfo.commune || '').trim()
+            departement: finalDept,
+            commune: finalCommune
           };
         });
 
@@ -2358,7 +2488,16 @@ export default function App() {
       sendPushNotification(
         vendorId,
         "Commande annulée",
-        `Le client a annulé sa commande (${orderId}). Reste remboursé : ${montant_rembourse.toFixed(2)} HTG (frais retenus : ${frais_annulation.toFixed(2)} HTG).`
+        `Le client a annulé sa commande (${orderId}). Reste remboursé : ${montant_rembourse.toFixed(2)} HTG (frais retenus : ${frais_annulation.toFixed(2)} HTG).`,
+        'order'
+      );
+    }
+    if (currentUser?.id) {
+      sendPushNotification(
+        currentUser.id,
+        "Commande annulée",
+        `Votre commande (${orderId}) a bien été annulée. Un remboursement de ${montant_rembourse.toFixed(2)} HTG a été crédité (frais de transaction retenus : ${frais_annulation.toFixed(2)} HTG).`,
+        'order'
       );
     }
 
@@ -2609,6 +2748,22 @@ export default function App() {
               audience: vendorId,
               is_active: true
             });
+
+          sendPushNotification(
+            vendorId,
+            "✅ Livraison validée !",
+            `${montantVendeur.toLocaleString('fr-FR')} HTG ont été libérés du séquestre et sont disponibles sur votre solde. Versement ce samedi.`,
+            'order'
+          );
+        }
+
+        if (targetOrder?.clientId) {
+          sendPushNotification(
+            targetOrder.clientId,
+            "📦 Commande confirmée !",
+            `La livraison de votre commande (${orderId}) a été validée avec succès via QR Code. Merci de votre confiance !`,
+            'order'
+          );
         }
 
         // Mettre à jour la commande
@@ -2777,8 +2932,9 @@ export default function App() {
 
   // Add Product logic
   const handleAddProduct = async (newProd: Omit<Product, 'id' | 'vendeur' | 'vendeurId' | 'rating' | 'dateCreation'>) => {
-    const finalDept = newProd.departement || currentUser?.departement || 'Ouest';
-    const finalCommune = newProd.commune || currentUser?.commune || 'Pétion-Ville';
+    const isPaidPlan = currentUser?.plan === 'Pro Local' || currentUser?.plan === 'Pro National';
+    const finalDept = isPaidPlan ? (newProd.departement || currentUser?.departement || 'Ouest') : (currentUser?.departement || 'Ouest');
+    const finalCommune = isPaidPlan ? (newProd.commune || currentUser?.commune || 'Pétion-Ville') : (currentUser?.commune || 'Pétion-Ville');
 
     // Upload base64 images to Supabase Storage first to keep database updates clean and small
     let uploadedImageUrl = newProd.image_url;
@@ -2829,6 +2985,16 @@ export default function App() {
 
     setProducts(prev => [...prev, fullProd]);
 
+    // Simulate/Trigger promotional notification (Part 2)
+    if (currentUser?.id) {
+      sendPushNotification(
+        currentUser.id,
+        `🚀 Nouveau produit publié: ${fullProd.nom}`,
+        `Votre nouvel article est en ligne pour ${fullProd.prix.toLocaleString('fr-FR')} HTG. Partagé avec vos abonnés de ${finalCommune}, ${finalDept}!`,
+        'promo'
+      );
+    }
+
     if (isSupabaseConfigured && supabase) {
       let payload: any = {
         id: fullProd.id,
@@ -2861,7 +3027,11 @@ export default function App() {
         cat: fullProd.cat,
         category: fullProd.cat,
         caracteristiques: fullProd.caracteristiques,
-        features: fullProd.caracteristiques
+        features: fullProd.caracteristiques,
+        departement: fullProd.departement,
+        region: fullProd.departement,
+        commune: fullProd.commune,
+        location: fullProd.commune
       };
 
       for (let attempt = 0; attempt < 25; attempt++) {
@@ -2917,6 +3087,19 @@ export default function App() {
   };
 
   const handleUpdateProduct = async (productId: string, updates: Partial<Product>) => {
+    const isPaidPlan = currentUser?.plan === 'Pro Local' || currentUser?.plan === 'Pro National';
+    if (!isPaidPlan) {
+      updates.departement = currentUser?.departement || 'Ouest';
+      updates.commune = currentUser?.commune || 'Pétion-Ville';
+      if (updates.caracteristiques) {
+        updates.caracteristiques['Origine'] = `${updates.commune}, ${updates.departement}`;
+      } else {
+        updates.caracteristiques = {
+          'Origine': `${updates.commune}, ${updates.departement}`
+        };
+      }
+    }
+
     let uploadedImage = updates.image_url;
     let uploadedGallery = updates.gallery;
 
@@ -2966,6 +3149,8 @@ export default function App() {
       if (uploadedGallery !== undefined) dbUpdates.gallery = uploadedGallery;
       if (mergedUpdates.delaiLivraison !== undefined) { dbUpdates.delai_livraison = mergedUpdates.delaiLivraison; dbUpdates.delivery_time = mergedUpdates.delaiLivraison; }
       if (mergedUpdates.caracteristiques !== undefined) { dbUpdates.caracteristiques = mergedUpdates.caracteristiques; dbUpdates.features = mergedUpdates.caracteristiques; }
+      if (mergedUpdates.departement !== undefined) { dbUpdates.departement = mergedUpdates.departement; dbUpdates.region = mergedUpdates.departement; }
+      if (mergedUpdates.commune !== undefined) { dbUpdates.commune = mergedUpdates.commune; dbUpdates.location = mergedUpdates.commune; }
 
       for (let attempt = 0; attempt < 25; attempt++) {
         try {
@@ -3603,15 +3788,15 @@ export default function App() {
   };
 
   // Send multi-user push notifications via secure Express proxy
-  const sendPushNotification = async (recipientId: string, title: string, message: string) => {
+  const sendPushNotification = async (recipientId: string, title: string, message: string, category: 'order' | 'message' | 'promo' = 'order') => {
     try {
-      console.log(`[Push Notification] Sending to '${recipientId}': ${title} - ${message}`);
+      console.log(`[Push Notification] Sending to '${recipientId}' (Category: ${category}): ${title} - ${message}`);
       const res = await fetch('/api/onesignal/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ recipientId, title, message })
+        body: JSON.stringify({ recipientId, title, message, category })
       });
       const data = await res.json();
       console.log('[Push Notification] Server response:', data);
@@ -3659,7 +3844,7 @@ Veuillez préparer la commande. À la livraison, demandez le code QR de l'achete
       }
       
       // Notify the vendor of the new order
-      sendPushNotification(vId, "🛍️ Nouvelle commande !", `Vous avez reçu une commande d'un montant de ${order.total} HTG !`);
+      sendPushNotification(vId, "🛍️ Nouvelle commande !", `Vous avez reçu une commande d'un montant de ${order.total} HTG !`, 'order');
     }
 
     // Also notify the BUYER/CLIENT who made the purchase
@@ -3691,7 +3876,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
       }
 
       // Notify the buyer of order status
-      sendPushNotification(order.clientId, "🎉 Commande enregistrée !", "Votre paiement a été placé en séquestre de sécurité.");
+      sendPushNotification(order.clientId, "🎉 Commande enregistrée !", "Votre paiement a été placé en séquestre de sécurité.", 'order');
     }
   };
 
@@ -3852,6 +4037,142 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
       {/* Primary viewport content */}
       <main className="flex-1 w-full max-w-[1240px] mx-auto px-4 sm:px-6 pt-[86px] pb-10">
         <div className="animate-fade-in duration-300">
+          
+          {/* Native notification permission banner (Part 1) */}
+          {currentUser && permissionState !== 'granted' && showPermissionBanner && (
+            <div id="notification-permission-banner" className="mb-6 bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-2xl shadow-lg p-5 border border-slate-800 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-4 animate-fade-in">
+              <div className="absolute right-0 top-0 translate-x-12 -translate-y-6 w-48 h-48 bg-teal-500/10 rounded-full blur-2xl pointer-events-none" />
+              
+              <div className="flex items-start gap-3.5 z-10">
+                <div className="p-3 bg-white/10 rounded-xl text-teal-300 shrink-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm sm:text-base tracking-tight text-white flex items-center gap-2">
+                    {permissionState === 'denied' 
+                      ? "⚠️ Permission de notification bloquée" 
+                      : "🔔 Active les notifications pour ne rien manquer !"}
+                  </h4>
+                  <p className="text-xs sm:text-sm text-slate-300 max-w-xl leading-relaxed mt-1">
+                    {permissionState === 'denied'
+                      ? "Tu as bloqué les notifications de Vendza sur ton appareil. Pour recevoir tes alertes de commande, de paiement et de messages, merci de réactiver les notifications dans les paramètres de ton navigateur ou de ton système d'exploitation."
+                      : "Reçois en temps réel les alertes de tes commandes, tes messages, les validations de livraison par QR Code, et les offres spéciales de la plateforme."}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 w-full md:w-auto shrink-0 z-10">
+                {permissionState !== 'denied' ? (
+                  <button
+                    id="btn-request-notification-permission"
+                    onClick={requestNotificationPermission}
+                    className="w-full md:w-auto px-5 py-2.5 bg-teal-400 hover:bg-teal-300 text-slate-950 font-bold text-xs sm:text-sm rounded-xl shadow-md transition transform active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/><path d="M22 8a5 5 0 0 0-4.7-4.7"/><path d="M2 8a5 5 0 0 1 4.7-4.7"/></svg>
+                    Activer les notifications
+                  </button>
+                ) : (
+                  <div className="text-xs bg-rose-500/20 border border-rose-500/30 text-rose-300 rounded-xl px-3 py-2 text-center md:text-left font-semibold">
+                    🔑 Active-les dans les paramètres
+                  </div>
+                )}
+                
+                <button 
+                  onClick={() => setShowPermissionBanner(false)}
+                  className="px-3 py-2.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl transition cursor-pointer text-xs font-semibold shrink-0"
+                  title="Masquer le bandeau"
+                >
+                  Plus tard
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Offline Catch-up Activity Modal (Part 3) */}
+          {showCatchUpModal && (
+            <div id="catchup-modal" className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 relative overflow-hidden border border-slate-100 animate-scale-in">
+                <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-32 h-32 bg-blue-500/5 rounded-full blur-xl pointer-events-none" />
+                
+                <div className="text-center space-y-4">
+                  <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <h3 className="font-serif text-lg font-bold text-slate-900">
+                      Rattrapage d'activité 🌟
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Voici ce que vous avez manqué pendant votre absence
+                    </p>
+                  </div>
+
+                  <div className="divide-y divide-slate-100 border-t border-b border-slate-100 py-2 text-left">
+                    {catchUpStats.unreadMessages > 0 && (
+                      <div className="flex items-center gap-3 py-3">
+                        <div className="w-9 h-9 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center shrink-0">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs font-bold text-slate-800">Nouveaux messages</p>
+                          <p className="text-[11px] text-slate-500">Vous avez {catchUpStats.unreadMessages} message(s) non lu(s) dans votre boîte.</p>
+                        </div>
+                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
+                          +{catchUpStats.unreadMessages}
+                        </span>
+                      </div>
+                    )}
+
+                    {catchUpStats.unseenOrders > 0 && (
+                      <div className="flex items-center gap-3 py-3">
+                        <div className="w-9 h-9 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs font-bold text-slate-800">Mises à jour de commandes</p>
+                          <p className="text-[11px] text-slate-500">
+                            {currentUser.type === 'vendeur' || currentUser.user_type === 'vendeur'
+                              ? `Vous avez reçu ${catchUpStats.unseenOrders} nouvelle(s) commande(s) en séquestre.`
+                              : `Vous avez ${catchUpStats.unseenOrders} commande(s) mise(s) à jour récemment.`
+                            }
+                          </p>
+                        </div>
+                        <span className="bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
+                          +{catchUpStats.unseenOrders}
+                        </span>
+                      </div>
+                    )}
+
+                    {catchUpStats.newPromos > 0 && (
+                      <div className="flex items-center gap-3 py-3">
+                        <div className="w-9 h-9 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center shrink-0">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l4.58-4.58c.94-.94.94-2.48 0-3.42L12 2z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs font-bold text-slate-800">Nouveautés & Promos</p>
+                          <p className="text-[11px] text-slate-500">{catchUpStats.newPromos} nouvel/beaux article(s) ajouté(s) par les vendeurs.</p>
+                        </div>
+                        <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
+                          +{catchUpStats.newPromos}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setShowCatchUpModal(false);
+                      localStorage.setItem('vendza_last_active_time', new Date().toISOString());
+                    }}
+                    className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    Parfait, merci !
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           
           {currentView === 'home' && (
             <MarketplaceHome
@@ -4081,6 +4402,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
               productToEdit={productToEdit}
               clearProductToEdit={() => setProductToEdit(null)}
               onNavigate={navigateTo}
+              user={currentUser}
             />
           )}
 

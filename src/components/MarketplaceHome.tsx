@@ -64,7 +64,21 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  const categories = ['Tout', 'Mode', 'Audio', 'Wearable', 'Accessoires', 'Électronique'];
+  const categories = [
+    { value: 'Tout', label: '🛍️ Tout' },
+    { value: 'Mode', label: '👗 Mode' },
+    { value: 'Électronique', label: '📱 Électronique' },
+    { value: 'Audio', label: '🎧 Audio' },
+    { value: 'Wearable', label: '⌚ Wearable' },
+    { value: 'Maison', label: '🏠 Maison' },
+    { value: 'Photo', label: '📷 Photo' },
+    { value: 'Gaming', label: '🎮 Gaming' },
+    { value: 'Beauté', label: '🧴 Beauté' },
+    { value: 'Accessoires', label: '🎒 Accessoires' },
+    { value: 'Alimentaire', label: '🛒 Alimentaire' },
+    { value: 'Sport', label: '⚽ Sport' },
+    { value: 'Autre', label: '📦 Autre' }
+  ];
 
   // Handle department changes - reset commune
   const handleDeptChange = (dept: string) => {
@@ -201,15 +215,15 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
       <section className="flex items-center gap-1.5 overflow-x-auto py-1 scrollbar-none border-b border-[#e2e8f0] -mx-4 px-4 bg-white sticky top-[66px] z-20">
         {categories.map(cat => (
           <button
-            key={cat}
-            onClick={() => setSelectedCat(cat === 'Tout' ? '' : cat)}
+            key={cat.value}
+            onClick={() => setSelectedCat(cat.value === 'Tout' ? '' : cat.value)}
             className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap cursor-pointer border ${
-              (cat === 'Tout' && !selectedCat) || selectedCat === cat
+              (cat.value === 'Tout' && !selectedCat) || selectedCat === cat.value
                 ? 'bg-[#2563eb] text-white border-[#2563eb] shadow-sm'
                 : 'bg-white hover:bg-slate-50 text-slate-500 border-[#e2e8f0]'
             }`}
           >
-            {cat}
+            {cat.label}
           </button>
         ))}
       </section>
@@ -505,6 +519,11 @@ const ProductScrollCard: React.FC<{ product: Product; rating: number; onView: ()
               Aubaine
             </span>
           )}
+          {product.stock <= 0 && (
+            <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center text-white text-[10px] font-bold uppercase tracking-wider backdrop-blur-xs">
+              Épuisé
+            </div>
+          )}
         </div>
 
         <div className="p-2.5">
@@ -553,13 +572,15 @@ const ProductScrollCard: React.FC<{ product: Product; rating: number; onView: ()
             </span>
           )}
         </div>
-        <button
-          onClick={onAdd}
-          className="w-7 h-7 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg flex items-center justify-center font-bold text-xs transition cursor-pointer"
-          title="Ajouter au Panier"
-        >
-          <Plus size={14} />
-        </button>
+        {product.stock > 0 && (
+          <button
+            onClick={onAdd}
+            className="w-7 h-7 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg flex items-center justify-center font-bold text-xs transition cursor-pointer"
+            title="Ajouter au Panier"
+          >
+            <Plus size={14} />
+          </button>
+        )}
       </div>
     </div>
   );
