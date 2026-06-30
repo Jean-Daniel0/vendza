@@ -281,7 +281,8 @@ export default function App() {
         unseenOrders: unseenOrdersCount,
         newPromos: newPromosCount
       });
-      setShowCatchUpModal(true);
+      // Bypassed: rely only on OneSignal push notifications instead of in-app simulated popup
+      setShowCatchUpModal(false);
       sessionStorage.setItem('vendza_catchup_shown_session', 'true');
     }
 
@@ -4087,93 +4088,6 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
               </div>
             </div>
           )}
-
-          {/* Offline Catch-up Activity Modal (Part 3) */}
-          {showCatchUpModal && (
-            <div id="catchup-modal" className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 relative overflow-hidden border border-slate-100 animate-scale-in">
-                <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-32 h-32 bg-blue-500/5 rounded-full blur-xl pointer-events-none" />
-                
-                <div className="text-center space-y-4">
-                  <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <h3 className="font-serif text-lg font-bold text-slate-900">
-                      Rattrapage d'activité 🌟
-                    </h3>
-                    <p className="text-xs text-slate-400">
-                      Voici ce que vous avez manqué pendant votre absence
-                    </p>
-                  </div>
-
-                  <div className="divide-y divide-slate-100 border-t border-b border-slate-100 py-2 text-left">
-                    {catchUpStats.unreadMessages > 0 && (
-                      <div className="flex items-center gap-3 py-3">
-                        <div className="w-9 h-9 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center shrink-0">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-xs font-bold text-slate-800">Nouveaux messages</p>
-                          <p className="text-[11px] text-slate-500">Vous avez {catchUpStats.unreadMessages} message(s) non lu(s) dans votre boîte.</p>
-                        </div>
-                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
-                          +{catchUpStats.unreadMessages}
-                        </span>
-                      </div>
-                    )}
-
-                    {catchUpStats.unseenOrders > 0 && (
-                      <div className="flex items-center gap-3 py-3">
-                        <div className="w-9 h-9 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-xs font-bold text-slate-800">Mises à jour de commandes</p>
-                          <p className="text-[11px] text-slate-500">
-                            {currentUser.type === 'vendeur' || currentUser.user_type === 'vendeur'
-                              ? `Vous avez reçu ${catchUpStats.unseenOrders} nouvelle(s) commande(s) en séquestre.`
-                              : `Vous avez ${catchUpStats.unseenOrders} commande(s) mise(s) à jour récemment.`
-                            }
-                          </p>
-                        </div>
-                        <span className="bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
-                          +{catchUpStats.unseenOrders}
-                        </span>
-                      </div>
-                    )}
-
-                    {catchUpStats.newPromos > 0 && (
-                      <div className="flex items-center gap-3 py-3">
-                        <div className="w-9 h-9 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center shrink-0">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l4.58-4.58c.94-.94.94-2.48 0-3.42L12 2z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-xs font-bold text-slate-800">Nouveautés & Promos</p>
-                          <p className="text-[11px] text-slate-500">{catchUpStats.newPromos} nouvel/beaux article(s) ajouté(s) par les vendeurs.</p>
-                        </div>
-                        <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
-                          +{catchUpStats.newPromos}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      setShowCatchUpModal(false);
-                      localStorage.setItem('vendza_last_active_time', new Date().toISOString());
-                    }}
-                    className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    Parfait, merci !
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-          
           {currentView === 'home' && (
             <MarketplaceHome
               products={products}
