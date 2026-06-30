@@ -43,6 +43,45 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey;
 const isSupabaseConfigured = !!(supabaseUrl && supabaseKey);
 const supabase = isSupabaseConfigured ? createClient(supabaseUrl, supabaseKey) : null;
 
+// Seed system profile if missing to prevent foreign key errors and support messaging UI
+if (isSupabaseConfigured && supabase) {
+  (async () => {
+    try {
+      const systemId = '99999999-9999-4999-9999-999999999999';
+      const { data: existing } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', systemId)
+        .maybeSingle();
+
+      if (!existing) {
+        console.log("[Server Init] Seeding Vendza system profile in Supabase database...");
+        const systemProfile = {
+          id: systemId,
+          prenom: "Vendza",
+          nom: "Sécurité",
+          full_name: "Vendza Sécurité",
+          first_name: "Vendza",
+          last_name: "Sécurité",
+          email: "security@vendza.store",
+          user_type: "client",
+          plan: "Pro National"
+        };
+        const { error } = await supabase.from('profiles').insert([systemProfile]);
+        if (error) {
+          console.error("[Server Init] Failed to seed Vendza system profile:", error.message);
+        } else {
+          console.log("[Server Init] Vendza system profile seeded successfully.");
+        }
+      } else {
+        console.log("[Server Init] Vendza system profile already exists in database.");
+      }
+    } catch (e: any) {
+      console.warn("[Server Init] Exception during system profile seeding check:", e.message);
+    }
+  })();
+}
+
 // ====================================================================
 // REAL-TIME MESSAGE LISTENER FOR SECURE ONESIGNAL PUSH NOTIFICATIONS
 // ====================================================================
@@ -62,7 +101,9 @@ if (isSupabaseConfigured && supabase) {
 
           // Fetch sender name from profiles
           let senderName = "Un utilisateur";
-          if (m.sender_id) {
+          if (m.sender_id === '99999999-9999-4999-9999-999999999999') {
+            senderName = "Vendza";
+          } else if (m.sender_id) {
             const { data: profile } = await supabase
               .from('profiles')
               .select('prenom')
@@ -71,6 +112,9 @@ if (isSupabaseConfigured && supabase) {
             if (profile && profile.prenom) {
               senderName = profile.prenom;
             }
+          }
+          if (senderName === "Un utilisateur" && (m.sender_nom || m.senderNom)) {
+            senderName = m.sender_nom || m.senderNom;
           }
 
           const title = `💬 Message de ${senderName}`;

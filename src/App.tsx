@@ -2492,7 +2492,22 @@ export default function App() {
         `Le client a annulé sa commande (${orderId}). Reste remboursé : ${montant_rembourse.toFixed(2)} HTG (frais retenus : ${frais_annulation.toFixed(2)} HTG).`,
         'order'
       );
+
+      // Insert cancel chat message for vendor
+      const vendorCancelChatMsg: Message = {
+        id: `msg-notif-cancel-vendor-${Date.now()}-${vendorId}`,
+        senderId: '99999999-9999-4999-9999-999999999999',
+        senderNom: 'Vendza',
+        recipientId: vendorId,
+        text: `⚠️ COMMANDE ANNULÉE PAR L'ACHETEUR\n\nID de commande : ${orderId}\nLe client a annulé cette commande. Le montant de sécurité a été retiré du séquestre et le client a été remboursé (frais d'annulation de 7.50% retenus).\n\nCette commande ne doit plus être préparée ni livrée.`,
+        time: "Aujourd'hui, " + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+        createdAt: new Date().toISOString(),
+        orderId: orderId
+      };
+      setMessages(prev => [...prev, vendorCancelChatMsg]);
+      insertMessageAdaptive(vendorCancelChatMsg).catch(err => console.warn("[Cancel Message Error] Vendor chat insert failed:", err));
     }
+    
     if (currentUser?.id) {
       sendPushNotification(
         currentUser.id,
@@ -2500,6 +2515,20 @@ export default function App() {
         `Votre commande (${orderId}) a bien été annulée. Un remboursement de ${montant_rembourse.toFixed(2)} HTG a été crédité (frais de transaction retenus : ${frais_annulation.toFixed(2)} HTG).`,
         'order'
       );
+
+      // Insert cancel chat message for buyer
+      const buyerCancelChatMsg: Message = {
+        id: `msg-notif-cancel-buyer-${Date.now()}-${currentUser.id}`,
+        senderId: '99999999-9999-4999-9999-999999999999',
+        senderNom: 'Vendza',
+        recipientId: currentUser.id,
+        text: `⚠️ COMMANDE ANNULÉE AVEC SUCCÈS\n\nID de commande : ${orderId}\nMontant remboursé : ${montant_rembourse.toFixed(2)} HTG\nFrais d'annulation retenus (7.50%) : ${frais_annulation.toFixed(2)} HTG\n\nVotre remboursement a été initié et crédité sur votre compte selon votre mode de paiement d'origine.`,
+        time: "Aujourd'hui, " + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+        createdAt: new Date().toISOString(),
+        orderId: orderId
+      };
+      setMessages(prev => [...prev, buyerCancelChatMsg]);
+      insertMessageAdaptive(buyerCancelChatMsg).catch(err => console.warn("[Cancel Message Error] Buyer chat insert failed:", err));
     }
 
     // Dismiss the cancellation prompt and display confirmation message
@@ -2756,15 +2785,44 @@ export default function App() {
             `${montantVendeur.toLocaleString('fr-FR')} HTG ont été libérés du séquestre et sont disponibles sur votre solde. Versement ce samedi.`,
             'order'
           );
+
+          // Insert delivery confirm chat message for vendor
+          const vendorDeliveredChatMsg: Message = {
+            id: `msg-notif-delivery-vendor-${Date.now()}-${vendorId}`,
+            senderId: '99999999-9999-4999-9999-999999999999',
+            senderNom: 'Vendza',
+            recipientId: vendorId,
+            text: `✅ LIVRAISON VALIDÉE !\n\nID de commande : ${orderId}\nMontant crédité : ${montantVendeur.toLocaleString('fr-FR')} HTG (frais plateforme déduits)\n\nLa livraison a été confirmée avec succès par le client. Les fonds ont été débloqués de notre séquestre de sécurité et ajoutés à votre solde disponible. Votre versement automatique est programmé pour ce samedi. Merci d'utiliser Vendza !`,
+            time: "Aujourd'hui, " + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+            createdAt: new Date().toISOString(),
+            orderId: orderId
+          };
+          setMessages(prev => [...prev, vendorDeliveredChatMsg]);
+          insertMessageAdaptive(vendorDeliveredChatMsg).catch(err => console.warn("[Delivery Message Error] Vendor chat insert failed:", err));
         }
 
-        if (targetOrder?.clientId) {
+        const buyerId = targetOrder?.clientId || (order as any)?.buyer_id || (order as any)?.clientId;
+        if (buyerId) {
           sendPushNotification(
-            targetOrder.clientId,
+            buyerId,
             "📦 Commande confirmée !",
             `La livraison de votre commande (${orderId}) a été validée avec succès via QR Code. Merci de votre confiance !`,
             'order'
           );
+
+          // Insert delivery confirm chat message for buyer
+          const buyerDeliveredChatMsg: Message = {
+            id: `msg-notif-delivery-buyer-${Date.now()}-${buyerId}`,
+            senderId: '99999999-9999-4999-9999-999999999999',
+            senderNom: 'Vendza',
+            recipientId: buyerId,
+            text: `📦 LIVRAISON CONFIRMÉE AVEC SUCCÈS !\n\nID de commande : ${orderId}\nMontant total : ${totalPrice} HTG\n\nLa livraison de votre commande a été validée avec succès via le scan de votre Code QR unique. Le vendeur a été payé et le cycle de vente est maintenant terminé. Merci d'utiliser Vendza, le leader du commerce de confiance en Haïti !`,
+            time: "Aujourd'hui, " + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+            createdAt: new Date().toISOString(),
+            orderId: orderId
+          };
+          setMessages(prev => [...prev, buyerDeliveredChatMsg]);
+          insertMessageAdaptive(buyerDeliveredChatMsg).catch(err => console.warn("[Delivery Message Error] Buyer chat insert failed:", err));
         }
 
         // Mettre à jour la commande
@@ -3602,14 +3660,16 @@ export default function App() {
 
     // 1. Resolve from orderId if available (with fallback direct fetch from Supabase)
     if (rawMsg.orderId) {
-      let order = orders.find(o => o.id === rawMsg.orderId);
+      let order = orders.find(o => o.id === rawMsg.orderId || (o as any).qr_token === rawMsg.orderId);
       if (!order && isSupabaseConfigured && supabase) {
         try {
-          const { data: dbOrder } = await supabase
-            .from('orders')
-            .select('*')
-            .eq('id', rawMsg.orderId)
-            .maybeSingle();
+          let query = supabase.from('orders').select('*');
+          if (isUUID(rawMsg.orderId)) {
+            query = query.eq('id', rawMsg.orderId);
+          } else {
+            query = query.eq('qr_token', rawMsg.orderId);
+          }
+          const { data: dbOrder } = await query.maybeSingle();
           if (dbOrder) {
             order = dbOrder;
           }
@@ -3658,6 +3718,10 @@ export default function App() {
       resolvedProductId = assocProd ? assocProd.id : null;
     }
 
+    if (!resolvedProductId && products.length > 0) {
+      resolvedProductId = products[0].id;
+    }
+
     // Ensure they are valid UUIDs before executing DB queries
     const validBuyer = isUUID(resolvedBuyerId || '');
     const validVendor = isUUID(resolvedVendorId || '');
@@ -3670,7 +3734,12 @@ export default function App() {
       console.warn(`Vendor: ${resolvedVendorId} (Valid: ${validVendor})`);
       console.warn(`Product: ${resolvedProductId} (Valid: ${validProduct})`);
       console.warn("======================================================================");
-      alert("Impossible d'ouvrir la conversation, veuillez réessayer.");
+      
+      // Do not show intrusive alert dialogs to buyers for background system notification insertions
+      const isSystemMessage = rawMsg.senderId === '99999999-9999-4999-9999-999999999999' || rawMsg.recipientId === '99999999-9999-4999-9999-999999999999';
+      if (!isSystemMessage) {
+        alert("Impossible d'ouvrir la conversation, veuillez réessayer.");
+      }
       return;
     }
 
