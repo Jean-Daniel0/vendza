@@ -145,6 +145,7 @@ if (isSupabaseConfigured && supabase) {
             data: {
               category: "message"
             },
+            include_external_user_ids: [m.recipient_id],
             include_aliases: {
               external_id: [m.recipient_id]
             }
@@ -2636,16 +2637,15 @@ app.post('/api/moderate-image', async (req, res) => {
 // ============================================
 // ONESIGNAL MULTI-USER NOTIFICATION PROXY
 // ============================================
-app.post('/api/onesignal/send', async (req, res) => {
-  const { recipientId, title, message, category } = req.body;
+
+async function sendOneSignalPush(recipientId: string, title: string, message: string, category?: string) {
   try {
     const apiAppId = '75a4d965-5500-4694-abfa-69b8a88c9d1d';
     const apiKey = process.env.ONESIGNAL_REST_API_KEY;
 
     if (!apiKey) {
-      const errMsg = "La clé d'API OneSignal (ONESIGNAL_REST_API_KEY) n'est pas configurée.";
-      console.error("[OneSignal Proxy Config Error]", errMsg);
-      return res.status(500).json({ error: errMsg });
+      console.error("[sendOneSignalPush] ONESIGNAL_REST_API_KEY is not configured.");
+      return null;
     }
 
     const cleanUrl = supabaseUrl ? supabaseUrl.replace(/\/$/, '') : 'https://giakjeanwekipnvyhlxm.supabase.co';
@@ -2666,12 +2666,13 @@ app.post('/api/onesignal/send', async (req, res) => {
       data: {
         category: category || 'order'
       },
+      include_external_user_ids: [recipientId],
       include_aliases: {
         external_id: [recipientId]
       }
     };
 
-    console.log("[OneSignal Proxy] Transmitting notification:", JSON.stringify(payload));
+    console.log("[sendOneSignalPush] Transmitting notification:", JSON.stringify(payload));
 
     const response = await fetch('https://onesignal.com/api/v1/notifications', {
       method: 'POST',
@@ -2683,11 +2684,123 @@ app.post('/api/onesignal/send', async (req, res) => {
     });
 
     const data = await response.json();
-    console.log("[OneSignal Proxy] Response:", data);
-    return res.json(data);
+    console.log("[sendOneSignalPush] Response:", data);
+    return data;
   } catch (err: any) {
-    console.error("[OneSignal Proxy] Failed sending notification:", err.message);
+    console.error("[sendOneSignalPush] Failed sending notification:", err.message);
+    throw err;
+  }
+}
+
+app.post('/api/onesignal/send', async (req, res) => {
+  const { recipientId, title, message, category } = req.body;
+  try {
+    const data = await sendOneSignalPush(recipientId, title, message, category);
+    return res.json(data || { status: "sent" });
+  } catch (err: any) {
     return res.status(500).json({ error: "Failed to send notification: " + err.message });
+  }
+});
+
+// ============================================
+// AUTOMATIC FOLLOWER NOTIFICATIONS ENDPOINTS
+// ============================================
+
+app.post('/api/notifications/new-product', async (req, res) => {
+  const { vendorId, vendorShopName, productNom, productPrix, productCommune, productDept } = req.body;
+  
+  if (!isSupabaseConfigured || !supabase) {
+    return res.status(400).json({ error: "Supabase n'est pas configuré sur le serveur." });
+  }
+
+  try {
+    // Query followers having notify_new_products enabled
+    const { data: followers, error } = await supabase
+      .from('vendor_follows')
+      .select('follower_id')
+      .eq('vendor_id', vendorId)
+      .eq('notify_new_products', true);
+
+    if (error) {
+      console.error("[New Product Notifications] Error fetching followers:", error);
+      return res.status(500).json({ error: "Erreur lors de la récupération des abonnés." });
+    }
+
+    if (!followers || followers.length === 0) {
+      console.log(`[New Product Notifications] Aucun abonné à notifier pour le vendeur ${vendorId}`);
+      return res.json({ status: "ignored", message: "Aucun abonné n'a activé ces notifications." });
+    }
+
+    console.log(`[New Product Notifications] Notification de ${followers.length} abonnés pour ${productNom}`);
+    
+    const title = `🚀 Nouveau produit chez ${vendorShopName}`;
+    const message = `Le produit "${productNom}" est disponible à ${productPrix.toLocaleString('fr-FR')} HTG. Commandez-le vite !`;
+
+    let notifiedCount = 0;
+    for (const follower of followers) {
+      if (follower.follower_id) {
+        try {
+          await sendOneSignalPush(follower.follower_id, title, message, 'promo');
+          notifiedCount++;
+        } catch (pushErr: any) {
+          console.warn(`[New Product Notifications] Failed sending to follower ${follower.follower_id}:`, pushErr.message);
+        }
+      }
+    }
+
+    return res.json({ status: "success", notifiedCount });
+  } catch (err: any) {
+    console.error("[New Product Notifications] Exception:", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/notifications/promotion', async (req, res) => {
+  const { vendorId, vendorShopName, productNom, oldPrice, newPrice } = req.body;
+
+  if (!isSupabaseConfigured || !supabase) {
+    return res.status(400).json({ error: "Supabase n'est pas configuré sur le serveur." });
+  }
+
+  try {
+    // Query followers having notify_promotions enabled
+    const { data: followers, error } = await supabase
+      .from('vendor_follows')
+      .select('follower_id')
+      .eq('vendor_id', vendorId)
+      .eq('notify_promotions', true);
+
+    if (error) {
+      console.error("[Promotion Notifications] Error fetching followers:", error);
+      return res.status(500).json({ error: "Erreur lors de la récupération des abonnés." });
+    }
+
+    if (!followers || followers.length === 0) {
+      console.log(`[Promotion Notifications] Aucun abonné à notifier pour le vendeur ${vendorId}`);
+      return res.json({ status: "ignored", message: "Aucun abonné n'a activé ces notifications." });
+    }
+
+    console.log(`[Promotion Notifications] Notification de ${followers.length} abonnés pour baisse de prix de ${productNom}`);
+
+    const title = `⚡ Promotion chez ${vendorShopName} !`;
+    const message = `Baisse de prix sur "${productNom}" ! Il passe de ${oldPrice.toLocaleString('fr-FR')} HTG à seulement ${newPrice.toLocaleString('fr-FR')} HTG. Ne ratez pas ça !`;
+
+    let notifiedCount = 0;
+    for (const follower of followers) {
+      if (follower.follower_id) {
+        try {
+          await sendOneSignalPush(follower.follower_id, title, message, 'promo');
+          notifiedCount++;
+        } catch (pushErr: any) {
+          console.warn(`[Promotion Notifications] Failed sending to follower ${follower.follower_id}:`, pushErr.message);
+        }
+      }
+    }
+
+    return res.json({ status: "success", notifiedCount });
+  } catch (err: any) {
+    console.error("[Promotion Notifications] Exception:", err.message);
+    return res.status(500).json({ error: err.message });
   }
 });
 

@@ -53,6 +53,28 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
   };
 
   const [dismissedNotifications, setDismissedNotifications] = useState<string[]>([]);
+  const [followersCount, setFollowersCount] = useState<number>(0);
+
+  // Fetch follower count from vendor_followers_count view
+  useEffect(() => {
+    const fetchFollowersCount = async () => {
+      if (isSupabaseConfigured && supabase && user?.id) {
+        try {
+          const { data, error } = await supabase
+            .from('vendor_followers_count')
+            .select('nombre_abonnes')
+            .eq('vendor_id', user.id)
+            .maybeSingle();
+          if (data && !error) {
+            setFollowersCount(Number(data.nombre_abonnes) || 0);
+          }
+        } catch (err) {
+          console.warn("Could not load followers count from Supabase:", err);
+        }
+      }
+    };
+    fetchFollowersCount();
+  }, [user?.id]);
 
   // States for products tab search/filter/stock edit
   const [productsSearch, setProductsSearch] = useState<string>('');
@@ -925,6 +947,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
               <div className="dash-sub">Plateforme de confiance sécurisée Vendza Haïti</div>
               <div className="dash-header-bottom">
                 <div className="dash-pill"><span className="dot"></span> Boutique active</div>
+                <div className="dash-pill">👥 {followersCount} {followersCount === 1 ? 'abonné' : 'abonnés'}</div>
                 <div className="dash-pill">📅 {new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
                 <div className="dash-pill">
                   ⭐ Plan {user.plan || 'Gratuit'}
@@ -1088,9 +1111,9 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
             </div>
 
             <div className="stat-card teal">
-              <div className="stat-icon">🕐</div>
-              <div className="stat-val">{orders.filter(o => o.clientId === user.id).length}</div>
-              <div className="stat-lbl">Mes achats</div>
+              <div className="stat-icon">👥</div>
+              <div className="stat-val">{followersCount}</div>
+              <div className="stat-lbl">{followersCount === 1 ? 'abonné' : 'abonnés'}</div>
             </div>
 
             <div className="stat-card red">

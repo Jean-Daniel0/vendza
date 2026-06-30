@@ -53,6 +53,93 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
   const [comment, setComment] = useState<string>('');
   const [isSubmittingReview, setIsSubmittingReview] = useState<boolean>(false);
 
+  // Follow boutique states & preferences
+  const [isFollowing, setIsFollowing] = useState<boolean>(false);
+  const [followPreferences, setFollowPreferences] = useState<{ notifyNewProducts: boolean; notifyPromotions: boolean }>({
+    notifyNewProducts: true,
+    notifyPromotions: true,
+  });
+  const [showPreferencesModal, setShowPreferencesModal] = useState<boolean>(false);
+  const [isFollowActionLoading, setIsFollowActionLoading] = useState<boolean>(false);
+
+  const isValidUuid = (uuid: string) => {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
+  };
+
+  // Check follow status in database on mount or user/vendor change
+  useEffect(() => {
+    const checkFollowStatus = async () => {
+      if (isSupabaseConfigured && supabase && user?.id && vendorId && isValidUuid(user.id) && isValidUuid(vendorId)) {
+        try {
+          const { data, error } = await supabase
+            .from('vendor_follows')
+            .select('*')
+            .eq('follower_id', user.id)
+            .eq('vendor_id', vendorId)
+            .maybeSingle();
+          if (data && !error) {
+            setIsFollowing(true);
+            setFollowPreferences({
+              notifyNewProducts: data.notify_new_products,
+              notifyPromotions: data.notify_promotions,
+            });
+          } else {
+            setIsFollowing(false);
+          }
+        } catch (err) {
+          console.warn("Error checking follow status:", err);
+        }
+      }
+    };
+    checkFollowStatus();
+  }, [user?.id, vendorId]);
+
+  // Handle follow/unfollow toggle
+  const handleFollowToggle = async () => {
+    if (!user) {
+      alert("Veuillez vous connecter pour suivre cette boutique.");
+      return;
+    }
+    if (!vendorId || vendorId === user.id) return;
+    if (!isValidUuid(user.id) || !isValidUuid(vendorId)) {
+      console.warn("Invalid follower_id or vendor_id UUID");
+      return;
+    }
+
+    setIsFollowActionLoading(true);
+    try {
+      if (isFollowing) {
+        // Unfollow
+        const { error } = await supabase
+          .from('vendor_follows')
+          .delete()
+          .eq('follower_id', user.id)
+          .eq('vendor_id', vendorId);
+        if (error) throw error;
+        setIsFollowing(false);
+      } else {
+        // Follow
+        const { error } = await supabase
+          .from('vendor_follows')
+          .insert({
+            follower_id: user.id,
+            vendor_id: vendorId,
+            notify_new_products: true,
+            notify_promotions: true,
+          });
+        if (error) throw error;
+        setIsFollowing(true);
+        setFollowPreferences({ notifyNewProducts: true, notifyPromotions: true });
+        setShowPreferencesModal(true); // Show preference preferences modal on initial follow
+      }
+    } catch (err: any) {
+      console.error("Follow toggle error:", err.message);
+      alert("Une erreur s'est produite lors de l'action de suivi.");
+    } finally {
+      setIsFollowActionLoading(false);
+    }
+  };
+
   // Load vendor profile details from Supabase with fallbacks
   useEffect(() => {
     async function fetchVendor() {
@@ -326,16 +413,40 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
             </div>
           </div>
 
-          <button
-            onClick={() => {
-              const firstProd = vendorProducts[0]?.id || '';
-              onOpenChat(vendorProfile.id, vendorProfile.nom, firstProd);
-            }}
-            className="mb-2 px-5 py-3 bg-gradient-to-r from-blue-600 to-teal-600 hover:opacity-95 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md hover:scale-[1.01] transition-all cursor-pointer w-full sm:w-fit"
-          >
-            <MessageSquare size={14} />
-            <span>Contacter le vendeur</span>
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-fit mb-2">
+            <button
+              onClick={() => {
+                const firstProd = vendorProducts[0]?.id || '';
+                onOpenChat(vendorProfile.id, vendorProfile.nom, firstProd);
+              }}
+              className="px-5 py-3 bg-gradient-to-r from-blue-600 to-teal-600 hover:opacity-95 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md hover:scale-[1.01] transition-all cursor-pointer w-full sm:w-fit"
+            >
+              <MessageSquare size={14} />
+              <span>Contacter le vendeur</span>
+            </button>
+
+            {!user ? (
+              <button
+                disabled
+                className="px-5 py-3 bg-slate-100 text-slate-400 font-bold text-xs rounded-xl flex items-center justify-center gap-2 cursor-not-allowed w-full sm:w-fit border border-slate-200"
+                title="Connectez-vous pour vous abonner"
+              >
+                <span>Connecte-toi pour suivre</span>
+              </button>
+            ) : user.id !== vendorId ? (
+              <button
+                onClick={handleFollowToggle}
+                disabled={isFollowActionLoading}
+                className={`px-5 py-3 font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md hover:scale-[1.01] transition-all cursor-pointer w-full sm:w-fit border ${
+                  isFollowing
+                    ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200'
+                    : 'bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600'
+                }`}
+              >
+                {isFollowing ? '✓ Abonné (Ne plus suivre)' : '🔔 Suivre cette boutique'}
+              </button>
+            ) : null}
+          </div>
         </div>
 
         {/* Tags Row */}
@@ -633,6 +744,75 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
           </div>
         </div>
       </div>
+
+      {showPreferencesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 space-y-4 animate-scale-up">
+            <div className="text-center space-y-1">
+              <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-2 text-xl shadow-xs">
+                🔔
+              </div>
+              <h4 className="font-serif text-base font-extrabold text-[#0c1445] tracking-tight">Préférences d'abonnements</h4>
+              <p className="text-xs text-slate-500">Personnalisez vos notifications pour la boutique <b>{vendorProfile.shopName}</b>.</p>
+            </div>
+
+            <div className="space-y-3.5 pt-2">
+              <label className="flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100/80 rounded-2xl border border-slate-150/60 cursor-pointer transition">
+                <div className="space-y-0.5 pr-2 text-left">
+                  <span className="text-xs font-bold text-slate-800 block">Nouveaux produits</span>
+                  <span className="text-[10px] text-slate-500 block leading-tight">Recevoir une alerte lors de l'ajout de nouveaux articles</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={followPreferences.notifyNewProducts}
+                  onChange={async (e) => {
+                    const val = e.target.checked;
+                    setFollowPreferences(prev => ({ ...prev, notifyNewProducts: val }));
+                    if (isSupabaseConfigured && supabase && user?.id && vendorId && isValidUuid(user.id) && isValidUuid(vendorId)) {
+                      await supabase
+                        .from('vendor_follows')
+                        .update({ notify_new_products: val })
+                        .eq('follower_id', user.id)
+                        .eq('vendor_id', vendorId);
+                    }
+                  }}
+                  className="w-4 h-4 text-indigo-600 rounded-sm border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                />
+              </label>
+
+              <label className="flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100/80 rounded-2xl border border-slate-150/60 cursor-pointer transition">
+                <div className="space-y-0.5 pr-2 text-left">
+                  <span className="text-xs font-bold text-slate-800 block">Promotions uniquement</span>
+                  <span className="text-[10px] text-slate-500 block leading-tight">Recevoir une alerte uniquement pour les réductions de prix</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={followPreferences.notifyPromotions}
+                  onChange={async (e) => {
+                    const val = e.target.checked;
+                    setFollowPreferences(prev => ({ ...prev, notifyPromotions: val }));
+                    if (isSupabaseConfigured && supabase && user?.id && vendorId && isValidUuid(user.id) && isValidUuid(vendorId)) {
+                      await supabase
+                        .from('vendor_follows')
+                        .update({ notify_promotions: val })
+                        .eq('follower_id', user.id)
+                        .eq('vendor_id', vendorId);
+                    }
+                  }}
+                  className="w-4 h-4 text-indigo-600 rounded-sm border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                />
+              </label>
+            </div>
+
+            <button
+              onClick={() => setShowPreferencesModal(false)}
+              className="w-full py-2.5 bg-[#0c1445] hover:bg-[#1a2355] text-white text-xs font-extrabold rounded-xl text-center shadow-md transition cursor-pointer"
+            >
+              Enregistrer mes préférences
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

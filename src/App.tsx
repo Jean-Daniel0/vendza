@@ -174,6 +174,7 @@ export default function App() {
     return typeof Notification !== 'undefined' ? Notification.permission : 'default';
   });
   const [showPermissionBanner, setShowPermissionBanner] = useState<boolean>(true);
+  const [showIframeNotice, setShowIframeNotice] = useState<boolean>(false);
 
   // Catch-up notification metrics (Part 3)
   const [showCatchUpModal, setShowCatchUpModal] = useState<boolean>(false);
@@ -192,30 +193,31 @@ export default function App() {
 
   // Request native permission + sync with OneSignal (Part 1)
   const requestNotificationPermission = async () => {
+    const isIframe = typeof window !== 'undefined' && window.self !== window.top;
+    if (isIframe) {
+      console.log('[Notification] Running inside an iframe. Displaying action required notice.');
+      setShowIframeNotice(true);
+      return;
+    }
+
     if (typeof Notification === 'undefined') return;
 
     try {
-      console.log('[Notification] Requesting native permission...');
-      const result = await Notification.requestPermission();
-      setPermissionState(result);
-
-      if (result === 'granted') {
-        if (typeof window !== 'undefined' && (window as any).OneSignal) {
-          try {
-            console.log('[OneSignal] Triggering push registration sync...');
-            const os = (window as any).OneSignal;
-            if (typeof os.registerForPushNotifications === 'function') {
-              await os.registerForPushNotifications();
-            } else if (os.Notifications && typeof os.Notifications.requestPermission === 'function') {
-              await os.Notifications.requestPermission();
-            } else if (typeof os.showNativePrompt === 'function') {
-              await os.showNativePrompt();
-            }
-          } catch (err) {
-            console.warn('[OneSignal] SDK permission sync failed:', err);
-          }
-        }
+      console.log('[Notification] Requesting native permission via OneSignal & browser...');
+      
+      const os = OneSignal as any;
+      // Try OneSignal requestPermission first as it registers the subscription natively
+      if (os && os.Notifications && typeof os.Notifications.requestPermission === 'function') {
+        await os.Notifications.requestPermission();
+      } else if (os && typeof os.registerForPushNotifications === 'function') {
+        await os.registerForPushNotifications();
+      } else if (os && typeof os.showNativePrompt === 'function') {
+        await os.showNativePrompt();
+      } else {
+        await Notification.requestPermission();
       }
+
+      setPermissionState(Notification.permission);
     } catch (err) {
       console.error('[Notification] Permission request failed:', err);
     }
@@ -297,19 +299,43 @@ export default function App() {
   // Initialize OneSignal Push Notifications Web SDK
   useEffect(() => {
     const initOneSignal = async () => {
+      const isProd = (import.meta as any).env.PROD;
+      const options: any = {
+        appId: '75a4d965-5500-4694-abfa-69b8a88c9d1d',
+        allowLocalhostAsSecureOrigin: true,
+        notifyButton: {
+          enable: true,
+        },
+      };
+
+      if (isProd) {
+        options.serviceWorkerPath = 'sw.js';
+        options.serviceWorkerParam = { scope: '/' };
+      } else {
+        options.serviceWorkerPath = 'OneSignalSDKWorker.js';
+      }
+
       try {
-        console.log('[OneSignal] Initializing Web SDK...');
-        await OneSignal.init({
-          appId: '75a4d965-5500-4694-abfa-69b8a88c9d1d',
-          allowLocalhostAsSecureOrigin: true,
-          notifyButton: {
-            enable: true,
-          } as any,
-        });
-        console.log('[OneSignal] Initialized successfully with App ID : 75a4d965-5500-4694-abfa-69b8a88c9d1d');
+        console.log('[OneSignal] Initializing Web SDK with options:', options);
+        await OneSignal.init(options);
+        console.log('[OneSignal] Initialized successfully!');
         setOneSignalInitDone(true);
       } catch (err) {
-        console.warn('[OneSignal] Initialization error:', err);
+        console.warn('[OneSignal] Initial init failed, retrying with fallback OneSignalSDKWorker.js...', err);
+        try {
+          await OneSignal.init({
+            appId: '75a4d965-5500-4694-abfa-69b8a88c9d1d',
+            allowLocalhostAsSecureOrigin: true,
+            serviceWorkerPath: 'OneSignalSDKWorker.js',
+            notifyButton: {
+              enable: true,
+            } as any,
+          });
+          console.log('[OneSignal] Initialized successfully with fallback OneSignalSDKWorker.js');
+          setOneSignalInitDone(true);
+        } catch (retryErr) {
+          console.error('[OneSignal] Fallback retry also failed:', retryErr);
+        }
       }
     };
     initOneSignal();
@@ -3052,6 +3078,22 @@ export default function App() {
         `Votre nouvel article est en ligne pour ${fullProd.prix.toLocaleString('fr-FR')} HTG. Partagé avec vos abonnés de ${finalCommune}, ${finalDept}!`,
         'promo'
       );
+
+      // Trigger automatic follower notifications on the backend
+      fetch('/api/notifications/new-product', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          vendorId: currentUser.id,
+          vendorShopName: currentUser.shopName || `${currentUser.prenom} Store`,
+          productNom: fullProd.nom,
+          productPrix: fullProd.prix,
+          productCommune: finalCommune,
+          productDept: finalDept
+        })
+      }).catch(err => console.warn("Failed triggering follower notifications for new product:", err));
     }
 
     if (isSupabaseConfigured && supabase) {
@@ -3183,6 +3225,27 @@ export default function App() {
       ...(uploadedImage !== undefined ? { image_url: uploadedImage } : {}),
       ...(uploadedGallery !== undefined ? { gallery: uploadedGallery } : {})
     };
+
+    const originalProd = products.find(p => p.id === productId);
+    const oldPrice = originalProd ? originalProd.prix : 0;
+    const newPrice = mergedUpdates.prix;
+
+    if (newPrice !== undefined && oldPrice > 0 && newPrice < oldPrice && currentUser?.id) {
+      // Trigger automatic follower notifications for promotions
+      fetch('/api/notifications/promotion', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          vendorId: currentUser.id,
+          vendorShopName: currentUser.shopName || `${currentUser.prenom} Store`,
+          productNom: originalProd ? originalProd.nom : 'Article',
+          oldPrice: oldPrice,
+          newPrice: newPrice
+        })
+      }).catch(err => console.warn("Failed triggering follower notifications for promotion:", err));
+    }
 
     setProducts(prev => prev.map(p => p.id === productId ? { ...p, ...mergedUpdates } : p));
 
@@ -5106,6 +5169,48 @@ create policy "Mise à jour publique des commandes"
             >
               Compris
             </button>
+          </div>
+        </div>
+      )}
+
+      {showIframeNotice && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-[1000] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-100 shadow-2xl max-w-sm sm:max-w-md w-full space-y-5 animate-scale-up text-center">
+            <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-1 text-2xl shadow-sm border border-indigo-100">
+              🚀
+            </div>
+            
+            <div className="space-y-2">
+              <h3 className="font-serif text-lg sm:text-xl font-black text-[#0c1445] tracking-tight">Ouvrir dans un nouvel onglet</h3>
+              <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+                Les navigateurs bloquent l'activation des notifications push dans les aperçus intégrés (iframes) pour votre sécurité.<br/><br/>
+                Pour <b>recevoir et envoyer vos alertes réelles</b> (ventes, commandes, messages, promos), merci d'ouvrir Vendza dans un nouvel onglet autonome de votre navigateur !
+              </p>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200/50 rounded-2xl p-3 text-left">
+              <p className="text-[11px] text-amber-800 leading-normal font-semibold">
+                💡 Une fois sur le site autonome, cliquez à nouveau sur le bouton <b>"Activer les notifications"</b> pour accorder l'autorisation.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2.5">
+              <button
+                onClick={() => setShowIframeNotice(false)}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-sans text-xs font-bold py-3 rounded-2xl transition cursor-pointer"
+              >
+                Fermer
+              </button>
+              <a
+                href={window.location.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setShowIframeNotice(false)}
+                className="flex-1 bg-[#0c1445] hover:bg-[#1a2355] text-white font-sans text-xs font-bold py-3 rounded-2xl transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                Ouvrir Vendza 🚀
+              </a>
+            </div>
           </div>
         </div>
       )}
