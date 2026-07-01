@@ -1321,19 +1321,14 @@ app.post('/api/bazik/create-payment', async (req, res) => {
     await setPendingSubscriptionMeta(orderId, numericAmount, subMeta);
   }
 
-  const baseUrl = getBaseUrl(req);
-  const simulationUrl = `${baseUrl}/moncash-simulation?orderId=${encodeURIComponent(orderId)}&total=${encodeURIComponent(String(numericAmount))}`;
-
-  // Check if Bazik is configured or should fall back to simulation
+  // Check if Bazik is configured
   const secretKey = process.env.BAZIK_SECRET_KEY || '';
   const isPlaceholderKey = !secretKey || secretKey === "sk_proj_..." || secretKey.trim() === "";
 
   if (isPlaceholderKey) {
-    console.warn(`[Bazik Backend Fallback] Clé Bazik manquante ou invalide. Redirection automatique vers la simulation.`);
-    return res.json({
-      payment_url: simulationUrl,
-      is_simulated: true,
-      warning: "La clé de l'API Bazik n'est pas configurée ou est invalide. En cours de simulation de paiement."
+    console.error(`[Bazik Backend Error] Clé Bazik manquante ou invalide.`);
+    return res.status(400).json({
+      error: "La clé de l'API Bazik n'est pas configurée ou est invalide. Veuillez vérifier les variables d'environnement."
     });
   }
 
@@ -1378,7 +1373,7 @@ app.post('/api/bazik/create-payment', async (req, res) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[Bazik API Error] Payment creation failed:', response.status, errorText);
-      throw new Error(`La création de paiement a échoué: ${response.status} ${errorText}`);
+      throw new Error(`La création de paiement via l'API Bazik a échoué : ${response.status} ${errorText}`);
     }
 
     const data: any = await response.json();
@@ -1387,8 +1382,8 @@ app.post('/api/bazik/create-payment', async (req, res) => {
     const redirectUrl = data.paymentUrl || data.payment_url || data.url || data.redirectUrl || data.redirect_url || (data.payment_token?.token ? `https://sandbox.moncashbutton.digicelgroup.com/Moncash-middleware/Payment/Redirect?token=${data.payment_token.token}` : null);
 
     if (!redirectUrl) {
-      console.warn('[Bazik API Warning] No redirectUrl found in response, falling back to simulation.');
-      return res.json({ payment_url: simulationUrl, is_simulated: true });
+      console.error('[Bazik API Error] No redirectUrl found in response.');
+      return res.status(500).json({ error: "Aucune URL de redirection n'a été retournée par l'API de paiement Bazik/MonCash." });
     }
 
     return res.json({
@@ -1398,11 +1393,8 @@ app.post('/api/bazik/create-payment', async (req, res) => {
 
   } catch (err: any) {
     console.error('[Bazik Backend] Exception in create-payment:', err.message);
-    console.warn('[Bazik Backend] Redirecting to simulation due to API exception.');
-    return res.json({
-      payment_url: simulationUrl,
-      is_simulated: true,
-      warning: `Mode simulation actif suite à une erreur : ${err.message}`
+    return res.status(500).json({
+      error: `Erreur lors de l'appel de l'API de paiement : ${err.message}`
     });
   }
 });
@@ -1866,178 +1858,82 @@ app.post('/api/paiement/creer', async (req, res) => {
     return res.status(400).json({ error: "Champs requis manquants : orderId ou total" });
   }
 
-  const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
-  
   // Real MonCash or Sandbox Integration if ClientID & Secret are set
   const clientId = process.env.MONCASH_CLIENT_ID || '';
   const clientSecret = process.env.MONCASH_CLIENT_SECRET || '';
   const mode = process.env.MONCASH_MODE || 'sandbox';
 
-  if (clientId && clientSecret) {
-    try {
-      console.log(`[MonCash Backend] Initiating real/sandbox MonCash payment for order ${orderId}, amount: ${total} HTG...`);
-      const authUrl = mode === 'live' 
-        ? 'https://moncashbutton.digicelgroup.com/Moncash-middleware/oauth/token'
-        : 'https://sandbox.moncashbutton.digicelgroup.com/Moncash-middleware/oauth/token';
-
-      // Call MonCash token endpoint
-      const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-      const tokenResponse = await fetch(`${authUrl}?grant_type=client_credentials`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Basic ${credentials}`
-        }
-      });
-
-      if (!tokenResponse.ok) {
-        throw new Error(`MonCash auth failed: ${tokenResponse.statusText}`);
-      }
-
-      const tokenData: any = await tokenResponse.json();
-      const token = tokenData.access_token;
-
-      // Construct payment creation body
-      const createUrl = mode === 'live'
-        ? 'https://moncashbutton.digicelgroup.com/Moncash-middleware/v1/CreatePayment'
-        : 'https://sandbox.moncashbutton.digicelgroup.com/Moncash-middleware/v1/CreatePayment';
-
-      const paymentResponse = await fetch(createUrl, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          amount: Math.round(Number(total)),
-          orderId: orderId
-        })
-      });
-
-      if (!paymentResponse.ok) {
-        throw new Error(`MonCash payment creation failed: ${paymentResponse.statusText}`);
-      }
-
-      const paymentData: any = await paymentResponse.json();
-      const rawToken = paymentData.payment_token?.token;
-
-      if (!rawToken) {
-        throw new Error("No payment token returned by MonCash API.");
-      }
-
-      const redirectUrl = mode === 'live'
-        ? `https://moncashbutton.digicelgroup.com/Moncash-middleware/Payment/Redirect?token=${rawToken}`
-        : `https://sandbox.moncashbutton.digicelgroup.com/Moncash-middleware/Payment/Redirect?token=${rawToken}`;
-
-      return res.json({ payment_url: redirectUrl });
-    } catch (err: any) {
-      console.warn(`[MonCash Backend] Failed to make actual MonCash token request. Falling back to secure interactive simulation:`, err.message);
-    }
+  if (!clientId || !clientSecret) {
+    return res.status(400).json({
+      error: "Les identifiants de l'API MonCash (MONCASH_CLIENT_ID / MONCASH_CLIENT_SECRET) ne sont pas configurés dans les variables d'environnement."
+    });
   }
 
-  // Fallback / Default: Secure and beautiful interactive MonCash mockup simulator
-  const simulationUrl = `${baseUrl}/moncash-simulation?orderId=${encodeURIComponent(orderId)}&total=${encodeURIComponent(String(total))}`;
-  res.json({ payment_url: simulationUrl });
+  try {
+    console.log(`[MonCash Backend] Initiating real/sandbox MonCash payment for order ${orderId}, amount: ${total} HTG...`);
+    const authUrl = mode === 'live' 
+      ? 'https://moncashbutton.digicelgroup.com/Moncash-middleware/oauth/token'
+      : 'https://sandbox.moncashbutton.digicelgroup.com/Moncash-middleware/oauth/token';
+
+    // Call MonCash token endpoint
+    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const tokenResponse = await fetch(`${authUrl}?grant_type=client_credentials`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Basic ${credentials}`
+      }
+    });
+
+    if (!tokenResponse.ok) {
+      throw new Error(`MonCash auth failed: ${tokenResponse.statusText}`);
+    }
+
+    const tokenData: any = await tokenResponse.json();
+    const token = tokenData.access_token;
+
+    // Construct payment creation body
+    const createUrl = mode === 'live'
+      ? 'https://moncashbutton.digicelgroup.com/Moncash-middleware/v1/CreatePayment'
+      : 'https://sandbox.moncashbutton.digicelgroup.com/Moncash-middleware/v1/CreatePayment';
+
+    const paymentResponse = await fetch(createUrl, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        amount: Math.round(Number(total)),
+        orderId: orderId
+      })
+    });
+
+    if (!paymentResponse.ok) {
+      throw new Error(`MonCash payment creation failed: ${paymentResponse.statusText}`);
+    }
+
+    const paymentData: any = await paymentResponse.json();
+    const rawToken = paymentData.payment_token?.token;
+
+    if (!rawToken) {
+      throw new Error("No payment token returned by MonCash API.");
+    }
+
+    const redirectUrl = mode === 'live'
+      ? `https://moncashbutton.digicelgroup.com/Moncash-middleware/Payment/Redirect?token=${rawToken}`
+      : `https://sandbox.moncashbutton.digicelgroup.com/Moncash-middleware/Payment/Redirect?token=${rawToken}`;
+
+    return res.json({ payment_url: redirectUrl });
+  } catch (err: any) {
+    console.error(`[MonCash Backend Error]`, err.message);
+    return res.status(500).json({
+      error: `Échec de l'appel direct de l'API MonCash: ${err.message}`
+    });
+  }
 });
 
-// Endpoint serving the interactive mock MonCash Simulation screen
-app.get('/moncash-simulation', (req, res) => {
-  const { orderId, total } = req.query;
-  const cleanOrderId = String(orderId || 'order-unknown');
-  const cleanTotal = String(total || '0');
 
-  const html = `
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MonCash Digicel - Passerelle de Paiement Sécurisée</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6;
-        }
-    </style>
-</head>
-<body class="min-h-screen flex items-center justify-center p-4">
-    <div class="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
-        <!-- MonCash Logo Header -->
-        <div class="bg-[#e2001a] p-6 text-white text-center relative">
-            <div class="font-bold text-3xl tracking-tight flex items-center justify-center gap-2">
-                <span class="bg-white text-[#e2001a] px-2.5 py-0.5 rounded-lg text-2xl font-black">Mon</span>Cash
-            </div>
-            <p class="text-xs text-white/80 mt-1.5 font-medium tracking-wide">PASSERELLE DE PAIEMENT SÉCURISÉE</p>
-        </div>
-
-        <div class="p-6 space-y-6">
-            <!-- Payment Summary -->
-            <div class="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-2">
-                <div class="flex justify-between items-center text-xs text-slate-500">
-                    <span>Marchand</span>
-                    <span class="font-semibold text-slate-700">Vendza S.A. (Séquestre)</span>
-                </div>
-                <div class="flex justify-between items-center text-xs text-slate-500">
-                    <span>Référence Commande</span>
-                    <span class="font-mono text-slate-700 font-bold">${cleanOrderId}</span>
-                </div>
-                <div class="border-t border-slate-200/60 my-2 pt-2 flex justify-between items-center">
-                    <span class="text-sm font-medium text-slate-700">Montant total</span>
-                    <span class="text-xl font-bold text-[#e11d48]">${Number(cleanTotal).toLocaleString('fr-FR')} HTG</span>
-                </div>
-            </div>
-
-            <!-- Simulation Banner -->
-            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 space-y-1">
-                <div class="font-semibold flex items-center gap-1.5 text-amber-900">
-                    <span>⚠️ Mode Simulation Active</span>
-                </div>
-                <p>Cette passerelle de test vous permet de simuler un paiement MonCash réel pour vos tests de validation.</p>
-            </div>
-
-            <!-- Form simulator -->
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Numéro de Téléphone MonCash</label>
-                    <div class="relative">
-                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">+509</span>
-                        <input type="tel" value="3788 4410" readonly class="w-full pl-14 pr-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none cursor-not-allowed font-medium" />
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Code PIN Secret (4 chiffres)</label>
-                    <input type="password" value="••••" readonly class="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none cursor-not-allowed font-medium" />
-                </div>
-            </div>
-
-            <!-- Action Buttons -->
-            <div class="space-y-3 pt-2">
-                <button onclick="triggerPayment('success')" class="w-full bg-[#10b981] hover:bg-[#059669] text-white py-3 rounded-xl font-semibold text-sm transition-all duration-200 transform hover:scale-[1.01] active:scale-[0.99] shadow-md shadow-emerald-100 flex items-center justify-center gap-2">
-                    ✓ Confirmer le Paiement (Succès)
-                </button>
-                <button onclick="triggerPayment('error')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 py-3 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2">
-                    ✕ Annuler la Transaction
-                </button>
-            </div>
-            
-            <p class="text-[10px] text-slate-400 text-center">En cliquant, vous allez être redirigé vers l'application Vendza pour finaliser votre commande en séquestre.</p>
-        </div>
-    </div>
-
-    <script>
-        function triggerPayment(status) {
-            const orderId = "${encodeURIComponent(cleanOrderId)}";
-            window.location.href = "/?paymentStatus=" + status + "&orderId=" + orderId;
-        }
-    </script>
-</body>
-</html>
-  `;
-  res.send(html);
-});
 
 // Endpoint serving the interactive mock Stripe Simulation screen
 app.get('/stripe-simulation', (req, res) => {
