@@ -93,33 +93,19 @@ export const CheckoutReturn: React.FC<CheckoutReturnProps> = ({
         pollCount++;
         setAttempts(pollCount);
 
-        const response = await fetch(`/api/mcc/status?reference=${encodeURIComponent(refParam)}`);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log('[MCC Polling Status] Received status:', data);
-
-        if (data.status === 'completed') {
-          handleSuccess(data.amount || 0);
-          return;
-        } else if (data.status === 'failed') {
-          setStatus('failed');
-          setErrorMessage("Le paiement a été rejeté par la banque ou le portefeuille.");
-          return;
-        } else if (data.status === 'cancelled') {
-          setStatus('cancelled');
-          return;
-        }
-
         // Check if DB order row has been created by the webhook in the meantime
         if (isSupabaseConfigured && supabase) {
           const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-          const orClause = isUuid(refParam)
-            ? `id.eq.${refParam},qr_token.eq.${refParam}`
-            : `qr_token.eq.${refParam}`;
+          let orClause = '';
+          if (isUuid(refParam)) {
+            orClause = `id.eq.${refParam},qr_token.eq.${refParam},qr_token.like.${refParam}_sub_%`;
+          } else {
+            orClause = `qr_token.eq.${refParam},stripe_session_id.eq.${refParam},qr_token.like.${refParam}_sub_%`;
+          }
+
+          if (refParam.startsWith('BZK_')) {
+            orClause += `,stripe_session_id.eq.${refParam}`;
+          }
 
           const { data: ords } = await supabase
             .from('orders')
@@ -127,7 +113,7 @@ export const CheckoutReturn: React.FC<CheckoutReturnProps> = ({
             .or(orClause);
 
           if (ords && ords.length > 0) {
-            console.log('[MCC Polling Status] Found finalized order(s) in Supabase database:', ords);
+            console.log('[Payment Polling Status] Found finalized order(s) in Supabase database:', ords);
             const totalSum = ords.reduce((sum, o) => sum + (Number(o.total_price) || 0), 0);
             handleSuccess(totalSum);
             return;
@@ -142,7 +128,7 @@ export const CheckoutReturn: React.FC<CheckoutReturnProps> = ({
           setTimeout(pollPaymentStatus, intervalMs);
         }
       } catch (err: any) {
-        console.warn('[MCC Polling Error] Attempt failed:', err.message);
+        console.warn('[Payment Polling Error] Attempt failed:', err.message);
         if (pollCount >= maxPolls) {
           setStatus('timeout');
         } else {

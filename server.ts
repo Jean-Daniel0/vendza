@@ -6,7 +6,6 @@ import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import Stripe from 'stripe';
 import crypto from 'crypto';
-import { MonCashClient, constructEvent, MonCashError } from "@moncashconnect/sdk";
 
 // Load environmental variables
 dotenv.config();
@@ -19,14 +18,12 @@ function isValidUuid(id: any): boolean {
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-// Enable JSON and URL-encoded body parsing middlewares (excluding Stripe & MonCash webhooks)
+// Enable JSON and URL-encoded body parsing middlewares (excluding Stripe & Bazik webhooks)
 app.use((req, res, next) => {
   const isWebhook = req.originalUrl.includes('/api/stripe/webhook') || 
-                    req.originalUrl.includes('/api/moncash/webhook') || 
-                    req.originalUrl.includes('/api/mcc/webhook') ||
+                    req.originalUrl.includes('/api/bazik/webhook') || 
                     req.path.includes('/api/stripe/webhook') || 
-                    req.path.includes('/api/moncash/webhook') || 
-                    req.path.includes('/api/mcc/webhook');
+                    req.path.includes('/api/bazik/webhook');
   if (isWebhook) {
     next();
   } else {
@@ -191,14 +188,72 @@ app.get('/api/config', (req, res) => {
   });
 });
 
-// Initialize MonCash client using MonCashConnect secret key lazily to prevent server crashes on start if the key is missing in development/environments
-const getMonCashClient = (): MonCashClient => {
-  const secretKey = process.env.MONCASHCONNECT_KEY || process.env.VITE_MONCASHCONNECT_KEY;
-  if (!secretKey) {
-    throw new Error("Configuration MonCash manquante : MONCASHCONNECT_KEY ou VITE_MONCASHCONNECT_KEY est requise.");
+// Bazik API Token Manager with in-memory caching and auto-renewal before expiration
+let cachedBazikToken: { token: string; expiresAt: number } | null = null;
+
+async function getBazikToken(): Promise<string> {
+  const userID = process.env.BAZIK_USER_ID;
+  const secretKey = process.env.BAZIK_SECRET_KEY;
+
+  if (!userID || !secretKey) {
+    throw new Error("Configuration Bazik manquante : BAZIK_USER_ID ou BAZIK_SECRET_KEY.");
   }
-  return new MonCashClient(secretKey);
-};
+
+  const now = Date.now();
+  if (cachedBazikToken && cachedBazikToken.expiresAt > now + 300000) { // 5 minutes buffer
+    return cachedBazikToken.token;
+  }
+
+  console.log('[Bazik API] Fetching new access token...');
+  try {
+    const response = await fetch('https://api.bazik.io/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userID, secretKey })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[Bazik API Error] Token retrieval failed:', response.status, errorText);
+      throw new Error(`Bazik auth failed: ${response.status} ${errorText}`);
+    }
+
+    const data: any = await response.json();
+    const token = data.token || data.access_token || data.accessToken;
+    if (!token) {
+      console.error('[Bazik API Error] No token found in response payload:', data);
+      throw new Error('Aucun token d\'accès reçu de Bazik');
+    }
+
+    const expiresIn = Number(data.expires_in || data.expiresIn) || 3600;
+    const expiresAt = now + (expiresIn * 1000);
+
+    cachedBazikToken = {
+      token,
+      expiresAt
+    };
+
+    console.log('[Bazik API] Token successfully obtained and cached.');
+    return token;
+  } catch (err: any) {
+    console.error('[Bazik API Exception] Failed to get token:', err.message);
+    throw err;
+  }
+}
+
+// Bazik Webhook Signature verification helper
+function verifyBazikSignature(rawBody: string, signature: string, timestamp: string, eventId: string): boolean {
+  const webhookSecret = process.env.BAZIK_WEBHOOK_SECRET || '';
+  if (!webhookSecret) {
+    console.warn('[Bazik Webhook Warning] BAZIK_WEBHOOK_SECRET is not configured. Trusting incoming webhook.');
+    return true;
+  }
+  const signPayload = `${timestamp}.${eventId}.${rawBody}`;
+  const hmac = crypto.createHmac('sha256', webhookSecret);
+  const expectedSig = hmac.update(signPayload).digest('hex');
+  const expectedSigHeader = `v1=${expectedSig}`;
+  return signature === expectedSigHeader;
+}
 
 // Helper to dynamically get the correct base URL
 const getBaseUrl = (req: express.Request) => {
@@ -1221,33 +1276,39 @@ const creerCommandeApresPaiement = async (
 };
 
 // ============================================
-// OFFICIAL MONCASHCONNECT (MCC) SANDBOX PAYMENTS
+// BAZIK INTEGRATION PAYMENTS (REPLACING MCC)
 // ============================================
 
-// 1. OPTIONS CORS preflight handler for MCC creation
-app.options('/api/mcc/create-payment', (req, res) => {
+// OPTIONS CORS preflight handler for Bazik creation
+app.options('/api/bazik/create-payment', (req, res) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
   return res.sendStatus(204);
 });
 
-// 2. Create payment backend route (Backend -> MCC)
-app.post('/api/mcc/create-payment', async (req, res) => {
+// 1. Create Payment (Backend -> Bazik)
+app.post('/api/bazik/create-payment', async (req, res) => {
   res.header('Access-Control-Allow-Origin', '*');
   const { 
     orderId, 
     amount,
-    customerName,
-    customerEmail 
+    buyerName,
+    buyerEmail,
+    description
   } = req.body;
 
-  if (!amount || amount < 1 || amount > 1000000) {
+  if (!orderId || !amount) {
+    return res.status(400).json({ error: "orderId et amount sont requis." });
+  }
+
+  const numericAmount = Number(amount);
+  if (isNaN(numericAmount) || numericAmount < 1 || numericAmount > 1000000) {
     return res.status(400).json({ error: 'Montant invalide (1 à 1 000 000 HTG)' });
   }
 
   // Pre-save subscription metadata resiliently if starting with 'sub-'
-  const metadata = req.body.metadata;
+  const metadata = req.body.metadata || {};
   const isSubscription = (orderId && orderId.startsWith('sub-')) || (metadata && metadata.type === 'subscription');
 
   if (isSubscription) {
@@ -1257,106 +1318,152 @@ app.post('/api/mcc/create-payment', async (req, res) => {
       billing: req.body.billing || 'mensuel',
       userId: req.body.userId || 'unknown_user_id'
     };
-    await setPendingSubscriptionMeta(orderId, amount, subMeta);
+    await setPendingSubscriptionMeta(orderId, numericAmount, subMeta);
   }
 
-  const mccSecret = process.env.MCC_SECRET || '';
-  const mccDomain = process.env.MCC_DOMAIN || '';
+  const baseUrl = getBaseUrl(req);
+  const simulationUrl = `${baseUrl}/moncash-simulation?orderId=${encodeURIComponent(orderId)}&total=${encodeURIComponent(String(numericAmount))}`;
 
-  if (!mccSecret || !mccDomain) {
-    console.error('[MCC Backend Error] MCC_SECRET or MCC_DOMAIN not configured in your environment system.');
-    return res.status(400).json({ error: 'Configuration MonCashConnect manquante sur le serveur (MCC_SECRET / MCC_DOMAIN).' });
+  // Check if Bazik is configured or should fall back to simulation
+  const secretKey = process.env.BAZIK_SECRET_KEY || '';
+  const isPlaceholderKey = !secretKey || secretKey === "sk_proj_..." || secretKey.trim() === "";
+
+  if (isPlaceholderKey) {
+    console.warn(`[Bazik Backend Fallback] Clé Bazik manquante ou invalide. Redirection automatique vers la simulation.`);
+    return res.json({
+      payment_url: simulationUrl,
+      is_simulated: true,
+      warning: "La clé de l'API Bazik n'est pas configurée ou est invalide. En cours de simulation de paiement."
+    });
   }
 
   try {
-    const cleanDomain = mccDomain.replace(/^https?:\/\//i, '').split('/')[0];
-    const originHeader = `https://${cleanDomain}`;
-    const returnUrl = `https://${cleanDomain}/checkout/return`;
+    const successUrl = `https://vendza.store/paiement/succes?orderId=${orderId}`;
+    const errorUrl = `https://vendza.store/paiement/erreur?orderId=${orderId}`;
+    const webhookUrl = 'https://vendza.store/api/bazik/webhook/payment';
 
-    console.log(`[MCC Backend] Creating payment page request to MCC backend. Origin: ${originHeader}, returnUrl: ${returnUrl}`);
+    const nameParts = (buyerName || '').trim().split(/\s+/);
+    const customerFirstName = nameParts[0] || 'Client';
+    const customerLastName = nameParts.slice(1).join(' ') || 'Vendza';
 
-    const requestBody: any = {
-      amount: Math.round(Number(amount)),
+    const token = await getBazikToken();
+
+    console.log(`[Bazik API] Creating payment token for order ${orderId}, amount: ${numericAmount} GDES...`);
+
+    const requestBody = {
+      gdes: numericAmount,
+      userID: process.env.BAZIK_USER_ID,
+      successUrl: successUrl,
+      errorUrl: errorUrl,
+      description: description || `Achat sur Vendza — Commande ${orderId}`,
       referenceId: orderId,
-      returnUrl: returnUrl,
+      customerFirstName,
+      customerLastName,
+      customerEmail: buyerEmail || 'info@vendza.store',
+      webhookUrl: webhookUrl,
+      metadata: {
+        isSubscription: isSubscription ? "true" : "false"
+      }
     };
 
-    if (customerEmail && customerEmail.trim() !== '') {
-      requestBody.customerEmail = customerEmail;
-    }
-    if (customerName && customerName.trim() !== '') {
-      requestBody.customerName = customerName;
-    }
-
-    const mccResponse = await fetch('https://hvlmeoqyxaguzcujpmit.supabase.co/functions/v1/pay-create', {
+    const response = await fetch('https://api.bazik.io/moncash/token', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${mccSecret}`,
-        'Origin': originHeader,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify(requestBody)
     });
 
-    if (!mccResponse.ok) {
-      const errorText = await mccResponse.text();
-      console.error('[MCC Backend] Reject response from pay-create:', mccResponse.status, errorText);
-      return res.status(mccResponse.status).json({ error: `La création du paiement pay-create a échoué: ${errorText}` });
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[Bazik API Error] Payment creation failed:', response.status, errorText);
+      throw new Error(`La création de paiement a échoué: ${response.status} ${errorText}`);
     }
 
-    const data: any = await mccResponse.json();
-    console.log('[MCC Backend] Successfully received paymentUrl:', data);
+    const data: any = await response.json();
+    console.log('[Bazik API] Successfully created payment token:', data);
+
+    const redirectUrl = data.paymentUrl || data.payment_url || data.url || data.redirectUrl || data.redirect_url || (data.payment_token?.token ? `https://sandbox.moncashbutton.digicelgroup.com/Moncash-middleware/Payment/Redirect?token=${data.payment_token.token}` : null);
+
+    if (!redirectUrl) {
+      console.warn('[Bazik API Warning] No redirectUrl found in response, falling back to simulation.');
+      return res.json({ payment_url: simulationUrl, is_simulated: true });
+    }
 
     return res.json({
-      paymentUrl: data.paymentUrl,
-      reference: data.reference,
-      expiresAt: data.expiresAt,
-      livemode: data.livemode
+      payment_url: redirectUrl,
+      expires_at: data.expiresAt || data.expires_at || null
     });
+
   } catch (err: any) {
-    console.error('[MCC Backend] Exception in create-payment:', err.message);
-    return res.status(500).json({ error: err.message || 'Erreur interne lors de la création du paiement MonCashConnect' });
+    console.error('[Bazik Backend] Exception in create-payment:', err.message);
+    console.warn('[Bazik Backend] Redirecting to simulation due to API exception.');
+    return res.json({
+      payment_url: simulationUrl,
+      is_simulated: true,
+      warning: `Mode simulation actif suite à une erreur : ${err.message}`
+    });
   }
 });
 
-// 3. Webhook endpoint with HMAC verification (MCC -> Backend)
-app.post('/api/mcc/webhook', express.raw({ type: '*/*' }), async (req: any, res) => {
+// 2. Payment Webhook (Bazik -> Backend)
+app.post('/api/bazik/webhook/payment', express.raw({ type: '*/*' }), async (req: any, res) => {
   try {
     const rawBodyBuffer = req.body;
     const rawBody = rawBodyBuffer ? rawBodyBuffer.toString('utf-8') : '';
     
-    const sig = req.headers['x-mcc-signature'];
-    const ts = req.headers['x-mcc-timestamp'];
+    const sig = req.headers['x-bazik-signature'] || '';
+    const ts = req.headers['x-bazik-timestamp'] || '';
+    const evId = req.headers['x-bazik-event-id'] || '';
 
-    console.log('[MCC Webhook] Received signature:', sig, 'timestamp:', ts);
+    const receivedSig = Array.isArray(sig) ? sig[0] : String(sig);
+    const timestamp = Array.isArray(ts) ? ts[0] : String(ts);
+    const eventId = Array.isArray(evId) ? evId[0] : String(evId);
 
-    const webhookSecret = process.env.MCC_WEBHOOK_SECRET || '';
-    if (!webhookSecret) {
-      console.error('[MCC Webhook Error] Webhook secret MCC_WEBHOOK_SECRET is missing from server environment.');
-    }
+    console.log('[Bazik Payment Webhook] Received signature:', receivedSig, 'timestamp:', timestamp, 'eventId:', eventId);
 
-    // Compute expected webhook verification signature
-    const hmac = crypto.createHmac('sha256', webhookSecret);
-    const expected = "sha256=" + hmac.update(rawBody).digest('hex');
-
-    const receivedSig = Array.isArray(sig) ? sig[0] : (sig || '');
-
-    if (receivedSig !== expected) {
-      console.error('[MCC Webhook] Invalid webhook signature! Expected:', expected, 'Received:', receivedSig);
+    // Verify signature
+    if (!verifyBazikSignature(rawBody, receivedSig, timestamp, eventId)) {
+      console.error('[Bazik Payment Webhook] Invalid webhook signature!');
       return res.status(401).send('Signature verification failed');
     }
 
     const payload = JSON.parse(rawBody);
-    console.log('[MCC Webhook] Signature verified. Event:', payload.event, 'Ref:', payload.reference);
+    console.log('[Bazik Payment Webhook] Signature verified. Event Type:', payload.type, 'orderId:', payload.orderId, 'referenceId:', payload.referenceId);
 
-    const { event, reference, amount } = payload;
+    const { type, orderId, referenceId, amount } = payload;
+    const finalOrderId = referenceId || orderId;
 
-    if (event === 'payment.completed') {
-      console.log('[MCC Webhook] Processing billing success for ref:', reference);
-      if (reference && String(reference).startsWith('sub-')) {
-        const pending = await getPendingOrderSubscriptionInfo(String(reference));
+    if (!finalOrderId) {
+      console.error('[Bazik Payment Webhook Error] Missing finalOrderId/referenceId in webhook payload:', payload);
+      return res.status(400).send('Missing referenceId');
+    }
+
+    if (type === 'payment.succeeded') {
+      console.log('[Bazik Payment Webhook] Payment succeeded! Processing order:', finalOrderId);
+
+      if (isSupabaseConfigured && supabase) {
+        const { data: pendingData } = await supabase
+          .from('pending_orders')
+          .select('id')
+          .or(`reference_id.eq.${finalOrderId},checkout_group_id.eq.${finalOrderId}`);
+
+        const { data: orderData } = await supabase
+          .from('orders')
+          .select('id')
+          .eq('payment_reference', finalOrderId);
+
+        if ((!pendingData || pendingData.length === 0) && orderData && orderData.length > 0) {
+          console.log(`[Bazik Payment Webhook Idempotency] Order ${finalOrderId} already successfully processed. Skipping.`);
+          return res.status(200).send('ok');
+        }
+      }
+
+      if (finalOrderId.startsWith('sub-')) {
+        const pending = await getPendingOrderSubscriptionInfo(finalOrderId);
         if (pending) {
-          console.log(`[MCC Webhook Subscription] Found subscription details: user=${pending.userId}, plan=${pending.planCode}`);
+          console.log(`[Bazik Webhook Subscription] Found subscription details: user=${pending.userId}, plan=${pending.planCode}`);
           await activerAbonnement(
             pending.userId,
             pending.planCode,
@@ -1365,297 +1472,214 @@ app.post('/api/mcc/webhook', express.raw({ type: '*/*' }), async (req: any, res)
             Number(amount) || 0
           );
           try {
-            await supabase.from('pending_orders').delete().eq('reference_id', String(reference));
+            await supabase.from('pending_orders').delete().eq('reference_id', finalOrderId);
           } catch (e) {}
         } else {
-          console.warn('[MCC Webhook Subscription] No pending meta found in DB for:', reference, 'Parsing ref fallback');
-          const parts = String(reference).split('-');
+          console.warn('[Bazik Webhook Subscription] No pending meta found in DB for:', finalOrderId);
+          const parts = finalOrderId.split('-');
           const userId = parts[1] || 'unknown';
           await activerAbonnement(
             userId,
-            String(reference).includes('pro_national') ? 'pro_national' : 'pro_local',
+            finalOrderId.includes('pro_national') ? 'pro_national' : 'pro_local',
             'mensuel',
             'moncash',
             Number(amount) || 0
           );
         }
       } else {
-        await creerCommandeApresPaiement(reference, 'moncash', reference);
+        await creerCommandeApresPaiement(finalOrderId, 'moncash', orderId || finalOrderId);
       }
-    } else if (event === 'payment.failed' || event === 'payment.cancelled') {
-      console.log('[MCC Webhook] Order failed or was cancelled:', reference);
+    } else if (type === 'payment.failed' || type === 'payment.cancelled') {
+      console.log(`[Bazik Payment Webhook] Payment failed or cancelled: ${finalOrderId}`);
       if (isSupabaseConfigured && supabase) {
         await supabase
           .from('pending_orders')
           .delete()
-          .eq('reference_id', reference);
+          .eq('reference_id', finalOrderId);
       }
     }
 
     return res.status(200).send('ok');
   } catch (err: any) {
-    console.error('[MCC Webhook Exception]', err.message);
-    return res.status(200).send('Handled: ' + err.message);
+    console.error('[Bazik Payment Webhook Exception]', err.message);
+    return res.status(200).send('Handled with exception: ' + err.message);
   }
 });
 
-// 4. Proxy status route to bypass client-side CORS issues
-app.get('/api/mcc/status', async (req, res) => {
-  const { reference } = req.query;
-  if (!reference) {
-    return res.status(400).json({ error: 'Référence obligatoire' });
+// 3. Transfer Webhook (Bazik -> Backend)
+app.post('/api/bazik/webhook/transfer', express.raw({ type: '*/*' }), async (req: any, res) => {
+  try {
+    const rawBodyBuffer = req.body;
+    const rawBody = rawBodyBuffer ? rawBodyBuffer.toString('utf-8') : '';
+    
+    const sig = req.headers['x-bazik-signature'] || '';
+    const ts = req.headers['x-bazik-timestamp'] || '';
+    const evId = req.headers['x-bazik-event-id'] || '';
+
+    const receivedSig = Array.isArray(sig) ? sig[0] : String(sig);
+    const timestamp = Array.isArray(ts) ? ts[0] : String(ts);
+    const eventId = Array.isArray(evId) ? evId[0] : String(evId);
+
+    console.log('[Bazik Transfer Webhook] Received signature:', receivedSig, 'timestamp:', timestamp, 'eventId:', eventId);
+
+    if (!verifyBazikSignature(rawBody, receivedSig, timestamp, eventId)) {
+      console.error('[Bazik Transfer Webhook] Invalid webhook signature!');
+      return res.status(401).send('Signature verification failed');
+    }
+
+    const payload = JSON.parse(rawBody);
+    console.log('[Bazik Transfer Webhook] Signature verified. Event Type:', payload.type, 'referenceId:', payload.referenceId);
+
+    const { type, referenceId, failureReason, amount } = payload;
+    let orderId = referenceId || '';
+    if (orderId.startsWith('PAY_VENDOR_')) {
+      orderId = orderId.replace('PAY_VENDOR_', '');
+    }
+
+    if (!orderId) {
+      console.error('[Bazik Transfer Webhook Error] Missing referenceId/orderId in transfer payload.');
+      return res.status(400).send('Missing referenceId');
+    }
+
+    if (type === 'transfer.succeeded') {
+      console.log(`[Bazik Transfer Webhook] Payout succeeded for reference ${referenceId}, orderId: ${orderId}`);
+      if (isSupabaseConfigured && supabase) {
+        const { error: updateErr } = await supabase
+          .from('orders')
+          .update({
+            vendor_credited: true,
+            vendor_credited_at: new Date().toISOString()
+          })
+          .eq('id', orderId);
+
+        if (updateErr) {
+          console.error(`[Bazik Transfer Webhook] Error updating vendor_credited in DB:`, updateErr.message);
+        } else {
+          console.log(`[Bazik Transfer Webhook] Vendor credited updated to true in DB for order: ${orderId}`);
+        }
+      }
+    } else if (type === 'transfer.failed') {
+      console.error(`[Bazik Transfer Webhook Failed] Transfer failed for reference ${referenceId}, orderId: ${orderId}, reason: ${failureReason}`);
+      if (isSupabaseConfigured && supabase) {
+        const { data: order } = await supabase
+          .from('orders')
+          .select('vendor_id')
+          .eq('id', orderId)
+          .maybeSingle();
+
+        if (order && order.vendor_id) {
+          await supabase
+            .from('vendor_wallet_transactions')
+            .insert({
+              vendor_id: order.vendor_id,
+              order_id: orderId,
+              amount: Number(amount) || 0,
+              type: 'failed_payout',
+              description: `Échec du virement MonCash du vendeur : ${failureReason || 'Raison inconnue'}. Retry manuel requis.`
+            });
+          console.log(`[Bazik Transfer Webhook] Created failed_payout wallet transaction in DB for order: ${orderId}`);
+        }
+      }
+    }
+
+    return res.status(200).send('ok');
+  } catch (err: any) {
+    console.error('[Bazik Transfer Webhook Exception]', err.message);
+    return res.status(200).send('Handled with exception: ' + err.message);
+  }
+});
+
+// 4. Pay Vendor (Triggered after QR code delivery validation)
+app.post('/api/bazik/pay-vendor', async (req, res) => {
+  const { orderId, vendorWallet, amount, vendorFirstName, vendorLastName } = req.body;
+
+  if (!orderId || !vendorWallet || !amount) {
+    return res.status(400).json({ error: "orderId, vendorWallet, and amount are required." });
   }
 
-  const mccSecret = process.env.MCC_SECRET || '';
+  if (!isValidUuid(orderId)) {
+    return res.status(400).json({ error: "L'identifiant de commande n'est pas un UUID valide." });
+  }
 
   try {
-    const url = `https://hvlmeoqyxaguzcujpmit.supabase.co/functions/v1/pay-status?referenceId=${encodeURIComponent(String(reference))}`;
-    console.log(`[MCC Status Proxy] Fetching pay-status for referenceId: ${reference}`);
-    const response = await fetch(url, {
-      headers: mccSecret ? {
-        'Authorization': `Bearer ${mccSecret}`
-      } : {}
+    if (!isSupabaseConfigured || !supabase) {
+      return res.status(500).json({ error: "Database not configured on server." });
+    }
+
+    const { data: order, error: orderErr } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (orderErr || !order) {
+      console.error('[Bazik Pay Vendor Error] Order not found in DB:', orderId, orderErr);
+      return res.status(404).json({ error: "Commande non trouvée dans la base de données." });
+    }
+
+    const isDeliveryConfirmed = order.reception_confirmed === true || 
+                                order.status === 'completed' || 
+                                order.status === 'livree' || 
+                                order.statut === 'completed' || 
+                                order.statut === 'livree';
+
+    if (!isDeliveryConfirmed) {
+      console.warn(`[Bazik Pay Vendor Reject] Order status does not allow payout. Status: ${order.status}, ReceptionConfirmed: ${order.reception_confirmed}`);
+      return res.status(400).json({ error: "Le virement ne peut pas être initié car la livraison n'est pas confirmée." });
+    }
+
+    const secretKey = process.env.BAZIK_SECRET_KEY || '';
+    if (!secretKey || secretKey === "sk_proj_...") {
+      console.warn('[Bazik Pay Vendor Simulation] No secret key. Simulating successful transfer request.');
+      return res.json({
+        success: true,
+        is_simulated: true,
+        status: "pending",
+        referenceId: `PAY_VENDOR_${orderId}`,
+        message: "Virement simulé initié avec succès (mode test)."
+      });
+    }
+
+    const token = await getBazikToken();
+    console.log(`[Bazik API] Initiating withdraw of ${amount} GDES to wallet ${vendorWallet} for order ${orderId}...`);
+
+    const response = await fetch('https://api.bazik.io/moncash/withdraw', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        gdes: Math.round(Number(amount)),
+        wallet: vendorWallet,
+        description: `Transfert de fonds Vendza - Commande ${orderId}`,
+        referenceId: `PAY_VENDOR_${orderId}`,
+        customerFirstName: vendorFirstName || 'Vendeur',
+        customerLastName: vendorLastName || 'Vendza',
+        customerEmail: 'info@vendza.store',
+        webhookUrl: 'https://vendza.store/api/bazik/webhook/transfer'
+      })
     });
-    
+
     if (!response.ok) {
       const errorText = await response.text();
-      console.warn(`[MCC Status Proxy Error] Code: ${response.status}. Msg: ${errorText}`);
-      return res.status(response.status).json({ error: errorText });
+      console.error('[Bazik API Error] Withdraw call failed:', response.status, errorText);
+      return res.status(response.status).json({ error: `Le virement via Bazik a échoué: ${errorText}` });
     }
 
-    const data = await response.json();
-    
-    // Auto-create order in database securely if completed, acting as an instant webhook fallback on redirect/polling
-    if (data.status === 'completed' && reference) {
-      console.log(`[MCC Status Proxy] Payment status completed! Finalizing: ${reference}`);
-      if (String(reference).startsWith('sub-')) {
-        const pending = await getPendingOrderSubscriptionInfo(String(reference));
-        if (pending) {
-          console.log(`[MCC Status Proxy Subscription] Activating subscription for user: ${pending.userId}, plan: ${pending.planCode}`);
-          await activerAbonnement(
-            pending.userId,
-            pending.planCode,
-            pending.billing || 'mensuel',
-            'moncash',
-            data.amount || 0
-          );
-          try {
-            await supabase.from('pending_orders').delete().eq('reference_id', String(reference));
-          } catch (e) {}
-        } else {
-          console.warn('[MCC Status Proxy Subscription] No pending meta found in DB for:', reference);
-          const parts = String(reference).split('-');
-          const userId = parts[1] || 'unknown';
-          await activerAbonnement(
-            userId,
-            String(reference).includes('pro_national') ? 'pro_national' : 'pro_local',
-            'mensuel',
-            'moncash',
-            data.amount || 0
-          );
-        }
-      } else {
-        await creerCommandeApresPaiement(String(reference), 'moncash', String(reference));
-      }
-    }
+    const data: any = await response.json();
+    console.log('[Bazik API] Withdraw successfully initiated:', data);
 
-    return res.json(data);
+    return res.json({
+      success: true,
+      status: data.status || 'pending',
+      transactionId: data.transactionId || null,
+      referenceId: `PAY_VENDOR_${orderId}`
+    });
+
   } catch (err: any) {
-    console.error('[MCC Status Proxy Exception]', err.message);
-    return res.status(500).json({ error: err.message || 'Erreur lors de la récupération du statut' });
-  }
-});
-
-// ============================================
-// MONCASHCONNECT & WEBHOOK ENDPOINTS
-// ============================================
-
-app.post('/api/moncash/create-payment', async (req, res) => {
-  const { 
-    orderId, 
-    amount,
-    customerName,
-    customerEmail 
-  } = req.body;
-
-  // Vérifier montant valide (1 à 1 000 000 HTG)
-  if(!amount || amount < 1 || amount > 1000000){
-    return res.status(400).json({ 
-      error: 'Montant invalide (1 à 1 000 000 HTG)' 
-    });
-  }
-
-  // Pre-save subscription metadata resiliently if starting with 'sub-'
-  const metadata = req.body.metadata;
-  const isSubscription = (orderId && orderId.startsWith('sub-')) || (metadata && metadata.type === 'subscription');
-
-  if (isSubscription) {
-    const subMeta = metadata || {
-      type: 'subscription',
-      planCode: req.body.planCode || (orderId.includes('pro_national') ? 'pro_national' : 'pro_local'),
-      billing: req.body.billing || 'mensuel',
-      userId: req.body.userId || 'unknown_user_id'
-    };
-    await setPendingSubscriptionMeta(orderId, amount, subMeta);
-  }
-
-  const baseUrl = getBaseUrl(req);
-  const simulationUrl = `${baseUrl}/moncash-simulation?orderId=${encodeURIComponent(orderId)}&total=${encodeURIComponent(String(amount))}`;
-
-  // Check if MonCash secret key is missing or matches the literal placeholder "sk_proj_..." or is not properly formatted.
-  const secretKey = process.env.MONCASHCONNECT_KEY || process.env.VITE_MONCASHCONNECT_KEY || '';
-  const isPlaceholderKey = !secretKey || secretKey === "sk_proj_..." || secretKey.trim() === "" || !secretKey.startsWith("sk_proj_");
-
-  if (isPlaceholderKey) {
-    console.warn(`[MonCash Backend Fallback] Clé MonCashConnect manquante ou invalide ("${secretKey}"). Redirection automatique vers la passerelle de simulation sécurisée.`);
-    return res.json({
-      payment_url: simulationUrl,
-      is_simulated: true,
-      warning: "La clé de l'API MonCashConnect n'est pas configurée ou est invalide. En cours de simulation de paiement."
-    });
-  }
-
-  try {
-    const returnUrl = `${baseUrl}/paiement/moncash/succes?orderId=${orderId}`;
-    console.log(`[MonCash Backend] BaseUrl: ${baseUrl}, returnUrl: ${returnUrl}`);
-
-    const payment = await getMonCashClient().createPayment(
-      Math.round(amount), // Entier obligatoire
-      orderId,
-      {
-        returnUrl: returnUrl,
-        customerName:  customerName || '',
-        customerEmail: customerEmail || '',
-      }
-    );
-
-    res.json({ 
-      payment_url: payment.paymentUrl,
-      expires_at:  payment.expiresAt
-    });
-
-  } catch(error: any) {
-    console.error('MonCashConnect API error:', error);
-
-    // If duplicate reference, let's treat it gracefully
-    if(error.code === 'duplicate_reference'){
-      try {
-        const status = await getMonCashClient().getPaymentStatus(orderId);
-        if(status.status === 'completed'){
-          return res.status(409).json({ 
-            error: 'Cette commande a déjà été payée' 
-          });
-        }
-      } catch (checkErr: any) {
-        console.error('Error fetching status for duplicate reference:', checkErr);
-      }
-    }
-
-    // Catch formatting / key error and fall back to simulation
-    const errMsg = error.message || String(error);
-    if (errMsg.includes('sk_proj_') || errMsg.includes('Secret key')) {
-      console.warn(`[MonCash Backend Fallback] Détection de l'erreur de clé SDK (${errMsg}). Redirection vers le mode simulation.`);
-      return res.json({
-        payment_url: simulationUrl,
-        is_simulated: true,
-        warning: "Configuration MonCash invalide détectée par le SDK. Utilisation du mode simulation."
-      });
-    }
-
-    res.status(500).json({ 
-      error: error.message || 'Erreur lors de la création du paiement MonCash' 
-    });
-  }
-});
-
-app.post('/api/moncash/webhook', express.raw({ type: 'application/json' }), async (req: any, res) => {
-  try {
-    const sig = req.headers['x-mcc-signature'];
-    const ts = req.headers['x-mcc-timestamp'];
-
-    // Vérifier signature HMAC-SHA256 via le constructeur d'évènement SDK
-    const event = constructEvent(
-      req.body,
-      Array.isArray(sig) ? sig[0] : (sig || ''),
-      Array.isArray(ts) ? ts[0] : (ts || ''),
-      process.env.MCC_WEBHOOK_SECRET || ''
-    );
-
-    console.log('Webhook MonCash reçu via SDK:', event.event);
-
-    if(event.event === 'payment.completed'){
-      await creerCommandeApresPaiement(
-        event.reference,
-        'moncash',
-        event.reference
-      );
-    }
-
-    if(event.event === 'payment.failed'){
-      if (isSupabaseConfigured && supabase) {
-        // Nettoyer la commande pending
-        await supabase
-          .from('pending_orders')
-          .delete()
-          .eq('reference_id', event.reference);
-      }
-      console.log('Paiement échoué:', event.reference);
-    }
-
-    res.sendStatus(200);
-
-  } catch(err: any) {
-    if(err instanceof MonCashError){
-      return res.status(err.statusCode)
-        .send(err.message);
-    }
-    console.error('Webhook error:', err);
-    res.sendStatus(500);
-  }
-});
-
-app.get('/api/moncash/status/:orderId', async (req, res) => {
-  const secretKey = process.env.MONCASHCONNECT_KEY || process.env.VITE_MONCASHCONNECT_KEY || '';
-  const isPlaceholderKey = !secretKey || secretKey === "sk_proj_..." || secretKey.trim() === "" || !secretKey.startsWith("sk_proj_");
-
-  if (isPlaceholderKey) {
-    // Return mock completed status to gracefully satisfy client-side polling in test environment
-    return res.json({
-      status: 'completed',
-      reference: req.params.orderId,
-      amount: 100,
-      is_simulated: true
-    });
-  }
-
-  try {
-    const status = await getMonCashClient().getPaymentStatus(
-      req.params.orderId
-    );
-    
-    // Call creerCommandeApresPaiement if Classic MonCash is fully paid to ensure database registration
-    if (status && status.status === 'completed') {
-      console.log(`[Classic MonCash status] Payment status completed! Finalizing order: ${req.params.orderId}`);
-      await creerCommandeApresPaiement(req.params.orderId, 'moncash', req.params.orderId);
-    }
-    
-    res.json(status);
-  } catch(error: any) {
-    console.error('Erreur status-check MonCash:', error.message);
-    
-    // Fallback if SDK complains about formatting
-    if (error.message?.includes('sk_proj_')) {
-      return res.json({
-        status: 'completed',
-        reference: req.params.orderId,
-        amount: 100,
-        is_simulated: true
-      });
-    }
-
-    res.status(404).json({ 
-      error: 'Transaction introuvable: ' + error.message 
-    });
+    console.error('[Bazik Pay Vendor Exception]', err.message);
+    return res.status(500).json({ error: err.message || 'Erreur interne lors du traitement du virement' });
   }
 });
 

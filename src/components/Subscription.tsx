@@ -124,23 +124,16 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     setLoadingPayment('moncash');
 
     try {
-      // Prioritize standard mcc payment creation, fallback to moncash
-      console.log(`[Subscription Client] Creating MCC payment for sub: ${referenceId}`);
-      const response = await fetch('/api/mcc/create-payment', {
+      console.log(`[Subscription Client] Creating Bazik payment for sub: ${referenceId}`);
+      const response = await fetch('/api/bazik/create-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderId: referenceId,
           amount: Math.round(amount),
-          customerName: `${user.prenom || ''} ${user.nom || ''}`.trim() || 'Vendeur Vendza',
-          customerEmail: user.email || '',
-          metadata: {
-            type: 'subscription',
-            planCode: selectedPlanModal === 'Pro National' ? 'pro_national' : 'pro_local',
-            billing: billingStr,
-            userId: user.id,
-            depts: selectedDepts
-          }
+          buyerName: `${user.prenom || ''} ${user.nom || ''}`.trim() || 'Vendeur Vendza',
+          buyerEmail: user.email || '',
+          description: `Abonnement Vendza ${selectedPlanModal} — ${billingStr}`
         })
       });
 

@@ -321,6 +321,12 @@ export default function App() {
         console.log('[OneSignal] Initialized successfully!');
         setOneSignalInitDone(true);
       } catch (err) {
+        const errMsg = String(err);
+        if (errMsg.toLowerCase().includes('already initialized')) {
+          console.log('[OneSignal] SDK already initialized on first attempt.');
+          setOneSignalInitDone(true);
+          return;
+        }
         console.warn('[OneSignal] Initial init failed, retrying with fallback OneSignalSDKWorker.js...', err);
         try {
           await OneSignal.init({
@@ -334,7 +340,13 @@ export default function App() {
           console.log('[OneSignal] Initialized successfully with fallback OneSignalSDKWorker.js');
           setOneSignalInitDone(true);
         } catch (retryErr) {
-          console.error('[OneSignal] Fallback retry also failed:', retryErr);
+          const retryMsg = String(retryErr);
+          if (retryMsg.toLowerCase().includes('already initialized')) {
+            console.log('[OneSignal] SDK already initialized on fallback attempt.');
+            setOneSignalInitDone(true);
+          } else {
+            console.error('[OneSignal] Fallback retry also failed:', retryErr);
+          }
         }
       }
     };
@@ -1272,11 +1284,13 @@ export default function App() {
       }
 
       const sessionId = urlParams.get('session_id') || urlParams.get('sessionId');
-      // Retrieve orderId from query parameter (for both Stripe & MonCash redirects)
+      // Retrieve orderId from query parameter (for both Stripe & Bazik redirects)
       let orderId = urlParams.get('orderId') || urlParams.get('order_id');
+      const bazikOrderId = orderId && orderId.startsWith('BZK_') ? orderId : null;
 
-      const isStripeSuccess = path.includes('/paiement/succes');
-      const isMonCashSuccess = path.includes('/paiement/moncash/succes');
+      const isStripeSuccess = path.includes('/paiement/succes') && (sessionId || urlParams.has('session_id') || urlParams.has('sessionId'));
+      const isBazikSuccess = path.includes('/paiement/succes') && !sessionId && !urlParams.has('session_id') && !urlParams.has('sessionId');
+      const isMonCashSuccess = path.includes('/paiement/moncash/succes') || isBazikSuccess;
 
       if (isStripeSuccess || isMonCashSuccess) {
         console.log(`[Payment Success Redirect] Processing callback for path: ${path}`);
@@ -1310,9 +1324,13 @@ export default function App() {
           let rawOrder: Order | null = null;
           if (pendingOrderStr) {
             rawOrder = JSON.parse(pendingOrderStr) as Order;
-            if (!orderId && rawOrder) {
-              orderId = rawOrder.id;
-            }
+          }
+
+          if (orderId && orderId.startsWith('BZK_') && rawOrder) {
+            console.log(`[Bazik Redirect] Mapping Bazik order ID ${orderId} back to internal order ID ${rawOrder.id}`);
+            orderId = rawOrder.id;
+          } else if (!orderId && rawOrder) {
+            orderId = rawOrder.id;
           }
 
           console.log(`[Payment Verification] Verifying order ${orderId} created by webhook...`);
@@ -1321,11 +1339,19 @@ export default function App() {
           let foundOrder: Order | null = null;
           if (isSupabaseConfigured && supabase && orderId) {
             for (let attempt = 1; attempt <= 10; attempt++) {
-              // Retrieve all orders matching the reference id directly or as split orders (where qr_token starts with orderId)
+              // Retrieve all orders matching the reference id directly or as split orders
               const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-              const orClause = isUuid(orderId)
-                ? `id.eq.${orderId},qr_token.eq.${orderId},qr_token.like.${orderId}_sub_%`
-                : `qr_token.eq.${orderId},qr_token.like.${orderId}_sub_%`;
+              
+              let orClause = '';
+              if (isUuid(orderId)) {
+                orClause = `id.eq.${orderId},qr_token.eq.${orderId},qr_token.like.${orderId}_sub_%`;
+              } else {
+                orClause = `qr_token.eq.${orderId},stripe_session_id.eq.${orderId},qr_token.like.${orderId}_sub_%`;
+              }
+
+              if (bazikOrderId) {
+                orClause += `,stripe_session_id.eq.${bazikOrderId}`;
+              }
 
               const { data: ords, error: ordsErr } = await supabase
                 .from('orders')
@@ -2042,34 +2068,38 @@ export default function App() {
       setIsRedirectingToMonCash(true);
       setRedirectPaymentMethod('moncash');
       try {
-        const response = await fetch('/api/paiement/creer', {
+        const response = await fetch('/api/bazik/create-payment', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             orderId: newOrder.id,
-            total: newOrder.total,
+            amount: newOrder.total,
+            buyerName: `${currentUser?.prenom || ''} ${currentUser?.nom || ''}`.trim() || 'Client Vendza',
+            buyerEmail: currentUser?.email || '',
+            description: `Achat instantané sur Vendza — Commande ${newOrder.id}`
           }),
         });
 
         if (!response.ok) {
           const errText = await response.text();
-          throw new Error(errText || "Impossible d'initier le paiement instantané.");
+          throw new Error(errText || "Impossible d'initier le paiement instantané via Bazik.");
         }
 
         const data = await response.json();
+        const redirectUrl = data.payment_url || data.paymentUrl;
 
-        if (data && data.payment_url) {
+        if (redirectUrl) {
           setInstantCheckoutModalItem(null); // Clear modal select state
-          window.location.href = data.payment_url;
+          window.location.href = redirectUrl;
         } else {
           throw new Error(data.error || "Aucune URL de redirection configurée.");
         }
       } catch (err: any) {
         setIsRedirectingToMonCash(false);
-        console.error("[MonCash Instant Checkout Error]", err.message);
-        alert(`✕ Impossible de se connecter à MonCash: ${err.message}.\n\nVotre commande instantanée a été sauvegardée en local.`);
+        console.error("[Bazik Instant Checkout Error]", err.message);
+        alert(`✕ Impossible de se connecter à Bazik: ${err.message}.\n\nVotre commande instantanée a été sauvegardée en local.`);
       }
     }
   };
@@ -2425,34 +2455,36 @@ export default function App() {
       setIsRedirectingToMonCash(true);
       setRedirectPaymentMethod('moncash');
       try {
-        const response = await fetch('/api/mcc/create-payment', {
+        const response = await fetch('/api/bazik/create-payment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             orderId: rawOrder.id,
             amount: rawOrder.total,
-            customerEmail: currentUser?.email || '',
-            customerName: `${currentUser?.prenom || ''} ${currentUser?.nom || ''}`.trim()
+            buyerName: `${currentUser?.prenom || ''} ${currentUser?.nom || ''}`.trim() || 'Client Vendza',
+            buyerEmail: currentUser?.email || '',
+            description: `Achat de produits sur Vendza — Commande ${rawOrder.id}`
           })
         });
 
         if (!response.ok) {
           const errData = await response.json();
-          throw new Error(errData.error || "Erreur de communication avec le serveur MonCashConnect.");
+          throw new Error(errData.error || "Erreur de communication avec le serveur Bazik.");
         }
 
-        const { paymentUrl } = await response.json();
+        const data = await response.json();
+        const redirectUrl = data.payment_url || data.paymentUrl;
 
-        if (!paymentUrl) {
+        if (!redirectUrl) {
           throw new Error("L'URL de paiement n'a pas été retournée par le serveur.");
         }
 
-        // Redirect to MonCash Connect gateway sandbox
-        window.location.href = paymentUrl;
+        // Redirect to Bazik payment gateway
+        window.location.href = redirectUrl;
       } catch (err: any) {
         setIsRedirectingToMonCash(false);
-        console.error("[MonCash Connect Error]", err.message);
-        alert(`✕ Impossible de se connecter à MonCashConnect: ${err.message}.\n\nVotre achat est enregistré en local.`);
+        console.error("[Bazik Connect Error]", err.message);
+        alert(`✕ Impossible de se connecter à Bazik: ${err.message}.\n\nVotre achat est enregistré en local.`);
       }
     }
   };
@@ -2755,6 +2787,24 @@ export default function App() {
         const montantVendeur = totalPrice - commission;
         const vendorId = order?.vendor_id || targetOrder?.vendorId || '';
 
+        let vendorWallet = '';
+        let vendorFirstName = '';
+        let vendorLastName = '';
+
+        if (vendorId) {
+          const { data: prof } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', vendorId)
+            .maybeSingle();
+            
+          if (prof) {
+            vendorWallet = prof.numero_moncash || prof.moncash || prof.moncash_num || '';
+            vendorFirstName = prof.prenom || prof.first_name || 'Vendeur';
+            vendorLastName = prof.nom || prof.last_name || 'Vendza';
+          }
+        }
+
         if (vendorId) {
           // Transférer pending → available IMMÉDIATEMENT
           const { data: wallet } = await supabase
@@ -2794,6 +2844,33 @@ export default function App() {
               type: 'credit',
               description: `Livraison confirmée — ${montantVendeur} HTG disponible pour le versement du samedi (commission ${rate * 100}% déduite)`
             });
+
+          // Trigger automatic seller payout to Bazik wallet
+          const isMonCashOrder = order?.payment_method === 'moncash' || order?.paymentMethod === 'moncash' || targetOrder?.paymentMethod === 'moncash';
+          if (isMonCashOrder && vendorWallet) {
+            console.log(`[Bazik Payout] Initiating automatic payout to vendor wallet ${vendorWallet} for order ${orderId}...`);
+            try {
+              const payRes = await fetch('/api/bazik/pay-vendor', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  orderId,
+                  vendorWallet,
+                  amount: montantVendeur,
+                  vendorFirstName,
+                  vendorLastName
+                })
+              });
+              const payData = await payRes.json();
+              if (payRes.ok && payData.success) {
+                console.log(`[Bazik Payout Success] Payout successfully initiated via Bazik: PAY_VENDOR_${orderId}`);
+              } else {
+                console.error(`[Bazik Payout Error] API returned failure status:`, payData.error);
+              }
+            } catch (payoutErr: any) {
+              console.error(`[Bazik Payout Exception] Failed to call pay-vendor API:`, payoutErr.message);
+            }
+          }
 
           // Notifier le vendeur
           await supabase

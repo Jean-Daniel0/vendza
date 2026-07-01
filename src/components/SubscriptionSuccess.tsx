@@ -32,12 +32,9 @@ export const SubscriptionSuccess: React.FC<SubscriptionSuccessProps> = ({
     try {
       console.log(`[SubscriptionSuccess] Polling check active subscriber record for user=${user.id}, plan=${plan}`);
 
-      // We wait 3 seconds to let webhook execute, or run check status proxy for immediate MonCash callback
+      // Wait to let webhook execute and verify db state
       if (referenceId && referenceId.startsWith('sub-') && pollingCount === 1) {
-        setFeedbackMsg("Interrogations supplémentaires de la passerelle de sécurisation...");
-        try {
-          await fetch(`/api/mcc/status?reference=${encodeURIComponent(referenceId)}`);
-        } catch (e) {}
+        setFeedbackMsg("Mise à jour finale des permissions d'accès...");
       }
 
       // 1. Check if Supabase profile contains the activated plan
