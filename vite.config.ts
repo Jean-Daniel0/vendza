@@ -26,7 +26,7 @@ export default defineConfig(() => {
           enabled: false,
         },
         workbox: {
-          importScripts: ['https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js'],
+          importScripts: ['/sw-pre.js', 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js'],
           skipWaiting: true,
           clientsClaim: true,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp}'],

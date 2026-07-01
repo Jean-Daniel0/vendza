@@ -67,6 +67,17 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
             .maybeSingle();
           if (data && !error) {
             setFollowersCount(Number(data.nombre_abonnes) || 0);
+          } else {
+            // Fallback: Query vendor_follows directly to compute count
+            const { count, error: countErr } = await supabase
+              .from('vendor_follows')
+              .select('*', { count: 'exact', head: true })
+              .eq('vendor_id', user.id);
+            if (!countErr && count !== null) {
+              setFollowersCount(count);
+            } else {
+              console.warn("Fallback query to vendor_follows also failed:", countErr?.message);
+            }
           }
         } catch (err) {
           console.warn("Could not load followers count from Supabase:", err);
