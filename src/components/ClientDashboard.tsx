@@ -242,6 +242,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
             telephone: formTel,
             departement: formDept,
             commune: formCommune,
+            avatar_url: formAvatar,
             notif_commandes: prefOrders,
             notif_livraisons: prefPromo,
             notif_avis: prefMessages,

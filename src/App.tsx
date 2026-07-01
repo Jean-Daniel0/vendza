@@ -490,8 +490,24 @@ export default function App() {
     if (!supabase) return { ok: false };
     const targetTable = table;
     const body = { ...payload };
+
+    if (targetTable === 'profiles') {
+      const knownProfilesColumns = [
+        'id', 'prenom', 'nom', 'email', 'telephone', 'type', 'departement', 'commune', 
+        'boutique_nom', 'boutique_desc', 'delai_livraison', 'avatar_url', 'numero_moncash', 
+        'note_moyenne', 'total_ventes', 'notif_commandes', 'notif_livraisons', 'notif_avis', 
+        'newsletter', 'created_at', 'updated_at', 'plan', 'premium_depts', 'premiumdepts', 
+        'plan_expires_at', 'statut_verification', 'revenus_bloques'
+      ];
+      for (const key of Object.keys(body)) {
+        if (!knownProfilesColumns.includes(key)) {
+          delete body[key];
+        }
+      }
+    }
+
     let lastError: any = null;
-    for (let k = 0; k < 15; k += 1) {
+    for (let k = 0; k < 50; k += 1) {
       try {
         const idKey = 'id';
         const { data, error } = await supabase.from(targetTable).update(body).eq(idKey, matchId).select();
@@ -3738,7 +3754,8 @@ export default function App() {
         cleanedUpdates.categories !== undefined || 
         cleanedUpdates.moncash !== undefined || 
         cleanedUpdates.banque !== undefined ||
-        cleanedUpdates.idNumber !== undefined
+        cleanedUpdates.idNumber !== undefined ||
+        cleanedUpdates.avatar !== undefined
       ) {
         const shopPayload = {
           shop_name: cleanedUpdates.shopName || currentUser.shopName || '',

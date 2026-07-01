@@ -221,6 +221,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
             boutique_nom: formShopName,
             boutique_desc: formShopDesc,
             numero_moncash: formMoncash,
+            avatar_url: formAvatar,
             notif_commandes: prefOrders,
             notif_livraisons: prefPromo,
             notif_avis: prefAvis,
