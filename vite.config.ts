@@ -20,6 +20,7 @@ export default defineConfig(() => {
       react(),
       tailwindcss(),
       VitePWA({
+        filename: 'OneSignalSDKWorker.js',
         registerType: 'autoUpdate',
         injectRegister: isProd ? 'inline' : null,
         devOptions: {

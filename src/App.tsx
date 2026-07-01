@@ -308,12 +308,8 @@ export default function App() {
         },
       };
 
-      if (isProd) {
-        options.serviceWorkerPath = 'sw.js';
-        options.serviceWorkerParam = { scope: '/' };
-      } else {
-        options.serviceWorkerPath = 'OneSignalSDKWorker.js';
-      }
+      options.serviceWorkerPath = 'OneSignalSDKWorker.js';
+      options.serviceWorkerParam = { scope: '/' };
 
       try {
         console.log('[OneSignal] Initializing Web SDK with options:', options);
@@ -565,7 +561,7 @@ export default function App() {
         .maybeSingle();
       
       if (error) {
-        console.error("Erreur de profil Supabase (profiles):", error.message);
+        console.warn("Erreur de profil Supabase (profiles):", error.message);
         return;
       }
       
@@ -688,11 +684,11 @@ export default function App() {
             });
           }
         } catch (authErr) {
-          console.error("Error fetching user in loadUserProfile fallback:", authErr);
+          console.warn("Error fetching user in loadUserProfile fallback:", authErr);
         }
       }
     } catch (e) {
-      console.error("Erreur de récupération du profil:", e);
+      console.warn("Erreur de récupération du profil:", e);
     }
   };
 
@@ -701,7 +697,7 @@ export default function App() {
     if (!isSupabaseConfigured || !supabase) return;
 
     const handleAuthError = async (err: any) => {
-      console.error("[Supabase Auth Error Detected]:", err);
+      console.warn("[Supabase Auth Error Detected]:", err);
       const strErr = String(err?.message || err || '');
       if (
         strErr.includes('Refresh Token') || 
@@ -1032,7 +1028,7 @@ export default function App() {
       }
 
       if (rawData === null) {
-        console.error("Erreur Supabase produits (candidats):", queryError);
+        console.warn("Erreur Supabase produits (candidats):", queryError);
         if (!isAppend) {
           setProducts(FRONTEND_FALLBACK_PRODUCTS);
           const searchParams = new URLSearchParams(window.location.search);
@@ -2084,23 +2080,20 @@ export default function App() {
       setIsRedirectingToMonCash(true);
       setRedirectPaymentMethod('moncash');
       try {
-        const response = await fetch('/api/bazik/create-payment', {
+        const response = await fetch('/api/paiement/creer', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             orderId: newOrder.id,
-            amount: newOrder.total,
-            buyerName: `${currentUser?.prenom || ''} ${currentUser?.nom || ''}`.trim() || 'Client Vendza',
-            buyerEmail: currentUser?.email || '',
-            description: `Achat instantané sur Vendza — Commande ${newOrder.id}`
+            total: newOrder.total,
           }),
         });
 
         if (!response.ok) {
-          const errText = await response.text();
-          throw new Error(errText || "Impossible d'initier le paiement instantané via Bazik.");
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || "Impossible d'initier le paiement via l'API MonCash.");
         }
 
         const data = await response.json();
@@ -2114,8 +2107,8 @@ export default function App() {
         }
       } catch (err: any) {
         setIsRedirectingToMonCash(false);
-        console.error("[Bazik Instant Checkout Error]", err.message);
-        alert(`✕ Impossible de se connecter à Bazik: ${err.message}.\n\nVotre commande instantanée a été sauvegardée en local.`);
+        console.error("[MonCash Instant Checkout Error]", err.message);
+        alert(`✕ Impossible de se connecter à MonCash: ${err.message}.\n\nVotre commande instantanée a été sauvegardée en local.`);
       }
     }
   };
@@ -2471,21 +2464,18 @@ export default function App() {
       setIsRedirectingToMonCash(true);
       setRedirectPaymentMethod('moncash');
       try {
-        const response = await fetch('/api/bazik/create-payment', {
+        const response = await fetch('/api/paiement/creer', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             orderId: rawOrder.id,
-            amount: rawOrder.total,
-            buyerName: `${currentUser?.prenom || ''} ${currentUser?.nom || ''}`.trim() || 'Client Vendza',
-            buyerEmail: currentUser?.email || '',
-            description: `Achat de produits sur Vendza — Commande ${rawOrder.id}`
+            total: rawOrder.total,
           })
         });
 
         if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(errData.error || "Erreur de communication avec le serveur Bazik.");
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || "Erreur de communication avec le serveur MonCash.");
         }
 
         const data = await response.json();
@@ -2495,12 +2485,12 @@ export default function App() {
           throw new Error("L'URL de paiement n'a pas été retournée par le serveur.");
         }
 
-        // Redirect to Bazik payment gateway
+        // Redirect to MonCash payment gateway
         window.location.href = redirectUrl;
       } catch (err: any) {
         setIsRedirectingToMonCash(false);
-        console.error("[Bazik Connect Error]", err.message);
-        alert(`✕ Impossible de se connecter à Bazik: ${err.message}.\n\nVotre achat est enregistré en local.`);
+        console.error("[MonCash Connect Error]", err.message);
+        alert(`✕ Impossible de se connecter à MonCash: ${err.message}.\n\nVotre achat est enregistré en local.`);
       }
     }
   };

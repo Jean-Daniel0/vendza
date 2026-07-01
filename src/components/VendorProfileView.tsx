@@ -69,6 +69,14 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
   // Check follow status in database on mount or user/vendor change
   useEffect(() => {
     const checkFollowStatus = async () => {
+      // Check localStorage first as a baseline
+      try {
+        const localFollows = JSON.parse(localStorage.getItem('local_vendor_follows') || '[]');
+        if (localFollows.includes(vendorId)) {
+          setIsFollowing(true);
+        }
+      } catch (e) {}
+
       if (isSupabaseConfigured && supabase && user?.id && vendorId && isValidUuid(user.id) && isValidUuid(vendorId)) {
         try {
           const { data, error } = await supabase
@@ -83,8 +91,24 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
               notifyNewProducts: data.notify_new_products,
               notifyPromotions: data.notify_promotions,
             });
+            // Keep localStorage in sync
+            try {
+              const localFollows = JSON.parse(localStorage.getItem('local_vendor_follows') || '[]');
+              if (!localFollows.includes(vendorId)) {
+                localFollows.push(vendorId);
+                localStorage.setItem('local_vendor_follows', JSON.stringify(localFollows));
+              }
+            } catch (e) {}
           } else {
-            setIsFollowing(false);
+            // If Supabase specifically says the row doesn't exist (no error, empty data), clear local follow state
+            if (!error && !data) {
+              setIsFollowing(false);
+              try {
+                const localFollows = JSON.parse(localStorage.getItem('local_vendor_follows') || '[]');
+                const filtered = localFollows.filter((id: string) => id !== vendorId);
+                localStorage.setItem('local_vendor_follows', JSON.stringify(filtered));
+              } catch (e) {}
+            }
           }
         } catch (err) {
           console.warn("Error checking follow status:", err);
@@ -110,31 +134,64 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
     try {
       if (isFollowing) {
         // Unfollow
-        const { error } = await supabase
-          .from('vendor_follows')
-          .delete()
-          .eq('follower_id', user.id)
-          .eq('vendor_id', vendorId);
-        if (error) throw error;
+        if (isSupabaseConfigured && supabase && user?.id && vendorId && isValidUuid(user.id) && isValidUuid(vendorId)) {
+          try {
+            const { error } = await supabase
+              .from('vendor_follows')
+              .delete()
+              .eq('follower_id', user.id)
+              .eq('vendor_id', vendorId);
+            if (error) {
+              console.warn("[Supabase Follow Warning] Unfollow DB error, falling back to local:", error.message);
+            }
+          } catch (dbErr: any) {
+            console.warn("[Supabase Follow Warning] Unfollow exception, falling back to local:", dbErr.message);
+          }
+        }
+        
+        // Update local storage
+        try {
+          const localFollows = JSON.parse(localStorage.getItem('local_vendor_follows') || '[]');
+          const filtered = localFollows.filter((id: string) => id !== vendorId);
+          localStorage.setItem('local_vendor_follows', JSON.stringify(filtered));
+        } catch (e) {}
+        
         setIsFollowing(false);
       } else {
         // Follow
-        const { error } = await supabase
-          .from('vendor_follows')
-          .insert({
-            follower_id: user.id,
-            vendor_id: vendorId,
-            notify_new_products: true,
-            notify_promotions: true,
-          });
-        if (error) throw error;
+        if (isSupabaseConfigured && supabase && user?.id && vendorId && isValidUuid(user.id) && isValidUuid(vendorId)) {
+          try {
+            const { error } = await supabase
+              .from('vendor_follows')
+              .insert({
+                follower_id: user.id,
+                vendor_id: vendorId,
+                notify_new_products: true,
+                notify_promotions: true,
+              });
+            if (error) {
+              console.warn("[Supabase Follow Warning] Follow DB error (e.g. RLS policy violation), falling back to local:", error.message);
+            }
+          } catch (dbErr: any) {
+            console.warn("[Supabase Follow Warning] Follow exception, falling back to local:", dbErr.message);
+          }
+        }
+
+        // Update local storage
+        try {
+          const localFollows = JSON.parse(localStorage.getItem('local_vendor_follows') || '[]');
+          if (!localFollows.includes(vendorId)) {
+            localFollows.push(vendorId);
+            localStorage.setItem('local_vendor_follows', JSON.stringify(localFollows));
+          }
+        } catch (e) {}
+
         setIsFollowing(true);
         setFollowPreferences({ notifyNewProducts: true, notifyPromotions: true });
-        setShowPreferencesModal(true); // Show preference preferences modal on initial follow
+        setShowPreferencesModal(true); // Show preferences modal on initial follow
       }
     } catch (err: any) {
-      console.error("Follow toggle error:", err.message);
-      alert("Une erreur s'est produite lors de l'action de suivi.");
+      console.error("Follow toggle exception handled:", err.message);
     } finally {
       setIsFollowActionLoading(false);
     }

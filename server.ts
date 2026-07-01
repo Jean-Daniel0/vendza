@@ -1333,9 +1333,12 @@ app.post('/api/bazik/create-payment', async (req, res) => {
   }
 
   try {
-    const successUrl = `https://vendza.store/paiement/succes?orderId=${orderId}`;
-    const errorUrl = `https://vendza.store/paiement/erreur?orderId=${orderId}`;
-    const webhookUrl = 'https://vendza.store/api/bazik/webhook/payment';
+    const baseUrl = getBaseUrl(req);
+    const successUrl = `${baseUrl}/paiement/succes?orderId=${orderId}`;
+    const errorUrl = `${baseUrl}/paiement/erreur?orderId=${orderId}`;
+    const webhookUrl = (baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1'))
+      ? 'https://vendza.store/api/bazik/webhook/payment'
+      : `${baseUrl}/api/bazik/webhook/payment`;
 
     const nameParts = (buyerName || '').trim().split(/\s+/);
     const customerFirstName = nameParts[0] || 'Client';
@@ -1343,7 +1346,10 @@ app.post('/api/bazik/create-payment', async (req, res) => {
 
     const token = await getBazikToken();
 
-    console.log(`[Bazik API] Creating payment token for order ${orderId}, amount: ${numericAmount} GDES...`);
+    // Use unique reference ID to prevent Bazik duplicate transaction errors on retries
+    const uniqueReferenceId = `${orderId}_bz_${Date.now()}`;
+
+    console.log(`[Bazik API] Creating payment token for order ${orderId} (Ref: ${uniqueReferenceId}), amount: ${numericAmount} GDES...`);
 
     const requestBody = {
       gdes: numericAmount,
@@ -1351,7 +1357,7 @@ app.post('/api/bazik/create-payment', async (req, res) => {
       successUrl: successUrl,
       errorUrl: errorUrl,
       description: description || `Achat sur Vendza — Commande ${orderId}`,
-      referenceId: orderId,
+      referenceId: uniqueReferenceId,
       customerFirstName,
       customerLastName,
       customerEmail: buyerEmail || 'info@vendza.store',
@@ -1425,7 +1431,15 @@ app.post('/api/bazik/webhook/payment', express.raw({ type: '*/*' }), async (req:
     console.log('[Bazik Payment Webhook] Signature verified. Event Type:', payload.type, 'orderId:', payload.orderId, 'referenceId:', payload.referenceId);
 
     const { type, orderId, referenceId, amount } = payload;
-    const finalOrderId = referenceId || orderId;
+    const rawOrderId = referenceId || orderId;
+    let finalOrderId = rawOrderId;
+
+    if (rawOrderId && typeof rawOrderId === 'string') {
+      if (rawOrderId.includes('_bz_')) {
+        finalOrderId = rawOrderId.split('_bz_')[0];
+        console.log(`[Bazik Payment Webhook] Decoded raw reference ID ${rawOrderId} to final internal order ID: ${finalOrderId}`);
+      }
+    }
 
     if (!finalOrderId) {
       console.error('[Bazik Payment Webhook Error] Missing finalOrderId/referenceId in webhook payload:', payload);
