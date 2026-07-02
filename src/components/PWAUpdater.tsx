@@ -54,99 +54,11 @@ export function PWAUpdater() {
     };
   }, []);
 
-  // Effect to decide when to reload safely
+  // Effect to show notification when update is available
   useEffect(() => {
-    if (!needRefresh) return;
-
-    // Show a beautiful, polite notification at the bottom
-    setShowNotification(true);
-
-    // Helper to check if the user is in the middle of a critical action
-    const isUserEngagedInAction = () => {
-      // 1. Is the user typing in any input?
-      const activeEl = document.activeElement;
-      if (activeEl) {
-        const tagName = activeEl.tagName.toUpperCase();
-        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tagName) || activeEl.hasAttribute('contenteditable')) {
-          return true;
-        }
-      }
-
-      // 2. Are there active payment loaders or critical checkout elements visible?
-      const bodyText = document.body.innerText || '';
-      const criticalKeywords = [
-        'Redirection',
-        'Connexion Stripe',
-        'Paiement en cours',
-        'Traitement',
-        'Patientez',
-        'Validation physique',
-        'Saisie',
-        'MonCash'
-      ];
-      
-      const hasCriticalKeywords = criticalKeywords.some(keyword => bodyText.includes(keyword));
-      if (hasCriticalKeywords) {
-        return true;
-      }
-
-      // 3. Are they currently on the checkout page or completing an order?
-      const currentView = localStorage.getItem('vendza_current_view') || 'home';
-      if (currentView === 'cart' || currentView === 'checkout' || currentView === 'scanner') {
-        return true;
-      }
-
-      return false;
-    };
-
-    // Attempt to execute automatic safe reload
-    const trySafeReload = () => {
-      if (isUserEngagedInAction()) {
-        console.log('[PWA Updater] Un rechargement automatique est nécessaire, mais reporté car l\'utilisateur est actif.');
-        return false;
-      }
-
-      // Check if we already reloaded in the last 10 seconds to avoid infinite loops
-      const lastReload = sessionStorage.getItem('vendza_pwa_last_reload_time');
-      const now = Date.now();
-      if (lastReload && now - parseInt(lastReload, 10) < 10000) {
-        console.log('[PWA Updater] Rechargement automatique ignoré pour éviter une boucle de rafraîchissement.');
-        return false;
-      }
-
-      console.log('[PWA Updater] Rechargement automatique sécurisé en cours...');
-      sessionStorage.setItem('vendza_pwa_last_reload_time', now.toString());
-      sessionStorage.removeItem('vendza_sw_update_pending');
-      window.location.reload();
-      return true;
-    };
-
-    // 1. Try reloading immediately if safe
-    const reloaded = trySafeReload();
-    if (reloaded) return;
-
-    // 2. Listen for visibility changes (extremely silent and elegant way to update)
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        console.log('[PWA Updater] L\'onglet est visible. Tentative de rafraîchissement de la mise à jour...');
-        trySafeReload();
-      }
-    };
-
-    // 3. Listen for user interactions to check again when they are clicking but not typing
-    const handleUserInteraction = () => {
-      if (!isUserEngagedInAction()) {
-        trySafeReload();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    document.addEventListener('click', handleUserInteraction);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      document.removeEventListener('click', handleUserInteraction);
-    };
+    if (needRefresh) {
+      setShowNotification(true);
+    }
   }, [needRefresh]);
 
   if (!showNotification) return null;
@@ -177,7 +89,7 @@ export function PWAUpdater() {
             </button>
           </h4>
           <p className="text-xs text-slate-400 leading-relaxed font-sans">
-            Une nouvelle version de Vendza a été installée. Elle s'activera automatiquement au prochain démarrage ou au changement d'onglet.
+            Une nouvelle version de Vendza est disponible pour améliorer votre expérience.
           </p>
         </div>
       </div>
