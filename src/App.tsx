@@ -2080,20 +2080,23 @@ export default function App() {
       setIsRedirectingToMonCash(true);
       setRedirectPaymentMethod('moncash');
       try {
-        const response = await fetch('/api/paiement/creer', {
+        const response = await fetch('/api/bazik/create-payment', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             orderId: newOrder.id,
-            total: newOrder.total,
+            amount: newOrder.total,
+            buyerName: currentUser?.nom || currentUser?.display_name || 'Client Vendza',
+            buyerEmail: currentUser?.email || '',
+            description: `Achat sur Vendza - Commande ${newOrder.id}`,
           }),
         });
 
         if (!response.ok) {
           const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.error || "Impossible d'initier le paiement via l'API MonCash.");
+          throw new Error(errData.error || "Impossible d'initier le paiement via l'API Bazik.");
         }
 
         const data = await response.json();
@@ -2108,7 +2111,7 @@ export default function App() {
       } catch (err: any) {
         setIsRedirectingToMonCash(false);
         console.error("[MonCash Instant Checkout Error]", err.message);
-        alert(`✕ Impossible de se connecter à MonCash: ${err.message}.\n\nVotre commande instantanée a été sauvegardée en local.`);
+        alert(`✕ Impossible de se connecter à MonCash (via Bazik): ${err.message}.\n\nVotre commande instantanée a été sauvegardée en local.`);
       }
     }
   };
@@ -2464,18 +2467,21 @@ export default function App() {
       setIsRedirectingToMonCash(true);
       setRedirectPaymentMethod('moncash');
       try {
-        const response = await fetch('/api/paiement/creer', {
+        const response = await fetch('/api/bazik/create-payment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             orderId: rawOrder.id,
-            total: rawOrder.total,
+            amount: rawOrder.total,
+            buyerName: currentUser?.nom || currentUser?.display_name || 'Client Vendza',
+            buyerEmail: currentUser?.email || '',
+            description: `Achat sur Vendza - Commande ${rawOrder.id}`,
           })
         });
 
         if (!response.ok) {
           const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.error || "Erreur de communication avec le serveur MonCash.");
+          throw new Error(errData.error || "Erreur de communication avec le serveur Bazik.");
         }
 
         const data = await response.json();
@@ -2490,7 +2496,7 @@ export default function App() {
       } catch (err: any) {
         setIsRedirectingToMonCash(false);
         console.error("[MonCash Connect Error]", err.message);
-        alert(`✕ Impossible de se connecter à MonCash: ${err.message}.\n\nVotre achat est enregistré en local.`);
+        alert(`✕ Impossible de se connecter à MonCash (via Bazik): ${err.message}.\n\nVotre achat est enregistré en local.`);
       }
     }
   };
@@ -2851,10 +2857,9 @@ export default function App() {
               description: `Livraison confirmée — ${montantVendeur} HTG disponible pour le versement du samedi (commission ${rate * 100}% déduite)`
             });
 
-          // Trigger automatic seller payout to Bazik wallet
-          const isMonCashOrder = order?.payment_method === 'moncash' || order?.paymentMethod === 'moncash' || targetOrder?.paymentMethod === 'moncash';
-          if (isMonCashOrder && vendorWallet) {
-            console.log(`[Bazik Payout] Initiating automatic payout to vendor wallet ${vendorWallet} for order ${orderId}...`);
+          // Trigger automatic seller payout to vendor's preferred account
+          if (vendorWallet) {
+            console.log(`[Bazik Payout] Initiating automatic payout to vendor wallet/account ${vendorWallet} for order ${orderId}...`);
             try {
               const payRes = await fetch('/api/bazik/pay-vendor', {
                 method: 'POST',
@@ -3208,46 +3213,31 @@ export default function App() {
         shared_on_whatsapp: false
       };
 
-      for (let attempt = 0; attempt < 25; attempt++) {
-        try {
-          const { data, error } = await supabase.from('products').insert([payload]).select();
-          if (!error) {
-            console.log("Successfully created product in Supabase database!");
-            if (data && data[0]) {
-              const dbProd = data[0];
-              // Map DB true uuid back to our local lists
-              setProducts(prev => prev.map(p => p.id === fullProd.id ? { ...p, id: dbProd.id } : p));
-            }
-            break;
-          }
+      try {
+        const { data, error } = await supabase.from('products').insert([payload]).select();
+        if (error) {
           const errMsg = String(error.message || '');
           if (errMsg.toLowerCase().includes('fetch') || errMsg.toLowerCase().includes('network') || errMsg.toLowerCase().includes('failed to fetch')) {
             console.warn("Network issue caught during product insert:", errMsg);
             alert(`⚠️ Problème de connexion internet (Échec du réseau).\n\nVotre produit "${fullProd.nom}" a été enregistré correctement localement sur votre appareil.\n\nIl s'affiche dans votre mode Boutique et sera synchronisé dès le rétablissement de la liaison en ligne.`);
-            break;
-          }
-
-          const matchCol = errMsg.match(/Could not find the '([^']+)' column/i)
-            || errMsg.match(/column "([^"]+)" of relation "[^"]+" does not exist/i)
-            || errMsg.match(/column "([^"]+)" of relation "products" does not exist/i);
-
-          if (matchCol && matchCol[1] && Object.prototype.hasOwnProperty.call(payload, matchCol[1])) {
-            console.warn(`Adaptive prune: removing missing column '${matchCol[1]}' from insert.`);
-            delete payload[matchCol[1]];
-            continue;
           } else {
             console.error("Unrecoverable error creating product in Supabase:", error.message);
-            break;
+            alert(`Erreur lors de la création du produit: ${error.message}`);
           }
-        } catch (err: any) {
-          const errMsg = String(err?.message || '');
-          if (errMsg.toLowerCase().includes('fetch') || errMsg.toLowerCase().includes('network') || errMsg.toLowerCase().includes('failed to fetch')) {
-            console.warn("Network exception caught during product insert:", errMsg);
-            alert(`⚠️ Problème de connexion internet (Échec du réseau).\n\nVotre produit "${fullProd.nom}" a été enregistré correctement localement sur votre appareil.\n\nIl s'affiche dans votre mode Boutique et sera synchronisé dès le rétablissement de la liaison en ligne.`);
-          } else {
-            console.error("Exception in adaptive insert:", err.message);
-          }
-          break;
+        } else if (data && data[0]) {
+          console.log("Successfully created product in Supabase database!");
+          const dbProd = data[0];
+          // Map DB true uuid back to our local lists
+          setProducts(prev => prev.map(p => p.id === fullProd.id ? { ...p, id: dbProd.id } : p));
+        }
+      } catch (err: any) {
+        const errMsg = String(err?.message || '');
+        if (errMsg.toLowerCase().includes('fetch') || errMsg.toLowerCase().includes('network') || errMsg.toLowerCase().includes('failed to fetch')) {
+          console.warn("Network exception caught during product insert:", errMsg);
+          alert(`⚠️ Problème de connexion internet (Échec du réseau).\n\nVotre produit "${fullProd.nom}" a été enregistré correctement localement sur votre appareil.\n\nIl s'affiche dans votre mode Boutique et sera synchronisé dès le rétablissement de la liaison en ligne.`);
+        } else {
+          console.error("Exception in product insert:", err.message);
+          alert(`Une erreur inattendue est survenue: ${err.message}`);
         }
       }
     }

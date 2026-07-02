@@ -2036,7 +2036,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                   ⚠️ Rappel Séquestre Résident
                 </span>
                 <p className="text-[10px] text-slate-500 leading-relaxed font-semibold">
-                  Les fonds versés par les clients haïtiens via MonCash, Natcash ou carte de crédit sont systématiquement gelés dans notre pool de garantie nationale sécurisée. Les escroqueries, achats personnels invalides et usurpations sont bloqués par audits de livraison QR.
+                  Les fonds versés par les clients haïtiens via MonCash ou carte de crédit sont systématiquement gelés dans notre pool de garantie nationale sécurisée. Les escroqueries, achats personnels invalides et usurpations sont bloqués par audits de livraison QR.
                 </p>
               </div>
             </div>

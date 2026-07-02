@@ -1642,12 +1642,12 @@ app.post('/api/bazik/pay-vendor', async (req, res) => {
         is_simulated: true,
         status: "pending",
         referenceId: `PAY_VENDOR_${orderId}`,
-        message: "Virement simulé initié avec succès (mode test)."
+        message: "Virement MonCash simulé initié avec succès (mode test)."
       });
     }
 
     const token = await getBazikToken();
-    console.log(`[Bazik API] Initiating withdraw of ${amount} GDES to wallet ${vendorWallet} for order ${orderId}...`);
+    console.log(`[Bazik API] Initiating withdraw of ${amount} GDES to MonCash wallet ${vendorWallet} for order ${orderId}...`);
 
     const response = await fetch('https://api.bazik.io/moncash/withdraw', {
       method: 'POST',
@@ -1862,87 +1862,6 @@ app.post('/api/orders/pending', async (req, res) => {
       source: 'local_fallback',
       warning: err.message,
       data: pendingPayload
-    });
-  }
-});
-
-app.post('/api/paiement/creer', async (req, res) => {
-  const { orderId, total } = req.body;
-  if (!orderId || !total) {
-    return res.status(400).json({ error: "Champs requis manquants : orderId ou total" });
-  }
-
-  // Real MonCash or Sandbox Integration if ClientID & Secret are set
-  const clientId = process.env.MONCASH_CLIENT_ID || '';
-  const clientSecret = process.env.MONCASH_CLIENT_SECRET || '';
-  const mode = process.env.MONCASH_MODE || 'sandbox';
-
-  if (!clientId || !clientSecret) {
-    return res.status(400).json({
-      error: "Les identifiants de l'API MonCash (MONCASH_CLIENT_ID / MONCASH_CLIENT_SECRET) ne sont pas configurés dans les variables d'environnement."
-    });
-  }
-
-  try {
-    console.log(`[MonCash Backend] Initiating real/sandbox MonCash payment for order ${orderId}, amount: ${total} HTG...`);
-    const authUrl = mode === 'live' 
-      ? 'https://moncashbutton.digicelgroup.com/Moncash-middleware/oauth/token'
-      : 'https://sandbox.moncashbutton.digicelgroup.com/Moncash-middleware/oauth/token';
-
-    // Call MonCash token endpoint
-    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-    const tokenResponse = await fetch(`${authUrl}?grant_type=client_credentials`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Basic ${credentials}`
-      }
-    });
-
-    if (!tokenResponse.ok) {
-      throw new Error(`MonCash auth failed: ${tokenResponse.statusText}`);
-    }
-
-    const tokenData: any = await tokenResponse.json();
-    const token = tokenData.access_token;
-
-    // Construct payment creation body
-    const createUrl = mode === 'live'
-      ? 'https://moncashbutton.digicelgroup.com/Moncash-middleware/v1/CreatePayment'
-      : 'https://sandbox.moncashbutton.digicelgroup.com/Moncash-middleware/v1/CreatePayment';
-
-    const paymentResponse = await fetch(createUrl, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        amount: Math.round(Number(total)),
-        orderId: orderId
-      })
-    });
-
-    if (!paymentResponse.ok) {
-      throw new Error(`MonCash payment creation failed: ${paymentResponse.statusText}`);
-    }
-
-    const paymentData: any = await paymentResponse.json();
-    const rawToken = paymentData.payment_token?.token;
-
-    if (!rawToken) {
-      throw new Error("No payment token returned by MonCash API.");
-    }
-
-    const redirectUrl = mode === 'live'
-      ? `https://moncashbutton.digicelgroup.com/Moncash-middleware/Payment/Redirect?token=${rawToken}`
-      : `https://sandbox.moncashbutton.digicelgroup.com/Moncash-middleware/Payment/Redirect?token=${rawToken}`;
-
-    return res.json({ payment_url: redirectUrl });
-  } catch (err: any) {
-    console.error(`[MonCash Backend Error]`, err.message);
-    return res.status(500).json({
-      error: `Échec de l'appel direct de l'API MonCash: ${err.message}`
     });
   }
 });

@@ -933,7 +933,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
                   </div>
                 </div>
               ) : (
-                <div className="space-y-3.5 text-xs text-slate-700 font-semibold">
+                <div className="space-y-4 text-xs text-slate-700 font-semibold">
                   <div className="p-3 bg-red-50/60 border border-red-100 rounded-2xl space-y-3">
                     <span className="text-[10.5px] font-black text-red-950 block">Compte MonCash</span>
                     
