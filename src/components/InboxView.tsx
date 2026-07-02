@@ -312,12 +312,14 @@ export const InboxView: React.FC<InboxViewProps> = ({
 
             setContacts(withSystem);
           } else {
-            setContacts([{ id: '99999999-9999-4999-9999-999999999999', nom: 'Vendza', type: 'system', subtitle: 'Notifications de sécurité' }]);
+            setLoadError("Impossible d'actualiser, réessai en cours...");
+            setContacts(prev => prev.length > 1 ? prev : [{ id: '99999999-9999-4999-9999-999999999999', nom: 'Vendza', type: 'system', subtitle: 'Notifications de sécurité' }]);
             setSelectedRecipientId('99999999-9999-4999-9999-999999999999');
             setSelectedRecipientNom('Vendza');
           }
         } catch (e) {
-          setContacts([{ id: '99999999-9999-4999-9999-999999999999', nom: 'Vendza', type: 'system', subtitle: 'Notifications de sécurité' }]);
+          setLoadError("Impossible d'actualiser, réessai en cours...");
+          setContacts(prev => prev.length > 1 ? prev : [{ id: '99999999-9999-4999-9999-999999999999', nom: 'Vendza', type: 'system', subtitle: 'Notifications de sécurité' }]);
         }
       }
     }

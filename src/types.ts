@@ -25,6 +25,8 @@ export interface Product {
   delaiLivraison?: string;
   scoreReferencement?: number;
   seoWarning?: string;
+  autoShare?: boolean;
+  auto_share?: boolean;
 }
 
 export interface CartItem {

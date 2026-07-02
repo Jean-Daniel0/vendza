@@ -5,7 +5,7 @@ services:
   - type: web
     name: vendza
     env: node
-    plan: free # Render's free tier
+    plan: starter # Render's starter tier
     buildCommand: npm install && npm run build
     startCommand: npm run start
     envVars:
@@ -13,29 +13,34 @@ services:
         value: production
       - key: PORT
         value: 10000 # Render assigns a port dynamically, but we define a default here
-      - key: GEMINI_API_KEY
+      - key: BASE_URL
         sync: false
-        description: "Required for Gemini AI features."
-      - key: APP_URL
-        sync: false
-        description: "The deployment URL of your service (e.g. https://www.vendza.store). Used for redirect links and webhooks."
+        description: "URL de production ex: https://vendza.store"
       - key: VITE_SUPABASE_URL
         sync: false
         description: "Supabase Project URL"
       - key: VITE_SUPABASE_ANON_KEY
         sync: false
         description: "Supabase Anonymous Key (Client-side)"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
         description: "Supabase Service Role Key (Server-side)"
-      - key: MONCASH_CLIENT_ID
+      - key: BAZIK_USER_ID
         sync: false
-      - key: MONCASH_CLIENT_SECRET
+        description: "Identifiant utilisateur Bazik"
+      - key: BAZIK_SECRET_KEY
         sync: false
-      - key: MONCASH_MODE
+        description: "Clé secrète Bazik"
+      - key: BAZIK_WEBHOOK_SECRET
+        sync: false
+        description: "Secret webhook Bazik depuis Dashboard → Developers → Credentials"
+      - key: BAZIK_ENV
         value: sandbox
-      - key: STRIPE_PUBLISHABLE_KEY
-        sync: false
+        description: "Changer en 'live' pour la production réelle"
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
@@ -47,4 +52,6 @@ services:
       - key: SIGHTENGINE_API_SECRET
         sync: false
       - key: ONESIGNAL_REST_API_KEY
+        sync: false
+      - key: VITE_ONESIGNAL_APP_ID
         sync: false

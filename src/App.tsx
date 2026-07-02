@@ -1352,13 +1352,13 @@ export default function App() {
           if (isSupabaseConfigured && supabase && orderId) {
             for (let attempt = 1; attempt <= 10; attempt++) {
               // Retrieve all orders matching the reference id directly or as split orders
-              const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+              const isValidUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
               
               let orClause = '';
-              if (isUuid(orderId)) {
+              if (isValidUuid(orderId)) {
                 orClause = `id.eq.${orderId},qr_token.eq.${orderId},qr_token.like.${orderId}_sub_%`;
               } else {
-                orClause = `qr_token.eq.${orderId},stripe_session_id.eq.${orderId},qr_token.like.${orderId}_sub_%`;
+                orClause = `qr_token.eq.${orderId},qr_token.like.${orderId}_sub_%`;
               }
 
               if (bazikOrderId) {
@@ -3180,42 +3180,32 @@ export default function App() {
     }
 
     if (isSupabaseConfigured && supabase) {
+      const isValidUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+      if (!fullProd.vendeurId || !isValidUuid(fullProd.vendeurId)) {
+        alert("✕ Erreur de profil Supabase: ID de vendeur invalide ou inexistant. Veuillez vous reconnecter.");
+        return;
+      }
+
       let payload: any = {
-        id: fullProd.id,
-        nom: fullProd.nom,
-        name: fullProd.nom,
-        desc: fullProd.desc,
-        description: fullProd.desc,
-        prix: fullProd.prix,
-        price: fullProd.prix,
-        old_price: fullProd.oldPrice,
-        stock: fullProd.stock,
-        image_url: fullProd.image_url,
-        vendeur: fullProd.vendeur,
-        vendeur_id: fullProd.vendeurId,
         vendor_id: fullProd.vendeurId,
-        rating: fullProd.rating,
-        tags: fullProd.tags,
-        keywords: fullProd.tags,
-        couleurs: fullProd.couleurs,
-        colors: fullProd.couleurs,
-        tailles: fullProd.tailles,
-        sizes: fullProd.tailles,
-        capacites: fullProd.capacites,
-        capacities: fullProd.capacites ? fullProd.capacites.join(', ') : '', // Schema capacities is text
-        gallery: fullProd.gallery,
-        delai_livraison: fullProd.delaiLivraison,
-        delivery_time: fullProd.delaiLivraison,
-        statut: fullProd.statut === 'actif' ? 'published' : 'draft',
-        status: fullProd.statut === 'actif' ? 'published' : 'draft',
-        cat: fullProd.cat,
+        name: fullProd.nom,
+        description: fullProd.desc,
+        price: Number(fullProd.prix) || 0,
+        old_price: fullProd.oldPrice ? Number(fullProd.oldPrice) : null,
+        stock: Number(fullProd.stock) || 0,
+        image_url: fullProd.image_url,
+        gallery: fullProd.gallery || [],
         category: fullProd.cat,
-        caracteristiques: fullProd.caracteristiques,
-        features: fullProd.caracteristiques,
+        colors: Array.isArray(fullProd.couleurs) ? fullProd.couleurs : [],
+        features: fullProd.caracteristiques || {},
+        capacities: Array.isArray(fullProd.capacites) ? fullProd.capacites.join(',') : (fullProd.capacites || ''),
+        delivery_time: fullProd.delaiLivraison,
+        status: fullProd.statut === 'actif' ? 'published' : 'draft',
+        is_active: fullProd.statut === 'actif',
         departement: fullProd.departement,
-        region: fullProd.departement,
         commune: fullProd.commune,
-        location: fullProd.commune
+        auto_share: fullProd.autoShare || false,
+        shared_on_whatsapp: false
       };
 
       for (let attempt = 0; attempt < 25; attempt++) {
@@ -3235,13 +3225,6 @@ export default function App() {
             console.warn("Network issue caught during product insert:", errMsg);
             alert(`⚠️ Problème de connexion internet (Échec du réseau).\n\nVotre produit "${fullProd.nom}" a été enregistré correctement localement sur votre appareil.\n\nIl s'affiche dans votre mode Boutique et sera synchronisé dès le rétablissement de la liaison en ligne.`);
             break;
-          }
-
-          // If UUID primary key error
-          if (errMsg.toLowerCase().includes('uuid') || errMsg.toLowerCase().includes('invalid input syntax for uuid')) {
-            console.log("Detected UUID primary key on products table, converting ID to UUID...");
-            payload.id = generateUUID();
-            continue;
           }
 
           const matchCol = errMsg.match(/Could not find the '([^']+)' column/i)
