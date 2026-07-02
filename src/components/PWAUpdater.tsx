@@ -57,7 +57,21 @@ export function PWAUpdater() {
   // Effect to show notification when update is available
   useEffect(() => {
     if (needRefresh) {
+      const lastShown = localStorage.getItem('vendza_pwa_update_last_shown');
+      const now = Date.now();
+      const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+      if (lastShown) {
+        const lastShownTime = parseInt(lastShown, 10);
+        if (now - lastShownTime < ONE_DAY_MS) {
+          console.log('[PWA Updater] Notification de mise à jour masquée car déjà affichée au cours des dernières 24 heures.');
+          setShowNotification(false);
+          return;
+        }
+      }
+
       setShowNotification(true);
+      localStorage.setItem('vendza_pwa_update_last_shown', now.toString());
     }
   }, [needRefresh]);
 

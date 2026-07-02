@@ -1473,13 +1473,35 @@ export default function App() {
         }
 
         if (data && data.length > 0) {
+          // Fetch associated profiles to resolve user names dynamically
+          const userIds = Array.from(new Set(data.map((r: any) => r.user_id).filter(Boolean)));
+          const profileMap: Record<string, string> = {};
+
+          if (userIds.length > 0) {
+            try {
+              const { data: profilesData } = await supabase
+                .from('profiles')
+                .select('id, prenom, nom')
+                .in('id', userIds);
+
+              if (profilesData) {
+                profilesData.forEach((p: any) => {
+                  const name = [p.prenom, p.nom].filter(Boolean).join(' ') || 'Client anonyme';
+                  profileMap[p.id] = name;
+                });
+              }
+            } catch (pErr) {
+              console.warn("Failed to load profiles for reviews:", pErr);
+            }
+          }
+
           const mappedReviews: Review[] = data.map((r: any) => ({
             id: r.id,
             productId: r.product_id || r.productId || '',
-            clientNom: r.client_nom || r.clientNom || 'Client anonyme',
+            clientNom: profileMap[r.user_id] || r.client_nom || r.clientNom || 'Client anonyme',
             note: Number(r.note !== undefined ? r.note : (r.rating !== undefined ? r.rating : 5)),
             commentaire: r.commentaire || r.comment || r.content || '',
-            date: r.date || r.created_at || new Date().toISOString().split('T')[0]
+            date: r.date || (r.created_at ? r.created_at.split('T')[0] : '') || new Date().toISOString().split('T')[0]
           }));
           setReviews(mappedReviews);
         } else {
@@ -4148,14 +4170,22 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
     }));
 
     if (isSupabaseConfigured && supabase) {
-      supabase.from('reviews').insert([{
-        id: fullRev.id,
-        product_id: fullRev.productId,
-        client_nom: fullRev.clientNom,
-        note: fullRev.note,
-        commentaire: fullRev.commentaire,
-        date: fullRev.date
-      }]).then(({ error }) => {
+      const isProductIdUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fullRev.productId);
+      
+      const dbReview: any = {
+        rating: fullRev.note,
+        comment: fullRev.commentaire,
+      };
+
+      if (isProductIdUuid) {
+        dbReview.product_id = fullRev.productId;
+      }
+
+      if (currentUser && currentUser.id) {
+        dbReview.user_id = currentUser.id;
+      }
+
+      supabase.from('reviews').insert([dbReview]).then(({ error }) => {
         if (error) {
           console.error("Error creating review in Supabase:", error.message);
         }
