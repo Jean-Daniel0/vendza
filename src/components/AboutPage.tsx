@@ -157,29 +157,23 @@ export const AboutPage: React.FC = () => {
       <section className="space-y-6">
         <div className="text-center space-y-2">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">L'équipe</span>
-          <h2 className="font-serif text-lg sm:text-xl font-black text-[#0c1445]">Les personnes derrière Vendza</h2>
-          <p className="text-xs text-slate-400 max-w-sm mx-auto">Une équipe passionnée par l'innovation et le développement économique d'Haïti.</p>
+          <h2 className="font-serif text-lg sm:text-xl font-black text-[#0c1445]">Le fondateur de Vendza</h2>
+          <p className="text-xs text-slate-400 max-w-sm mx-auto">La vision et la technique réunies pour propulser le commerce sécurisé en Haïti.</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-sans text-center">
-          {[
-            { avatar: 'J', name: 'Jean-Baptiste M.', role: 'Fondateur & CEO', style: 'from-blue-900 to-teal-700', bio: 'Entrepreneur haïtien passionné par la tech et l’économie locale.' },
-            { avatar: 'M', name: 'Marie-Claire D.', role: 'Directrice Produit', style: 'from-teal-600 to-emerald-600', bio: 'Expérience utilisateur et design pour une plateforme simple pour tous.' },
-            { avatar: 'P', name: 'Paul C.', role: 'Lead Développeur', style: 'from-indigo-900 to-blue-600', bio: 'Architecture technique, validation QR et intégration sécurisée des services.' }
-          ].map((member, idx) => (
-            <div key={idx} className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-2xs p-5 space-y-3">
-              <div className={`w-14 h-14 rounded-2xl mx-auto bg-gradient-to-br ${member.style} flex items-center justify-center text-white text-xl font-serif font-black shadow-md`}>
-                {member.avatar}
-              </div>
-              <div>
-                <h4 className="text-xs font-black text-slate-800 tracking-tight">{member.name}</h4>
-                <p className="text-[10px] text-teal-600 font-bold uppercase tracking-wider">{member.role}</p>
-              </div>
-              <p className="text-slate-500 leading-normal font-medium text-[11px] max-w-xs mx-auto">
-                {member.bio}
-              </p>
+        <div className="max-w-md mx-auto text-xs font-sans text-center">
+          <div className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-2xs p-6 space-y-4 font-sans">
+            <div className="w-16 h-16 rounded-2xl mx-auto bg-gradient-to-br from-[#0c1445] to-[#0d9488] flex items-center justify-center text-white text-2xl font-serif font-black shadow-md">
+              JD
             </div>
-          ))}
+            <div>
+              <h4 className="text-sm font-black text-slate-800 tracking-tight">Jean-Daniel MICHEL</h4>
+              <p className="text-[10.5px] text-teal-600 font-bold uppercase tracking-wider">Entrepreneur &amp; Développeur</p>
+            </div>
+            <p className="text-slate-500 leading-relaxed font-medium text-[11px] max-w-xs mx-auto">
+              Passionné par la tech, l'innovation financière et le développement économique local, j'ai conçu et développé la plateforme Vendza pour offrir une infrastructure de commerce sécurisée, moderne et adaptée à la réalité haïtienne.
+            </p>
+          </div>
         </div>
       </section>
 
