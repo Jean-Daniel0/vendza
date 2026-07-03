@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, MapPin, Sparkles, Flame, Clock, Plus, Star, Store } from 'lucide-react';
+import { Search, MapPin, Sparkles, Flame, Clock, Plus, Star, Store, X } from 'lucide-react';
 import { Product, UserProfile, Review } from '../types';
 import { HAITIAN_ZONES } from '../data';
 
@@ -32,6 +32,7 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedDept, setSelectedDept] = useState<string>('');
   const [selectedCommune, setSelectedCommune] = useState<string>('');
+  const [isSearchFocused, setIsSearchFocused] = useState<boolean>(false);
   
   // Timer Countdown state for live Flash Sales
   const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
@@ -231,15 +232,44 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
       {/* Modern Search & Location Block */}
       <section className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-white p-4 rounded-2xl border border-[#e4e9f5] shadow-xs">
         {/* Search input */}
-        <div className="relative md:col-span-6">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-          <input
-            type="text"
-            placeholder="Rechercher un produit, une marque, un tag..."
-            className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 text-xs text-slate-700 bg-slate-50 focus:bg-white focus:outline-none focus:ring-3 focus:ring-blue-100 transition-all"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-          />
+        <div className="relative md:col-span-6 flex flex-col justify-center">
+          <div className="relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input
+              type="text"
+              placeholder="Rechercher un produit, une marque, un tag..."
+              className="w-full pl-10 pr-10 py-3 rounded-xl border border-slate-200 text-xs text-slate-700 bg-slate-50 focus:bg-white focus:outline-none focus:ring-3 focus:ring-blue-100 transition-all font-sans"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 transition-all cursor-pointer"
+                title="Effacer la recherche"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          
+          {/* Quick Search Tag Helpers */}
+          {isSearchFocused && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 px-1 animate-fade-in">
+              <span className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider select-none">Populaire :</span>
+              {['Téléphone', 'Robe', 'Chaussures', 'Casque', 'Audio', 'Gaming'].map(tag => (
+                <button
+                  key={tag}
+                  onClick={() => setSearchQuery(tag)}
+                  className="text-[10px] font-extrabold text-[#2563eb] bg-blue-50/60 hover:bg-blue-100 hover:text-[#1d4ed8] px-2.5 py-0.5 rounded-full transition-all cursor-pointer border border-blue-100/40"
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         
         {/* Location selector */}

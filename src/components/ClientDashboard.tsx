@@ -724,6 +724,102 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                                   </div>
                                 </div>
 
+                                {/* Real-time Visual Order Tracker */}
+                                {subOrder.status === 'annulee' ? (
+                                  <div className="p-2.5 bg-rose-50 border border-rose-100 rounded-xl text-[10.5px] text-rose-700 font-bold flex items-center gap-1.5 font-sans my-2">
+                                    <span className="text-xs">⚠️</span>
+                                    <span>Cette commande a été annulée. Aucun versement n'a été effectué.</span>
+                                  </div>
+                                ) : (
+                                  <div className="bg-white border border-slate-200/60 p-3.5 rounded-xl space-y-3 font-sans my-2 shadow-3xs">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-400">Suivi d'expédition en direct</span>
+                                      <span className="text-[10px] font-extrabold text-[#2563eb]">
+                                        {subOrder.status === 'attente' && 'Attente de règlement'}
+                                        {subOrder.status === 'payee' && 'Confirmé - En cours d\'expédition'}
+                                        {subOrder.status === 'livree' && 'Colis reçu & Validé ✓'}
+                                      </span>
+                                    </div>
+
+                                    {/* Stepper bar visual representation */}
+                                    <div className="relative flex items-center justify-between pt-1 pb-1">
+                                      {/* Background connector line */}
+                                      <div className="absolute left-3.5 right-3.5 top-[13px] h-[3px] bg-slate-100 -translate-y-1/2 rounded-full" />
+                                      {/* Progress fill line */}
+                                      <div 
+                                        className="absolute left-3.5 top-[13px] h-[3px] bg-blue-500 -translate-y-1/2 rounded-full transition-all duration-500"
+                                        style={{ 
+                                          width: subOrder.status === 'attente' 
+                                            ? '0%' 
+                                            : subOrder.status === 'payee' 
+                                              ? '66%' 
+                                              : subOrder.status === 'livree' 
+                                                ? '100%' 
+                                                : '0%' 
+                                        }}
+                                      />
+
+                                      {/* Step 1: Commandé */}
+                                      <div className="relative z-10 flex flex-col items-center">
+                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 transition-all ${
+                                          subOrder.status === 'attente' 
+                                            ? 'bg-blue-50 border-blue-500 text-blue-600 ring-4 ring-blue-100'
+                                            : 'bg-blue-500 border-blue-500 text-white'
+                                        }`}>
+                                          {subOrder.status === 'attente' ? '1' : '✓'}
+                                        </div>
+                                        <span className="text-[8.5px] font-extrabold text-slate-700 mt-1.5">Commandé</span>
+                                      </div>
+
+                                      {/* Step 2: Confirmé */}
+                                      <div className="relative z-10 flex flex-col items-center">
+                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 transition-all ${
+                                          subOrder.status === 'attente'
+                                            ? 'bg-white border-slate-200 text-slate-400'
+                                            : subOrder.status === 'payee'
+                                              ? 'bg-blue-50 border-blue-500 text-blue-600 ring-4 ring-blue-100'
+                                              : 'bg-blue-500 border-blue-500 text-white'
+                                        }`}>
+                                          {subOrder.status === 'livree' ? '✓' : '2'}
+                                        </div>
+                                        <span className={`text-[8.5px] font-extrabold mt-1.5 ${
+                                          subOrder.status === 'attente' ? 'text-slate-400' : 'text-slate-700'
+                                        }`}>Confirmé</span>
+                                      </div>
+
+                                      {/* Step 3: En livraison */}
+                                      <div className="relative z-10 flex flex-col items-center">
+                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 transition-all ${
+                                          subOrder.status === 'attente'
+                                            ? 'bg-white border-slate-200 text-slate-400'
+                                            : subOrder.status === 'payee'
+                                              ? 'bg-blue-50 border-blue-500 text-blue-600 ring-4 ring-blue-100 animate-pulse'
+                                              : 'bg-blue-500 border-blue-500 text-white'
+                                        }`}>
+                                          {subOrder.status === 'livree' ? '✓' : '3'}
+                                        </div>
+                                        <span className={`text-[8.5px] font-extrabold mt-1.5 ${
+                                          subOrder.status === 'attente' ? 'text-slate-400' : 'text-slate-700'
+                                        }`}>En livraison</span>
+                                      </div>
+
+                                      {/* Step 4: Livré */}
+                                      <div className="relative z-10 flex flex-col items-center">
+                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 transition-all ${
+                                          subOrder.status === 'livree'
+                                            ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
+                                            : 'bg-white border-slate-200 text-slate-400'
+                                        }`}>
+                                          4
+                                        </div>
+                                        <span className={`text-[8.5px] font-extrabold mt-1.5 ${
+                                          subOrder.status === 'livree' ? 'text-emerald-600 font-black' : 'text-slate-400'
+                                        }`}>Livré</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
                                 <div className="space-y-1">
                                   {subOrder.items.map((item, idx) => (
                                     <div key={idx} className="flex justify-between text-slate-600 text-[11px] font-medium leading-relaxed">

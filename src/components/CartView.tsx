@@ -34,6 +34,8 @@ export const CartView: React.FC<CartViewProps> = ({
   const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [promoError, setPromoError] = useState<string>('');
   const [promoSuccess, setPromoSuccess] = useState<string>('');
+  const [showSummary, setShowSummary] = useState<boolean>(false);
+  const [pendingPaymentMethod, setPendingPaymentMethod] = useState<'stripe' | 'moncash' | null>(null);
 
   const cartTotalQty = cart.reduce((acc, item) => acc + item.quantity, 0);
   
@@ -86,25 +88,8 @@ export const CartView: React.FC<CartViewProps> = ({
       return;
     }
 
-    onPlaceOrder({
-      clientId: user.id,
-      clientNom: `${user.prenom} ${user.nom}`,
-      clientTel: user.tel,
-      items: cart.map(item => ({
-        productId: item.product.id,
-        productNom: item.product.nom,
-        prix: item.product.prix,
-        qte: item.quantity,
-        couleur: item.selectedColor,
-        taille: item.selectedSize,
-        vendeurId: item.product.vendeurId
-      })),
-      fraisLivraison: shippingFee,
-      discount: discountAmount,
-      total: finalTotal,
-      departement: selectedDept,
-      commune: selectedCommune
-    }, paymentMethod);
+    setPendingPaymentMethod(paymentMethod);
+    setShowSummary(true);
   };
 
   // Abstract similar item suggestions
@@ -114,6 +99,185 @@ export const CartView: React.FC<CartViewProps> = ({
     onSetProduct(p);
     onNavigate('detail');
   };
+
+  if (showSummary && pendingPaymentMethod) {
+    return (
+      <div className="space-y-6 animate-fade-in font-sans">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <button
+            onClick={() => { setShowSummary(false); setPendingPaymentMethod(null); }}
+            className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 transition-all cursor-pointer bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200"
+          >
+            ← Retourner au panier
+          </button>
+          <span className="text-[10px] font-black tracking-widest text-[#2563eb] uppercase bg-blue-50 px-2.5 py-1 rounded-full">
+            Étape finale : Récapitulatif avant paiement
+          </span>
+        </div>
+
+        <div className="bg-gradient-to-r from-[#0c1445] via-[#1e3a8a] to-[#0d9488] rounded-3xl p-6 text-white shadow-md relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none text-7xl select-none">🧾</div>
+          <h2 className="text-lg font-extrabold tracking-tight font-sans">Résumé de votre commande</h2>
+          <p className="text-xs text-white/80 leading-normal mt-1.5">
+            Prenez un instant pour valider les informations de livraison et de prix de votre panier avant de procéder au règlement sécurisé.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+          {/* Main summary list */}
+          <div className="md:col-span-8 space-y-4">
+            {/* Products Card */}
+            <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs space-y-3.5">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Articles dans votre panier</h3>
+              <div className="divide-y divide-slate-100">
+                {cart.map(item => (
+                  <div key={`${item.product.id}-${item.selectedColor}-${item.selectedSize}`} className="py-3 flex justify-between items-center gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 overflow-hidden font-serif text-lg">
+                        {item.product.image_url && !item.product.image_url.startsWith('#') ? (
+                          <img src={item.product.image_url} alt={item.product.nom} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        ) : '👜'}
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-extrabold text-slate-800 leading-snug">{item.product.nom}</h4>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1 font-sans">
+                          <span className="text-[10px] text-slate-500 font-bold bg-slate-50 px-1.5 py-0.5 rounded">Quantité : {item.quantity}</span>
+                          {item.selectedColor && (
+                            <span className="text-[9px] font-black text-[#5a6480] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                              🎨 Couleur
+                            </span>
+                          )}
+                          {item.selectedSize && (
+                            <span className="text-[9px] font-black text-[#5a6400] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                              📐 Taille {item.selectedSize}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="font-mono text-xs font-black text-slate-800">{(item.product.prix * item.quantity).toLocaleString('fr-FR')} Gdes</span>
+                      <span className="block font-mono text-[9px] text-slate-400">{((item.product.prix * item.quantity) / tauxUSD).toFixed(2)} $ USD</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Delivery address card */}
+            <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs space-y-3">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Lieu et Coordonnées de Livraison</h3>
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 bg-slate-50 text-blue-600 rounded-xl shrink-0">
+                  <MapPin size={16} />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-slate-800">Livraison physique Vendza</p>
+                  <p className="text-xs text-slate-600 font-medium font-sans">
+                    Département : <b>{selectedDept}</b> · Commune : <b>{selectedCommune}</b>
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    Destinataire : <b className="text-slate-700">{user?.prenom} {user?.nom}</b> · Tél : <b className="text-slate-700">{user?.tel || 'Non renseigné'}</b>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Payment method card */}
+            <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs space-y-3">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Mode de règlement</h3>
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-xl shrink-0 ${pendingPaymentMethod === 'moncash' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
+                  {pendingPaymentMethod === 'moncash' ? <Smartphone size={16} /> : <CreditCard size={16} />}
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-800">
+                    {pendingPaymentMethod === 'moncash' ? 'Règlement mobile MonCash' : 'Carte bancaire internationale'}
+                  </p>
+                  <p className="text-[10px] text-slate-400 leading-normal">
+                    {pendingPaymentMethod === 'moncash' 
+                      ? 'Vous allez être redirigé vers l\'interface MonCash pour finaliser le transfert de manière sécurisée.' 
+                      : 'Transaction directe hautement sécurisée cryptée par passerelle SSL.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Checkout Right Column summary */}
+          <div className="md:col-span-4 bg-slate-50 border border-slate-200/60 p-5 rounded-2xl space-y-4">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Récapitulatif financier</h3>
+
+            <div className="space-y-2.5 text-xs">
+              <div className="flex justify-between text-slate-600">
+                <span>Sous-total articles</span>
+                <span className="font-mono font-bold text-slate-800">{subtotal.toLocaleString('fr-FR')} Gdes</span>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>Frais de livraison</span>
+                <span className="font-mono font-bold text-slate-800">{shippingFee ? `${shippingFee.toLocaleString('fr-FR')} Gdes` : 'Gratuit'}</span>
+              </div>
+              {discountAmount > 0 && (
+                <div className="flex justify-between text-emerald-600 font-bold">
+                  <span>Code coupon appliqué</span>
+                  <span className="font-mono">-{discountAmount.toLocaleString('fr-FR')} Gdes</span>
+                </div>
+              )}
+              <div className="h-px bg-slate-200 my-2" />
+              <div className="flex justify-between items-baseline">
+                <span className="text-xs font-extrabold text-slate-800">Total à payer</span>
+                <div className="text-right">
+                  <span className="font-mono text-base font-black text-blue-600 block">{finalTotal.toLocaleString('fr-FR')} HTG</span>
+                  <span className="font-mono text-[11px] text-slate-500 font-bold">{(finalTotal / tauxUSD).toFixed(2)} $ USD</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                id="btn-confirm-payment"
+                onClick={() => {
+                  setShowSummary(false);
+                  onPlaceOrder({
+                    clientId: user!.id,
+                    clientNom: `${user!.prenom} ${user!.nom}`,
+                    clientTel: user!.tel,
+                    items: cart.map(item => ({
+                      productId: item.product.id,
+                      productNom: item.product.nom,
+                      prix: item.product.prix,
+                      qte: item.quantity,
+                      couleur: item.selectedColor,
+                      taille: item.selectedSize,
+                      vendeurId: item.product.vendeurId
+                    })),
+                    fraisLivraison: shippingFee,
+                    discount: discountAmount,
+                    total: finalTotal,
+                    departement: selectedDept,
+                    commune: selectedCommune
+                  }, pendingPaymentMethod);
+                }}
+                className={`w-full inline-flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl text-white font-extrabold text-xs uppercase tracking-wider transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:scale-[1.01] ${
+                  pendingPaymentMethod === 'moncash' ? 'bg-[#cc0612] hover:bg-[#b0050f]' : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                Confirmer &amp; Lancer le paiement
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowSummary(false); setPendingPaymentMethod(null); }}
+                className="w-full text-center text-[10.5px] font-bold text-slate-400 hover:text-slate-600 transition-all py-2 mt-1.5 cursor-pointer"
+              >
+                Modifier les informations
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

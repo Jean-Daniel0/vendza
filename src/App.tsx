@@ -2834,8 +2834,15 @@ export default function App() {
             
           if (prof) {
             vendorWallet = prof.numero_moncash || prof.moncash || prof.moncash_num || '';
-            vendorFirstName = prof.prenom || prof.first_name || 'Vendeur';
-            vendorLastName = prof.nom || prof.last_name || 'Vendza';
+            const mName = prof.moncash_nom || prof.moncashnom || '';
+            if (mName && mName.trim()) {
+              const parts = mName.trim().split(/\s+/);
+              vendorFirstName = parts[0] || 'Vendeur';
+              vendorLastName = parts.slice(1).join(' ') || 'MonCash';
+            } else {
+              vendorFirstName = prof.prenom || prof.first_name || 'Vendeur';
+              vendorLastName = prof.nom || prof.last_name || 'Vendza';
+            }
           }
         }
 

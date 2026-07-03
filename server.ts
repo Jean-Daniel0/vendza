@@ -2538,6 +2538,14 @@ async function sendOneSignalPush(recipientId: string, title: string, message: st
 
     const data = await response.json();
     console.log("[sendOneSignalPush] Response:", data);
+
+    if (data && data.errors) {
+      const errStr = JSON.stringify(data.errors);
+      if (errStr.includes('invalid_aliases') || errStr.includes('all_participants_unsubscribed')) {
+        console.warn("[sendOneSignalPush] Gracefully swallowed expected OneSignal alias mismatch (recipient is not subscribed yet).");
+        return { success: true, status: "ignored_not_subscribed" };
+      }
+    }
     return data;
   } catch (err: any) {
     console.error("[sendOneSignalPush] Failed sending notification:", err.message);
