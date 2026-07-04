@@ -336,27 +336,28 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
               🛡️ FEUILLE DE ROUTE DE SECURITÉ
             </h4>
 
-            {/* QR Code Presentation or Camera Scanner Button */}
-            {isBuyer ? (
-              <div className="flex flex-col items-center justify-center p-6 bg-slate-50/70 border border-slate-150 rounded-2xl gap-4">
-                <div className="p-4 bg-blue-50 text-blue-600 rounded-full">
-                  <span className="text-3xl">📷</span>
-                </div>
-                <div className="text-center space-y-1">
-                  <h4 className="font-bold text-slate-800 text-sm">Scanner le code QR de livraison</h4>
-                  <p className="text-xs text-slate-500 leading-normal">
-                    Scannez le QR Code de confirmation présenté par le livreur ou le vendeur pour valider la réception du colis.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onNavigate && onNavigate('scanner')}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl shadow-md cursor-pointer flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02]"
-                >
-                  <span>📷 OUVRIR LA CAMÉRA / SCANNER</span>
-                </button>
+            {/* QR Code Presentation or Camera Scanner Button accessible to all users */}
+            <div className="flex flex-col items-center justify-center p-6 bg-slate-50/70 border border-slate-150 rounded-2xl gap-4">
+              <div className="p-4 bg-blue-50 text-blue-600 rounded-full">
+                <span className="text-3xl">📷</span>
               </div>
-            ) : (
+              <div className="text-center space-y-1">
+                <h4 className="font-bold text-slate-800 text-sm">Scanner le code QR de livraison</h4>
+                <p className="text-xs text-slate-500 leading-normal">
+                  Scannez le QR Code de confirmation présenté par le livreur ou le vendeur pour valider la réception du colis.
+                </p>
+              </div>
+              <button
+                type="button"
+                id="btn-open-camera-scanner"
+                onClick={() => onNavigate && onNavigate('scanner')}
+                className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl shadow-md cursor-pointer flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02]"
+              >
+                <span>📷 OUVRIR LA CAMÉRA / SCANNER</span>
+              </button>
+            </div>
+
+            {!isBuyer && (
               <div className="flex flex-col items-center justify-center p-5 bg-slate-50/50 border border-slate-150 rounded-2xl gap-3">
                 <p className="text-[11px] text-slate-500 font-bold text-center leading-relaxed">
                   🔒 Colis Sécurisé Vendza.<br />Le QR Code officiel imprimable de déblocage est affiché directement dans le ticket de consignation ci-contre.

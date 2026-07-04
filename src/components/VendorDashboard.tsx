@@ -2424,13 +2424,9 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                       </button>
 
                       {isPaidEscrow ? (
-                        <button
-                          onClick={() => handleSimulateReceive(delOrder.id)}
-                          className="inline-flex items-center justify-center gap-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-[10px] uppercase rounded-xl transition cursor-pointer flex-1 h-10 shadow-sm"
-                          title="Fonds garantis en dépôt sécurisé. Cliquer si le colis est livré"
-                        >
-                          <Check size={12} /> Confirmer la remise
-                        </button>
+                        <span className="inline-flex items-center justify-center gap-1 px-4 py-2 bg-blue-50 text-blue-850 border border-blue-100 font-extrabold text-[9.5px] uppercase rounded-xl flex-1 h-10 select-none text-center leading-tight">
+                          ⌛ Attente scan acheteur
+                        </span>
                       ) : isFinalized ? (
                         <span className="inline-flex items-center justify-center gap-1 px-4 py-2 bg-emerald-50 text-emerald-800 border border-emerald-100 font-extrabold text-[10.5px] uppercase rounded-xl flex-1 h-10 select-none">
                           ✓ Gains Libérés
