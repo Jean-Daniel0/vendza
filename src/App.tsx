@@ -491,6 +491,7 @@ export default function App() {
       const knownProfilesColumns = [
         'id', 'prenom', 'nom', 'email', 'telephone', 'type', 'departement', 'commune', 
         'boutique_nom', 'boutique_desc', 'delai_livraison', 'avatar_url', 'numero_moncash', 
+        'moncash_nom', 'moncashnom',
         'note_moyenne', 'total_ventes', 'notif_commandes', 'notif_livraisons', 'notif_avis', 
         'newsletter', 'created_at', 'updated_at', 'plan', 'premium_depts', 'premiumdepts', 
         'plan_expires_at', 'statut_verification', 'revenus_bloques'
@@ -3745,6 +3746,7 @@ export default function App() {
         cleanedUpdates.shopDesc !== undefined || 
         cleanedUpdates.categories !== undefined || 
         cleanedUpdates.moncash !== undefined || 
+        cleanedUpdates.moncashNom !== undefined || 
         cleanedUpdates.banque !== undefined ||
         cleanedUpdates.idNumber !== undefined ||
         cleanedUpdates.avatar !== undefined
