@@ -1384,12 +1384,18 @@ app.post('/api/bazik/create-payment', async (req, res) => {
 
     const data: any = await response.json();
     console.log('[Bazik API] Successfully created payment token:', data);
+    console.log('[Bazik DEBUG] Full response keys:', Object.keys(data));
+    console.log('[Bazik DEBUG] Full response:', JSON.stringify(data, null, 2));
 
-    const redirectUrl = data.paymentUrl || data.payment_url || data.url || data.redirectUrl || data.redirect_url || (data.payment_token?.token ? `https://sandbox.moncashbutton.digicelgroup.com/Moncash-middleware/Payment/Redirect?token=${data.payment_token.token}` : null);
+    const redirectUrl = data.paymentUrl || data.payment_url || data.url || 
+      data.redirectUrl || data.redirect_url || data.redirect || 
+      data.checkoutUrl || data.checkout_url || data.payment_link || null;
 
     if (!redirectUrl) {
-      console.error('[Bazik API Error] No redirectUrl found in response.');
-      return res.status(500).json({ error: "Aucune URL de redirection n'a été retournée par l'API de paiement Bazik/MonCash." });
+      console.error('[Bazik API Error] No redirectUrl. Full response:', JSON.stringify(data));
+      return res.status(500).json({ 
+        error: "Bazik n'a pas retourné d'URL de redirection. Réponse reçue : " + JSON.stringify(data)
+      });
     }
 
     return res.json({
