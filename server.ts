@@ -170,6 +170,15 @@ if (isSupabaseConfigured && supabase) {
     });
 }
 
+// Keep-alive endpoint for UptimeRobot monitoring
+app.get('/ping', (_req, res) => {
+  res.status(200).json({ 
+    status: 'alive', 
+    ts: Date.now(),
+    service: 'Vendza API'
+  });
+});
+
 // Endpoint public pour récupérer la configuration non-sensible (Supabase anon key, etc.)
 app.get('/api/config', (req, res) => {
   const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
@@ -1530,6 +1539,37 @@ app.post('/api/bazik/webhook/payment', express.raw({ type: '*/*' }), async (req:
   }
 });
 
+// Helper to calculate vendor payout amount based on order price and vendor shop plan
+async function getMontantVendeurForOrder(order: any): Promise<number> {
+  const vendorId = order.vendor_id || order.vendeur_id || order.seller_id;
+  if (!vendorId) return Number(order.total_price || order.total || 0);
+
+  let plan = 'gratuit';
+  try {
+    const { data: shop } = await supabase
+      .from('shops')
+      .select('plan')
+      .eq('vendor_id', vendorId)
+      .maybeSingle();
+    if (shop && shop.plan) {
+      plan = shop.plan.toLowerCase();
+    }
+  } catch (err) {
+    console.error('Error fetching shop plan for vendor payout:', err);
+  }
+
+  const commissions: Record<string, number> = {
+    'gratuit':      0.20,
+    'pro_local':    0.15,
+    'pro_national': 0.10
+  };
+
+  const rate = commissions[plan] !== undefined ? commissions[plan] : 0.20;
+  const totalPrice = Number(order.total_price || order.total || 0);
+  const commission = totalPrice * rate;
+  return totalPrice - commission;
+}
+
 // 3. Transfer Webhook (Bazik -> Backend)
 app.post('/api/bazik/webhook/transfer', express.raw({ type: '*/*' }), async (req: any, res) => {
   try {
@@ -1568,18 +1608,86 @@ app.post('/api/bazik/webhook/transfer', express.raw({ type: '*/*' }), async (req
     if (type === 'transfer.succeeded') {
       console.log(`[Bazik Transfer Webhook] Payout succeeded for reference ${referenceId}, orderId: ${orderId}`);
       if (isSupabaseConfigured && supabase) {
-        const { error: updateErr } = await supabase
+        // Fetch order to get vendor_id and total_price
+        const { data: order, error: orderFetchErr } = await supabase
           .from('orders')
-          .update({
-            vendor_credited: true,
-            vendor_credited_at: new Date().toISOString()
-          })
-          .eq('id', orderId);
+          .select('*')
+          .eq('id', orderId)
+          .maybeSingle();
 
-        if (updateErr) {
-          console.error(`[Bazik Transfer Webhook] Error updating vendor_credited in DB:`, updateErr.message);
+        if (orderFetchErr || !order) {
+          console.error(`[Bazik Transfer Webhook Error] Order not found for id ${orderId}:`, orderFetchErr?.message);
         } else {
-          console.log(`[Bazik Transfer Webhook] Vendor credited updated to true in DB for order: ${orderId}`);
+          const vendorId = order.vendor_id || order.vendeur_id || order.seller_id;
+          const finalAmount = Number(amount) || await getMontantVendeurForOrder(order);
+
+          // Update order in DB
+          const { error: updateErr } = await supabase
+            .from('orders')
+            .update({
+              vendor_credited: true,
+              vendor_credited_at: new Date().toISOString()
+            })
+            .eq('id', orderId);
+
+          if (updateErr) {
+            console.error(`[Bazik Transfer Webhook] Error updating vendor_credited in DB:`, updateErr.message);
+          } else {
+            console.log(`[Bazik Transfer Webhook] Vendor credited updated to true in DB for order: ${orderId}`);
+          }
+
+          if (vendorId) {
+            // Update vendor wallet (transfer from pending_balance to available_balance)
+            const { data: wallet } = await supabase
+              .from('vendor_wallets')
+              .select('*')
+              .eq('vendor_id', vendorId)
+              .maybeSingle();
+
+            if (wallet) {
+              await supabase
+                .from('vendor_wallets')
+                .update({
+                  pending_balance: Math.max(0, (Number(wallet.pending_balance) || 0) - finalAmount),
+                  available_balance: (Number(wallet.available_balance) || 0) + finalAmount,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('vendor_id', vendorId);
+            } else {
+              await supabase
+                .from('vendor_wallets')
+                .insert({
+                  vendor_id: vendorId,
+                  pending_balance: 0,
+                  available_balance: finalAmount,
+                  total_earned: finalAmount,
+                  updated_at: new Date().toISOString()
+                });
+            }
+
+            // Record transaction
+            await supabase
+              .from('vendor_wallet_transactions')
+              .insert({
+                vendor_id: vendorId,
+                order_id: orderId,
+                amount: finalAmount,
+                type: 'credit',
+                description: `Virement MonCash confirmé — ${finalAmount} HTG disponible (transfert réussi via Bazik)`
+              });
+
+            // Create notification message for vendor
+            await supabase
+              .from('platform_messages')
+              .insert({
+                title: '✅ Virement MonCash confirmé !',
+                message: `Le virement MonCash de ${finalAmount.toLocaleString('fr-FR')} HTG pour la commande ${orderId} a été crédité avec succès sur votre solde disponible.`,
+                audience: vendorId,
+                is_active: true
+              });
+
+            console.log(`[Bazik Transfer Webhook] Successfully credited vendor ${vendorId} with ${finalAmount} HTG for order ${orderId}`);
+          }
         }
       }
     } else if (type === 'transfer.failed') {
@@ -1653,14 +1761,90 @@ app.post('/api/bazik/pay-vendor', async (req, res) => {
     }
 
     const secretKey = process.env.BAZIK_SECRET_KEY || '';
-    if (!secretKey || secretKey === "sk_proj_...") {
+    const isSimulation = !secretKey || secretKey === "sk_proj_...";
+    console.log(`[Bazik Pay Vendor Log] Payout attempt details:
+      Order ID: ${orderId}
+      Amount to transfer: ${amount} GDES/HTG
+      Destination Wallet: ${vendorWallet}
+      Execution Mode: ${isSimulation ? 'SIMULATION (No valid BAZIK_SECRET_KEY)' : 'REAL (BAZIK_SECRET_KEY configured)'}`);
+
+    if (isSimulation) {
       console.warn('[Bazik Pay Vendor Simulation] No secret key. Simulating successful transfer request.');
+      
+      // Perform immediate simulated credit of vendor wallet
+      if (isSupabaseConfigured && supabase) {
+        const vendorId = order.vendor_id || order.vendeur_id || order.seller_id;
+        const finalAmount = Number(amount) || await getMontantVendeurForOrder(order);
+
+        // Update order
+        await supabase
+          .from('orders')
+          .update({
+            vendor_credited: true,
+            vendor_credited_at: new Date().toISOString()
+          })
+          .eq('id', orderId);
+
+        if (vendorId) {
+          // Update wallet
+          const { data: wallet } = await supabase
+            .from('vendor_wallets')
+            .select('*')
+            .eq('vendor_id', vendorId)
+            .maybeSingle();
+
+          if (wallet) {
+            await supabase
+              .from('vendor_wallets')
+              .update({
+                pending_balance: Math.max(0, (Number(wallet.pending_balance) || 0) - finalAmount),
+                available_balance: (Number(wallet.available_balance) || 0) + finalAmount,
+                updated_at: new Date().toISOString()
+              })
+              .eq('vendor_id', vendorId);
+          } else {
+            await supabase
+              .from('vendor_wallets')
+              .insert({
+                vendor_id: vendorId,
+                pending_balance: 0,
+                available_balance: finalAmount,
+                total_earned: finalAmount,
+                updated_at: new Date().toISOString()
+              });
+          }
+
+          // Insert transaction
+          await supabase
+            .from('vendor_wallet_transactions')
+            .insert({
+              vendor_id: vendorId,
+              order_id: orderId,
+              amount: finalAmount,
+              type: 'credit',
+              description: `Virement MonCash simulé (mode test) — ${finalAmount} HTG disponible`
+            });
+
+          // Log platform message for vendor
+          await supabase
+            .from('platform_messages')
+            .insert({
+              title: '✅ Fonds disponibles (Test) !',
+              message: `Le virement MonCash simulé de ${finalAmount.toLocaleString('fr-FR')} HTG pour la commande ${orderId} a été confirmé (mode test).`,
+              audience: vendorId,
+              is_active: true
+            });
+          
+          console.log(`[Bazik Pay Vendor Simulation] Successfully simulated wallet credit for vendor ${vendorId} with ${finalAmount} HTG`);
+        }
+      }
+
       return res.json({
         success: true,
         is_simulated: true,
-        status: "pending",
+        status: "succeeded",
         referenceId: `PAY_VENDOR_${orderId}`,
-        message: "Virement MonCash simulé initié avec succès (mode test)."
+        message: "Virement MonCash simulé initié et crédité avec succès (mode test)."
       });
     }
 

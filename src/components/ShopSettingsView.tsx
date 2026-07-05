@@ -350,6 +350,18 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
     setTimeout(() => setPwdStatus({ type: '', text: '' }), 5000);
   };
 
+  const scrollToMoncash = () => {
+    setEditMode(true);
+    setTimeout(() => {
+      const el = document.getElementById('moncash_container');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const input = document.getElementById('moncash_input');
+        if (input) input.focus();
+      }
+    }, 100);
+  };
+
   return (
     <div className="space-y-6">
       {/* Toast alert display */}
@@ -357,6 +369,29 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
         <div className="fixed bottom-5 right-5 z-60 bg-teal-900 border border-teal-400 text-teal-100 text-xs font-bold px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-bounce">
           <Sparkles size={14} className="text-teal-400" />
           <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Warning Banner for missing MonCash number */}
+      {!formMoncash && (
+        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-2xl shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span className="text-lg">⚠️</span>
+            <div>
+              <p className="text-sm font-bold text-amber-800">
+                Votre numéro MonCash n'est pas configuré.
+              </p>
+              <p className="text-xs text-amber-700 font-semibold mt-0.5">
+                Vous ne pourrez pas recevoir vos paiements automatiquement après livraison.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={scrollToMoncash}
+            className="self-start sm:self-center bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow-xs whitespace-nowrap cursor-pointer hover:scale-105 active:scale-95 duration-150"
+          >
+            Saisir mon numéro maintenant
+          </button>
         </div>
       )}
 
@@ -893,7 +928,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
           <div className="md:col-span-4 lg:col-span-5 space-y-5">
             
             {/* Payment Account Details */}
-            <div className="bg-white border border-slate-100 rounded-3xl p-5 shadow-3xs space-y-4">
+            <div id="moncash_container" className="bg-white border border-slate-100 rounded-3xl p-5 shadow-3xs space-y-4">
               <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
                 <div className="w-7 h-7 bg-red-50 text-red-600 flex items-center justify-center rounded-lg">
                   <CreditCard size={14} />
@@ -942,6 +977,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
                     <div className="space-y-1">
                       <label className="text-[9px] font-bold text-slate-400 uppercase">Numéro Téléphone MonCash</label>
                       <input
+                        id="moncash_input"
                         type="tel"
                         value={formMoncash}
                         onChange={(e) => setFormMoncash(e.target.value)}

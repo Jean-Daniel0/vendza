@@ -62,6 +62,37 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({
   const [selectedSize, setSelectedSize] = useState<string>(product.tailles ? product.tailles[0] : '');
   const [selectedCapacity, setSelectedCapacity] = useState<string>(product.capacites && product.capacites[0] ? product.capacites[0] : '');
   
+  const [vendeur, setVendeur] = useState<UserProfile | null>(null);
+
+  React.useEffect(() => {
+    const fetchVendorProfile = async () => {
+      const vendorId = product.vendeurId;
+      if (!vendorId || !isSupabaseConfigured || !supabase || !isValidUuid(vendorId)) {
+        setVendeur(null);
+        return;
+      }
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', vendorId)
+          .maybeSingle();
+        if (!error && data) {
+          setVendeur({
+            ...data,
+            statutVerification: data.statut_verification || data.statutVerification || 'non_verifie'
+          });
+        } else {
+          setVendeur(null);
+        }
+      } catch (err) {
+        console.warn("Error fetching vendor profile:", err);
+        setVendeur(null);
+      }
+    };
+    fetchVendorProfile();
+  }, [product.vendeurId]);
+
   // Reset selected indices / capacities if product changes
   const [prevProductId, setPrevProductId] = useState<string>(product.id);
   const [activeImgIndex, setActiveImgIndex] = useState<number>(0);
@@ -371,6 +402,11 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({
                   {product.vendeur[0]}
                 </div>
                 <span className="text-[11px] font-bold text-[#0c1445]">Vendu par {product.vendeur}</span>
+                {(vendeur?.statutVerification === 'verifie' || product.vendeurPlan === 'Pro Local' || product.vendeurPlan === 'Pro National') && (
+                  <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[9px] font-extrabold border border-emerald-200 shrink-0">
+                    ✓ Vérifié
+                  </span>
+                )}
                 {(product.vendeurPlan === 'Pro Local' || String(product.vendeurPlan || '').toLowerCase().replace(/_/g, ' ') === 'pro local') && (
                   <span className="inline-flex items-center shrink-0" title={`${product.vendeur} est un Vendeur vérifié (Pro Local)`}>
                     <svg className="w-3.5 h-3.5 text-blue-500 fill-current ml-0.5" viewBox="0 0 24 24">

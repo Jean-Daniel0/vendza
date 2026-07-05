@@ -1,6 +1,7 @@
 import React from 'react';
 import { ShoppingBag, User, Store, LogOut, Menu, UserCheck, MessageSquare } from 'lucide-react';
 import { UserProfile, CartItem } from '../types';
+import { getSystemImageUrl } from '../lib/supabaseClient';
 
 interface HeaderProps {
   user: UserProfile | null;
@@ -20,6 +21,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentView
 }) => {
   const cartItemsCount = cart.reduce((acc, item) => acc + item.quantity, 0);
+  const logoUrl = getSystemImageUrl('pwa-icon-192.png', '/pwa-icon-192.png');
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-[#e2e8f0] h-[66px] flex items-center transition-all duration-300">
@@ -36,9 +38,19 @@ export const Header: React.FC<HeaderProps> = ({
           
           <div 
             onClick={() => onNavigate('home')} 
-            className="flex items-center cursor-pointer select-none ml-2"
+            className="flex items-center gap-2 cursor-pointer select-none ml-2"
           >
-            <span className="text-xl font-extrabold text-[#2563eb] tracking-tight font-sans">
+            <img 
+              src={logoUrl} 
+              alt="Vendza" 
+              className="h-8 w-8 object-contain rounded-lg"
+              referrerPolicy="no-referrer"
+              onError={(e) => { 
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
+                (e.currentTarget.nextElementSibling as HTMLElement)?.removeAttribute('style');
+              }}
+            />
+            <span style={{display:'none'}} className="text-xl font-extrabold text-[#2563eb] tracking-tight font-sans">
               Vend<span className="text-[#0d9488]">za</span>
             </span>
           </div>

@@ -139,6 +139,10 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
   // Success toast logic
   const [toastMessage, setToastMessage] = useState<string>('');
 
+  const [moncashAlertDismissed, setMoncashAlertDismissed] = useState<boolean>(() => {
+    return localStorage.getItem('vendza_moncash_alert_dismissed') === 'true';
+  });
+
   // Dashboard inner tabs for bottom lists
   const [dashboardSubTab, setDashboardSubTab] = useState<'sales' | 'purchases' | 'products'>('sales');
 
@@ -844,6 +848,50 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
               50% { opacity: .55; transform: scale(.9) }
             }
           `}} />
+
+          {/* Dashboard-level MonCash warning banner */}
+          {!moncashAlertDismissed && user && !user.moncash && (
+            <div className="bg-amber-50 border border-amber-300 p-4 rounded-3xl shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 animate-pulse-subtle">
+              <div className="flex items-start gap-3">
+                <span className="text-xl">⚠️</span>
+                <div>
+                  <p className="text-sm font-bold text-amber-800">
+                    Votre numéro MonCash n'est pas configuré.
+                  </p>
+                  <p className="text-xs text-amber-700 font-semibold mt-0.5">
+                    Vous ne pourrez pas recevoir vos paiements automatiquement après livraison.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 self-start sm:self-center">
+                <button
+                  onClick={() => {
+                    setActiveTab('profile');
+                    setTimeout(() => {
+                      const el = document.getElementById('moncash_container');
+                      if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        const input = document.getElementById('moncash_input');
+                        if (input) input.focus();
+                      }
+                    }, 150);
+                  }}
+                  className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow-xs cursor-pointer hover:scale-105 active:scale-95 duration-150"
+                >
+                  Configurer maintenant
+                </button>
+                <button
+                  onClick={() => {
+                    setMoncashAlertDismissed(true);
+                    localStorage.setItem('vendza_moncash_alert_dismissed', 'true');
+                  }}
+                  className="text-xs font-bold text-slate-400 hover:text-slate-600 px-2 py-1 uppercase tracking-wider cursor-pointer"
+                >
+                  Fermer
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Active order notifications banner */}
           {activeOrderNotifications.length > 0 && (

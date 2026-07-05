@@ -570,6 +570,11 @@ const ProductScrollCard: React.FC<{ product: Product; rating: number; onView: ()
               <Store size={9} className="text-teal-600 shrink-0" />
               <span className="font-black text-teal-700 truncate">{product.vendeur}</span>
             </div>
+            {(product.vendeurPlan === 'Pro Local' || product.vendeurPlan === 'Pro National' || String(product.vendeurPlan || '').toLowerCase().includes('pro')) && (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[8px] font-extrabold border border-emerald-200 shrink-0">
+                ✓ Vérifié
+              </span>
+            )}
             {(product.vendeurPlan === 'Pro Local' || String(product.vendeurPlan || '').toLowerCase().replace(/_/g, ' ') === 'pro local') && (
               <span className="inline-flex items-center shrink-0" title={`${product.vendeur} est un Vendeur vérifié (Pro Local)`}>
                 <svg className="w-3.5 h-3.5 text-blue-500 fill-current ml-0.5" viewBox="0 0 24 24">
@@ -673,6 +678,11 @@ export const ProductGridCard: React.FC<{ product: Product; rating: number; onVie
                 <Store size={10} className="text-teal-600 shrink-0" />
                 <span className="truncate">{product.vendeur}</span>
               </div>
+              {(product.vendeurPlan === 'Pro Local' || product.vendeurPlan === 'Pro National' || String(product.vendeurPlan || '').toLowerCase().includes('pro')) && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[8px] font-extrabold border border-emerald-200 shrink-0">
+                  ✓ Vérifié
+                </span>
+              )}
               {(product.vendeurPlan === 'Pro Local' || String(product.vendeurPlan || '').toLowerCase().replace(/_/g, ' ') === 'pro local') && (
                 <span className="inline-flex items-center shrink-0" title={`${product.vendeur} est un Vendeur vérifié (Pro Local)`}>
                   <svg className="w-3.5 h-3.5 text-blue-500 fill-current ml-0.5" viewBox="0 0 24 24">

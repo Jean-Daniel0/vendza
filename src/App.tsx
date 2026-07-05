@@ -2845,48 +2845,11 @@ export default function App() {
               vendorLastName = prof.nom || prof.last_name || 'Vendza';
             }
           }
+        } else {
+          console.error(`[CRITICAL ERROR] vendorId is empty for orderId ${orderId}. Cannot process payout.`);
         }
 
         if (vendorId) {
-          // Transférer pending → available IMMÉDIATEMENT
-          const { data: wallet } = await supabase
-            .from('vendor_wallets')
-            .select('*')
-            .eq('vendor_id', vendorId)
-            .maybeSingle();
-
-          if (wallet) {
-            await supabase
-              .from('vendor_wallets')
-              .update({
-                pending_balance: Math.max(0, (Number(wallet.pending_balance) || 0) - montantVendeur),
-                available_balance: (Number(wallet.available_balance) || 0) + montantVendeur,
-                updated_at: new Date().toISOString()
-              })
-              .eq('vendor_id', vendorId);
-          } else {
-            await supabase
-              .from('vendor_wallets')
-              .insert({
-                vendor_id: vendorId,
-                pending_balance: 0,
-                available_balance: montantVendeur,
-                total_earned: montantVendeur,
-                updated_at: new Date().toISOString()
-              });
-          }
-
-          // Enregistrer transaction
-          await supabase
-            .from('vendor_wallet_transactions')
-            .insert({
-              vendor_id: vendorId,
-              order_id: orderId,
-              amount: montantVendeur,
-              type: 'credit',
-              description: `Livraison confirmée — ${montantVendeur} HTG disponible pour le versement du samedi (commission ${rate * 100}% déduite)`
-            });
-
           // Trigger automatic seller payout to vendor's preferred account
           if (vendorWallet) {
             console.log(`[Bazik Payout] Initiating automatic payout to vendor wallet/account ${vendorWallet} for order ${orderId}...`);
@@ -2911,22 +2874,53 @@ export default function App() {
             } catch (payoutErr: any) {
               console.error(`[Bazik Payout Exception] Failed to call pay-vendor API:`, payoutErr.message);
             }
+          } else {
+            console.error(`[CRITICAL ERROR] vendorWallet is empty for vendorId ${vendorId} and orderId ${orderId}. Payout cannot be processed automatically.`);
+            
+            // Insert into vendor_wallet_transactions
+            await supabase
+              .from('vendor_wallet_transactions')
+              .insert({
+                vendor_id: vendorId,
+                order_id: orderId,
+                amount: montantVendeur,
+                type: 'pending_manual',
+                description: 'Paiement en attente - numéro MonCash du vendeur non configuré'
+              });
+
+            // Send push notification to vendor
+            sendPushNotification(
+              vendorId,
+              "⚠️ Action requise",
+              `Configurez votre numéro MonCash pour recevoir votre paiement de ${montantVendeur.toLocaleString('fr-FR')} HTG`,
+              'order'
+            );
+
+            // Insert into platform_messages
+            await supabase
+              .from('platform_messages')
+              .insert({
+                title: '⚠️ Numéro MonCash manquant !',
+                message: `Votre paiement de ${montantVendeur.toLocaleString('fr-FR')} HTG pour la commande ${orderId} est en attente. Veuillez configurer votre numéro MonCash dans vos paramètres de boutique pour recevoir votre argent automatiquement.`,
+                audience: vendorId,
+                is_active: true
+              });
           }
 
-          // Notifier le vendeur
+          // Notifier le vendeur du début de l'envoi
           await supabase
             .from('platform_messages')
             .insert({
-              title: '✅ Livraison confirmée !',
-              message: `${montantVendeur.toLocaleString('fr-FR')} HTG ajoutés à votre solde disponible. Versement prévu ce samedi.`,
+              title: '📦 Livraison validée, virement initié !',
+              message: `La livraison a été confirmée. Le virement de ${montantVendeur.toLocaleString('fr-FR')} HTG vers votre numéro MonCash a été initié et apparaîtra dans votre solde dès confirmation de l'opérateur.`,
               audience: vendorId,
               is_active: true
             });
 
           sendPushNotification(
             vendorId,
-            "✅ Livraison validée !",
-            `${montantVendeur.toLocaleString('fr-FR')} HTG ont été libérés du séquestre et sont disponibles sur votre solde. Versement ce samedi.`,
+            "📦 Livraison validée !",
+            `Le virement de ${montantVendeur.toLocaleString('fr-FR')} HTG vers votre compte MonCash a été initié et est en cours de confirmation.`,
             'order'
           );
 
@@ -2936,7 +2930,7 @@ export default function App() {
             senderId: '99999999-9999-4999-9999-999999999999',
             senderNom: 'Vendza',
             recipientId: vendorId,
-            text: `✅ LIVRAISON VALIDÉE !\n\nID de commande : ${orderId}\nMontant crédité : ${montantVendeur.toLocaleString('fr-FR')} HTG (frais plateforme déduits)\n\nLa livraison a été confirmée avec succès par le client. Les fonds ont été débloqués de notre séquestre de sécurité et ajoutés à votre solde disponible. Votre versement automatique est programmé pour ce samedi. Merci d'utiliser Vendza !`,
+            text: `✅ LIVRAISON VALIDÉE !\n\nID de commande : ${orderId}\nMontant du transfert : ${montantVendeur.toLocaleString('fr-FR')} HTG (frais plateforme déduits)\n\nLa livraison a été confirmée par le client. Le transfert vers votre numéro MonCash a été initié. Vos fonds seront officiellement ajoutés à votre solde disponible dès confirmation du virement. Merci d'utiliser Vendza !`,
             time: "Aujourd'hui, " + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
             createdAt: new Date().toISOString(),
             orderId: orderId
@@ -2976,8 +2970,6 @@ export default function App() {
             reception_confirmed: true,
             buyer_confirmed: true,
             buyer_confirmed_at: new Date().toISOString(),
-            vendor_credited: true,
-            vendor_credited_at: new Date().toISOString(),
             status: 'completed',
             is_validated: true,
             updated_at: new Date().toISOString()
@@ -3171,7 +3163,7 @@ export default function App() {
       ...newProd,
       image_url: uploadedImageUrl,
       gallery: uploadedGallery,
-      id: `prod-${Date.now().toString().slice(-3)}`,
+      id: crypto.randomUUID(),
       vendeur: currentUser?.shopName || `${currentUser?.prenom} Store`,
       vendeurId: currentUser?.id || 'v-gen',
       rating: 5.0,
@@ -3274,6 +3266,12 @@ export default function App() {
   };
 
   const handleUpdateProduct = async (productId: string, updates: Partial<Product>) => {
+    const isValidUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+    if (!isValidUuid(productId)) {
+      console.warn("[App] handleUpdateProduct ignored: productId is not a valid UUID", productId);
+      return;
+    }
+
     const isPaidPlan = currentUser?.plan === 'Pro Local' || currentUser?.plan === 'Pro National';
     if (!isPaidPlan) {
       updates.departement = currentUser?.departement || 'Ouest';

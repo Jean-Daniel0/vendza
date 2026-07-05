@@ -43,6 +43,7 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
     tel?: string;
     email?: string;
     premiumDepts?: string[];
+    statutVerification?: 'non_verifie' | 'en_verification' | 'verifie';
   } | null>(null);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -212,7 +213,8 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
               banner: bannerVal || undefined,
               tel: telVal || undefined,
               email: emailVal || undefined,
-              premiumDepts: parsedDepts
+              premiumDepts: parsedDepts,
+              statutVerification: data.statut_verification || data.statutVerification || 'non_verifie'
             });
             setIsLoading(false);
             return;
@@ -238,7 +240,8 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
           banner: undefined,
           tel: undefined,
           email: undefined,
-          premiumDepts: assocProduct.vendeurPremiumDepts || []
+          premiumDepts: assocProduct.vendeurPremiumDepts || [],
+          statutVerification: assocProduct.vendeurPlan === 'Pro Local' || assocProduct.vendeurPlan === 'Pro National' ? 'verifie' : 'non_verifie'
         });
       } else {
         // Fallback placeholder
@@ -255,7 +258,8 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
           banner: undefined,
           tel: undefined,
           email: undefined,
-          premiumDepts: ['Ouest', 'Nord', 'Sud', 'Artibonite', 'Centre']
+          premiumDepts: ['Ouest', 'Nord', 'Sud', 'Artibonite', 'Centre'],
+          statutVerification: 'verifie'
         });
       }
       setIsLoading(false);
@@ -409,10 +413,15 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
               )}
             </div>
             <div className="mb-2">
-              <div className="flex items-center gap-1.5 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="font-serif text-xl sm:text-2xl font-extrabold text-[#0c1445] tracking-tight leading-none">
                   {vendorProfile.shopName}
                 </h1>
+                {(vendorProfile.statutVerification === 'verifie' || vendorProfile.plan === 'Pro Local' || vendorProfile.plan === 'Pro National') && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black border border-emerald-300 shadow-3xs uppercase tracking-wider">
+                    ✓ Vérifié
+                  </span>
+                )}
                 {vendorProfile.plan === 'Pro Local' && (
                   <span className="inline-flex items-center shrink-0" title="Vendeur Vérifié (Pro Local)">
                     <svg className="w-5 h-5 text-blue-500 fill-current" viewBox="0 0 24 24">
