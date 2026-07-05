@@ -1387,6 +1387,18 @@ app.post('/api/bazik/create-payment', async (req, res) => {
     console.log('[Bazik DEBUG] Full response keys:', Object.keys(data));
     console.log('[Bazik DEBUG] Full response:', JSON.stringify(data, null, 2));
 
+    if (data.success === false || data.success === 'false') {
+      let friendlyError = "La création du paiement a échoué de la part de Bazik/MonCash.";
+      const msg = data.msg || '';
+      if (msg.includes("The user name does not exist") || msg.includes("security credential is incorrect")) {
+        friendlyError = "Erreur d'authentification MonCash : Les clés API MonCash (Client ID / Client Secret) configurées sur votre compte Bazik sont incorrectes ou configurées pour le mauvais environnement (Sandbox vs Production).";
+      } else if (msg) {
+        friendlyError = `Échec de l'initialisation MonCash : ${msg}`;
+      }
+      console.error('[Bazik API Error] Success is false in payload:', data);
+      return res.status(400).json({ error: friendlyError, details: data });
+    }
+
     const redirectUrl = data.paymentUrl || data.payment_url || data.url || 
       data.redirectUrl || data.redirect_url || data.redirect || 
       data.checkoutUrl || data.checkout_url || data.payment_link || null;
