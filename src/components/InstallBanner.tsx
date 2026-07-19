@@ -171,6 +171,14 @@ export function InstallBanner() {
                 alt="Vendza" 
                 className="w-full h-full object-contain rounded-lg"
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  const img = e.currentTarget as HTMLImageElement;
+                  if (img.src.includes('images_systeme')) {
+                    img.src = '/pwa-icon-192.png';
+                  } else {
+                    img.style.display = 'none';
+                  }
+                }}
               />
             </div>
             <div className="space-y-0.5">
@@ -210,7 +218,20 @@ export function InstallBanner() {
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl border border-slate-100 p-1 bg-white shadow-sm flex items-center justify-center shrink-0">
-                  <img src={pwaIcon192} alt="Vendza logo" className="w-10 h-10 object-contain rounded-lg" referrerPolicy="no-referrer" />
+                  <img 
+                    src={pwaIcon192} 
+                    alt="Vendza logo" 
+                    className="w-10 h-10 object-contain rounded-lg" 
+                    referrerPolicy="no-referrer" 
+                    onError={(e) => {
+                      const img = e.currentTarget as HTMLImageElement;
+                      if (img.src.includes('images_systeme')) {
+                        img.src = '/pwa-icon-192.png';
+                      } else {
+                        img.style.display = 'none';
+                      }
+                    }}
+                  />
                 </div>
                 <div>
                   <h3 className="font-sans font-extrabold text-slate-900 text-base">Installer l'application Vendza</h3>

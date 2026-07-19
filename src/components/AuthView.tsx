@@ -182,7 +182,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
         // Step 3.2 — Récupérer le profil complet
         let { data: profil, error: profileError } = await supabase
           .from('profiles')
-          .select('*, shops(*)')
+          .select('*')
           .eq('id', authData.user.id)
           .single();
 
@@ -190,8 +190,10 @@ export const AuthView: React.FC<AuthViewProps> = ({
           console.error("[Vendza Supabase Profile Error]", profileError);
         }
 
+        const isNotFound = !profil || (profileError && profileError.code === 'PGRST116');
+
         // Step 3.3 — Si profil est null ou erreur de non-existence -> le créer automatiquement avec tous les champs requis
-        if (profileError || !profil) {
+        if (isNotFound) {
           console.warn("Profil introuvable, création automatique de sécurité...");
           
           const emailValue = authData.user.email || '';
@@ -227,7 +229,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
             // Re-fetch to load default/new structure completely
             const { data: newProfil, error: reFetchErr } = await supabase
               .from('profiles')
-              .select('*, shops(*)')
+              .select('*')
               .eq('id', authData.user.id)
               .single();
             if (newProfil) {

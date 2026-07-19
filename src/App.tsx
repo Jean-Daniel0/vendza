@@ -1203,13 +1203,23 @@ export default function App() {
           const aujourd_hui = new Date();
           if (aujourd_hui.getDay() !== 6) return; // 6 = Samedi
 
+          // If offline, don't attempt to fetch
+          if (typeof navigator !== 'undefined' && !navigator.onLine) {
+            return;
+          }
+
           const { count, error } = await supabase
             .from('vendor_wallets')
             .select('*', { count: 'exact', head: true })
             .gt('available_balance', 0);
 
           if (error) {
-            console.error("[Saturday Check Error]", error.message);
+            const isFetchErr = error.message?.includes('fetch') || error.message?.includes('network');
+            if (isFetchErr) {
+              console.warn("[Saturday Check Warn] Network offline or fetch failed:", error.message);
+            } else {
+              console.warn("[Saturday Check Error]", error.message);
+            }
             return;
           }
 
@@ -1217,7 +1227,12 @@ export default function App() {
             console.log(`📢 SAMEDI — ${count} vendeurs à payer !`);
           }
         } catch (err: any) {
-          console.error("Error inside verifierVersementsSamedi:", err.message);
+          const isFetchErr = err.message?.includes('fetch') || err.message?.includes('network');
+          if (isFetchErr) {
+            console.warn("[Saturday Check Warn] Network exception or fetch failed:", err.message);
+          } else {
+            console.warn("Warn inside verifierVersementsSamedi:", err.message);
+          }
         }
       };
 

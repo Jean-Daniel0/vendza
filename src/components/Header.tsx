@@ -43,14 +43,23 @@ export const Header: React.FC<HeaderProps> = ({
             <img 
               src={logoUrl} 
               alt="Vendza" 
-              className="h-8 w-8 object-contain rounded-lg"
+              className="h-10 w-10 md:h-[48px] md:w-[48px] object-contain rounded-lg border border-slate-100 shadow-sm"
               referrerPolicy="no-referrer"
               onError={(e) => { 
-                (e.currentTarget as HTMLImageElement).style.display = 'none';
-                (e.currentTarget.nextElementSibling as HTMLElement)?.removeAttribute('style');
+                const img = e.currentTarget as HTMLImageElement;
+                const src = img.src;
+                if (src.includes('images_systeme')) {
+                  img.src = '/pwa-icon-192.png';
+                } else if (src.includes('pwa-icon-192.png')) {
+                  img.src = '/logo_vendza_source.jpg';
+                } else if (src.includes('logo_vendza_source.jpg')) {
+                  img.src = '/pwa-icon.jpg';
+                } else {
+                  img.style.display = 'none';
+                }
               }}
             />
-            <span style={{display:'none'}} className="text-xl font-extrabold text-[#2563eb] tracking-tight font-sans">
+            <span className="text-xl md:text-2xl font-black text-[#2563eb] tracking-tight font-sans">
               Vend<span className="text-[#0d9488]">za</span>
             </span>
           </div>
