@@ -6,10 +6,7 @@ import {VitePWA} from 'vite-plugin-pwa';
 
 export default defineConfig(() => {
   const isProd = process.env.NODE_ENV === 'production';
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://giakjeanwekipnvyhlxm.supabase.co';
-  const cleanSupabaseUrl = supabaseUrl.replace(/\/$/, '');
-  const pwaIcon192 = supabaseUrl ? `${cleanSupabaseUrl}/storage/v1/object/public/images_systeme/pwa-icon-192.png` : '/pwa-icon-192.png';
-  const pwaIcon512 = supabaseUrl ? `${cleanSupabaseUrl}/storage/v1/object/public/images_systeme/pwa-icon-512.png` : '/pwa-icon-512.png';
+  // Les icônes PWA viennent des fichiers du dépôt (dossier public/), plus de Supabase Storage.
 
   return {
     plugins: [
@@ -85,16 +82,22 @@ export default defineConfig(() => {
           scope: '/',
           icons: [
             {
-              src: pwaIcon192,
+              src: '/pwa-icon-192.png',
               sizes: '192x192',
               type: 'image/png',
               purpose: 'any'
             },
             {
-              src: pwaIcon512,
+              src: '/pwa-icon-512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any'
+            },
+            {
+              src: '/pwa-icon-maskable-512.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'maskable'
             }
           ]
         }
