@@ -1550,9 +1550,12 @@ export default function App() {
 
     async function fetchMessages() {
       try {
+        // FIX: ne charger que les messages de l'utilisateur (RLS filtre déjà côté serveur)
         const { data, error } = await supabase
           .from('messages')
-          .select('*');
+          .select('*')
+          .or(`sender_id.eq.${currentUser.id},recipient_id.eq.${currentUser.id}`)
+          .order('created_at', { ascending: true });
 
         if (error) {
           console.warn("Messages direct query warn (table might not exist yet):", error.message);
@@ -3862,7 +3865,12 @@ export default function App() {
     // 3. Resolve role-based IDs from currentUser involvement
     if (currentUser) {
       const otherParticipantId = currentUser.id === rawMsg.senderId ? rawMsg.recipientId : rawMsg.senderId;
-      if (currentUser.userType === 'vendeur') {
+      // FIX: le rôle dépend du propriétaire du produit, pas du type de compte
+      // (un vendeur qui contacte un autre vendeur agit comme ACHETEUR).
+      const iAmProductOwner = resolvedVendorId
+        ? currentUser.id === resolvedVendorId
+        : currentUser.userType === 'vendeur';
+      if (iAmProductOwner) {
         if (!resolvedVendorId) resolvedVendorId = currentUser.id;
         if (!resolvedBuyerId) resolvedBuyerId = otherParticipantId;
       } else {
