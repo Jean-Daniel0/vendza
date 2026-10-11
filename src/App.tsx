@@ -39,6 +39,17 @@ const CACHE_DURATION = 5 * 60 * 1000;
 
 const FRONTEND_FALLBACK_PRODUCTS: Product[] = [];
 
+// Appel API serveur avec le jeton Supabase de l'utilisateur (requis par les routes protégées)
+async function apiFetchAuthed(input: string, init: RequestInit = {}): Promise<Response> {
+  let token = '';
+  try {
+    const { data } = await (supabase as any).auth.getSession();
+    token = data?.session?.access_token || '';
+  } catch {}
+  const headers = { ...((init.headers as Record<string, string>) || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+  return fetch(input, { ...init, headers });
+}
+
 export default function App() {
   const [currentView, setCurrentView] = useState<string>(() => {
     return localStorage.getItem('vendza_current_view') || 'home';
@@ -1550,9 +1561,12 @@ export default function App() {
 
     async function fetchMessages() {
       try {
+        // FIX: ne charger que les messages de l'utilisateur (RLS filtre déjà côté serveur)
         const { data, error } = await supabase
           .from('messages')
-          .select('*');
+          .select('*')
+          .or(`sender_id.eq.${currentUser.id},recipient_id.eq.${currentUser.id}`)
+          .order('created_at', { ascending: true });
 
         if (error) {
           console.warn("Messages direct query warn (table might not exist yet):", error.message);
@@ -2869,7 +2883,7 @@ export default function App() {
           if (vendorWallet) {
             console.log(`[Bazik Payout] Initiating automatic payout to vendor wallet/account ${vendorWallet} for order ${orderId}...`);
             try {
-              const payRes = await fetch('/api/bazik/pay-vendor', {
+              const payRes = await apiFetchAuthed('/api/bazik/pay-vendor', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -3205,7 +3219,7 @@ export default function App() {
       );
 
       // Trigger automatic follower notifications on the backend
-      fetch('/api/notifications/new-product', {
+      apiFetchAuthed('/api/notifications/new-product', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -3331,7 +3345,7 @@ export default function App() {
 
     if (newPrice !== undefined && oldPrice > 0 && newPrice < oldPrice && currentUser?.id) {
       // Trigger automatic follower notifications for promotions
-      fetch('/api/notifications/promotion', {
+      apiFetchAuthed('/api/notifications/promotion', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -3862,7 +3876,12 @@ export default function App() {
     // 3. Resolve role-based IDs from currentUser involvement
     if (currentUser) {
       const otherParticipantId = currentUser.id === rawMsg.senderId ? rawMsg.recipientId : rawMsg.senderId;
-      if (currentUser.userType === 'vendeur') {
+      // FIX: le rôle dépend du propriétaire du produit, pas du type de compte
+      // (un vendeur qui contacte un autre vendeur agit comme ACHETEUR).
+      const iAmProductOwner = resolvedVendorId
+        ? currentUser.id === resolvedVendorId
+        : currentUser.userType === 'vendeur';
+      if (iAmProductOwner) {
         if (!resolvedVendorId) resolvedVendorId = currentUser.id;
         if (!resolvedBuyerId) resolvedBuyerId = otherParticipantId;
       } else {
@@ -4025,7 +4044,7 @@ export default function App() {
   const sendPushNotification = async (recipientId: string, title: string, message: string, category: 'order' | 'message' | 'promo' = 'order') => {
     try {
       console.log(`[Push Notification] Sending to '${recipientId}' (Category: ${category}): ${title} - ${message}`);
-      const res = await fetch('/api/onesignal/send', {
+      const res = await apiFetchAuthed('/api/onesignal/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

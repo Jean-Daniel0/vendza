@@ -165,7 +165,7 @@ export async function getProductsFromSupabase() {
   const { data, error } = await (supabase as any)
     .from('products')
     .select('*')
-    .order('date_creation', { ascending: false });
+    .order('created_at', { ascending: false });
 
   if (error) {
     console.error("Erreur lors du chargement des produits :", error.message);
