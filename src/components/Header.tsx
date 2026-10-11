@@ -43,7 +43,7 @@ export const Header: React.FC<HeaderProps> = ({
             <img 
               src={logoUrl} 
               alt="Vendza" 
-              className="h-10 w-10 md:h-[48px] md:w-[48px] object-contain rounded-lg border border-slate-100 shadow-sm"
+              className="h-10 w-10 md:h-[48px] md:w-[48px] object-contain"
               referrerPolicy="no-referrer"
               onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
             />
