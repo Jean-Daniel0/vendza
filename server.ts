@@ -975,13 +975,13 @@ const creerCommandeApresPaiement = async (
       let clientTel = '';
       const { data: clientProfile } = await supabase
         .from('profiles')
-        .select('prenom, nom, tel')
+        .select('prenom, nom, telephone')
         .eq('id', pendingOrder.buyer_id)
         .maybeSingle();
 
       if (clientProfile) {
         clientNom = `${clientProfile.prenom || ''} ${clientProfile.nom || ''}`.trim() || 'Client';
-        clientTel = clientProfile.tel || '';
+        clientTel = clientProfile.telephone || '';
       }
 
       const itemsList = Array.isArray(pendingOrder.items) ? pendingOrder.items : [];
@@ -996,19 +996,19 @@ const creerCommandeApresPaiement = async (
       try {
         const { data: vendorShop } = await supabase
           .from('shops')
-          .select('name, shop_name')
+          .select('shop_name')
           .eq('vendor_id', pendingOrder.vendor_id)
           .maybeSingle();
         if (vendorShop) {
-          vendorName = vendorShop.shop_name || vendorShop.name || 'Boutique';
+          vendorName = vendorShop.shop_name || 'Boutique';
         } else {
           const { data: vendorProfile } = await supabase
             .from('profiles')
-            .select('prenom, nom, shop_name')
+            .select('prenom, nom, boutique_nom')
             .eq('id', pendingOrder.vendor_id)
             .maybeSingle();
           if (vendorProfile) {
-            vendorName = vendorProfile.shop_name || `${vendorProfile.prenom || ''} ${vendorProfile.nom || ''}`.trim() || 'Boutique';
+            vendorName = vendorProfile.boutique_nom || `${vendorProfile.prenom || ''} ${vendorProfile.nom || ''}`.trim() || 'Boutique';
           }
         }
       } catch {
@@ -1027,6 +1027,7 @@ const creerCommandeApresPaiement = async (
       const orderPayload: any = {
         id: isUuid(subRefId) ? subRefId : crypto.randomUUID(),
         checkout_group_id: pendingOrder.checkout_group_id || orderId,
+        payment_reference: orderId, // sert à l'idempotence du webhook (voir contrôle .eq('payment_reference', ...))
         qr_token: subRefId, // Save the friendly payment reference in the text qr_token column
         qr_payload: pendingOrder.buyer_id, // Store original client ID here as fallback text in case user ID is not a UUID
         
@@ -2447,7 +2448,7 @@ app.get('/sitemap.xml', async (req, res) => {
     try {
       const { data, error } = await supabase
         .from('products')
-        .select('id, nom, updated_at, date_creation');
+        .select('id, name, updated_at, created_at');
       
       if (!error && data && data.length > 0) {
         // Map keys correctly
