@@ -1,7 +1,6 @@
 import React from 'react';
 import { ShoppingBag, User, Store, LogOut, Menu, UserCheck, MessageSquare } from 'lucide-react';
 import { UserProfile, CartItem } from '../types';
-import { getSystemImageUrl } from '../lib/supabaseClient';
 
 interface HeaderProps {
   user: UserProfile | null;
@@ -21,7 +20,8 @@ export const Header: React.FC<HeaderProps> = ({
   currentView
 }) => {
   const cartItemsCount = cart.reduce((acc, item) => acc + item.quantity, 0);
-  const logoUrl = getSystemImageUrl('pwa-icon-192.png', '/pwa-icon-192.png');
+  // Logo du dépôt (public/) : pas de dépendance à la base de données
+  const logoUrl = '/favicon-96.png';
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-[#e2e8f0] h-[66px] flex items-center transition-all duration-300">
@@ -45,19 +45,7 @@ export const Header: React.FC<HeaderProps> = ({
               alt="Vendza" 
               className="h-10 w-10 md:h-[48px] md:w-[48px] object-contain rounded-lg border border-slate-100 shadow-sm"
               referrerPolicy="no-referrer"
-              onError={(e) => { 
-                const img = e.currentTarget as HTMLImageElement;
-                const src = img.src;
-                if (src.includes('images_systeme')) {
-                  img.src = '/pwa-icon-192.png';
-                } else if (src.includes('pwa-icon-192.png')) {
-                  img.src = '/logo_vendza_source.jpg';
-                } else if (src.includes('logo_vendza_source.jpg')) {
-                  img.src = '/pwa-icon.jpg';
-                } else {
-                  img.style.display = 'none';
-                }
-              }}
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
             />
             <span className="text-xl md:text-2xl font-black text-[#2563eb] tracking-tight font-sans">
               Vend<span className="text-[#0d9488]">za</span>

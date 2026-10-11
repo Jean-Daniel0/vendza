@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
-import { getSystemImageUrl } from '../lib/supabaseClient';
 
 interface QRCodeRendererProps {
   value: string;
@@ -132,7 +131,7 @@ export const QRCodeRenderer: React.FC<QRCodeRendererProps> = ({ value, size = 12
         drawFallbackShield(canvasObj);
       };
 
-      logo.src = getSystemImageUrl('vendza_qr_logo.png', '/images/vendza_qr_logo.png');
+      logo.src = '/images/vendza_qr_logo.png';
     }
   }, [value, size]);
 

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Download, X, Share, PlusSquare, Info, AppWindow } from 'lucide-react';
-import { getSystemImageUrl } from '../lib/supabaseClient';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -9,7 +8,7 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export function InstallBanner() {
-  const pwaIcon192 = getSystemImageUrl('pwa-icon-192.png', '/pwa-icon-192.png');
+  const pwaIcon192 = '/favicon-96.png'; // logo du dépôt (public/)
 
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showAndroidBanner, setShowAndroidBanner] = useState<boolean>(false);
@@ -171,14 +170,7 @@ export function InstallBanner() {
                 alt="Vendza" 
                 className="w-full h-full object-contain rounded-lg"
                 referrerPolicy="no-referrer"
-                onError={(e) => {
-                  const img = e.currentTarget as HTMLImageElement;
-                  if (img.src.includes('images_systeme')) {
-                    img.src = '/pwa-icon-192.png';
-                  } else {
-                    img.style.display = 'none';
-                  }
-                }}
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
               />
             </div>
             <div className="space-y-0.5">
@@ -223,14 +215,7 @@ export function InstallBanner() {
                     alt="Vendza logo" 
                     className="w-10 h-10 object-contain rounded-lg" 
                     referrerPolicy="no-referrer" 
-                    onError={(e) => {
-                      const img = e.currentTarget as HTMLImageElement;
-                      if (img.src.includes('images_systeme')) {
-                        img.src = '/pwa-icon-192.png';
-                      } else {
-                        img.style.display = 'none';
-                      }
-                    }}
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                   />
                 </div>
                 <div>
