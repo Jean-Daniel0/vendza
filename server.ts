@@ -1,4 +1,5 @@
 import express from 'express';
+import { assertPaymentVerified, confirmDelivery, getOrCreateDeliveryCode, recordVerifiedPayment } from './server/delivery';
 import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
@@ -812,11 +813,33 @@ function saveOrphanedPayment(payment: any) {
 const creerCommandeApresPaiement = async (
   orderId: string, 
   paymentMethod: string,
-  transactionId?: string | null
+  transactionId?: string | null,
+  paidAmount?: number | null
 ) => {
   if (!isSupabaseConfigured || !supabase) {
     console.error('[Webhook] Database is not configured.');
     return null;
+  }
+
+  // Paiement confirmé par le fournisseur (webhook signé / session Stripe lue chez Stripe) : on l'enregistre.
+  // Seul ce registre (écrit par le serveur) autorise ensuite un virement au vendeur.
+  await recordVerifiedPayment(supabase, { reference: orderId, method: paymentMethod, transactionId, amount: paidAmount });
+
+  // Idempotence : si une commande existe déjà pour ce paiement (webhook rejoué, ou commande créée par le navigateur en repli
+  // quand le webhook tardait), on ne crée PAS de doublon. Le paiement vient d'être marqué « vérifié » ci-dessus.
+  try {
+    const { data: already } = await supabase
+      .from('orders')
+      .select('id')
+      .or(`qr_token.eq.${orderId},qr_token.like.${orderId}_sub_%,payment_reference.eq.${orderId}`)
+      .limit(1);
+    if (already && already.length > 0) {
+      console.log(`[Webhook] An order already exists for payment ${orderId}; skipping duplicate creation.`);
+      try { await supabase.from('pending_orders').delete().eq('reference_id', orderId); } catch (_) {}
+      return null;
+    }
+  } catch (e: any) {
+    console.warn('[Webhook] duplicate-order check failed (continuing):', e?.message);
   }
 
   try {
@@ -1561,7 +1584,7 @@ app.post('/api/bazik/webhook/payment', express.raw({ type: '*/*' }), async (req:
           );
         }
       } else {
-        await creerCommandeApresPaiement(finalOrderId, 'moncash', orderId || finalOrderId);
+        await creerCommandeApresPaiement(finalOrderId, 'moncash', orderId || finalOrderId, Number(amount) || null);
       }
     } else if (type === 'payment.failed' || type === 'payment.cancelled') {
       console.log(`[Bazik Payment Webhook] Payment failed or cancelled: ${finalOrderId}`);
@@ -1763,64 +1786,20 @@ app.post('/api/bazik/webhook/transfer', express.raw({ type: '*/*' }), async (req
 });
 
 // 4. Pay Vendor (Triggered after QR code delivery validation)
-app.post('/api/bazik/pay-vendor', async (req, res) => {
-  // SÉCURITÉ : le portefeuille de destination et le montant ne sont JAMAIS pris tels quels dans la requête.
-  const { orderId, amount: clientAmount, vendorFirstName: clientFirstName, vendorLastName: clientLastName } = req.body;
+// Exécute le virement MonCash d'une commande dont la livraison est confirmée (les contrôles d'accès sont faits par l'appelant).
+async function executeVendorPayout(
+  order: any,
+  opts: { clientAmount?: any; clientFirstName?: string; clientLastName?: string } = {}
+): Promise<{ status: number; body: any }> {
+  const orderId = order.id;
+  const { clientAmount, clientFirstName, clientLastName } = opts;
   let payoutLockRef: string | null = null;
-
-  if (!orderId) {
-    return res.status(400).json({ error: "orderId is required." });
-  }
-
-  const caller = await getAuthedUser(req);
-  if (!caller) {
-    return res.status(401).json({ error: "Authentification requise." });
-  }
-
-  if (!isValidUuid(orderId)) {
-    return res.status(400).json({ error: "L'identifiant de commande n'est pas un UUID valide." });
-  }
-
   try {
     if (!isSupabaseConfigured || !supabase) {
-      return res.status(500).json({ error: "Database not configured on server." });
+      return { status: 500, body: { error: "Database not configured on server." } };
     }
-
-    const { data: order, error: orderErr } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('id', orderId)
-      .maybeSingle();
-
-    if (orderErr || !order) {
-      console.error('[Bazik Pay Vendor Error] Order not found in DB:', orderId, orderErr);
-      return res.status(404).json({ error: "Commande non trouvée dans la base de données." });
-    }
-
-    const isDeliveryConfirmed = order.reception_confirmed === true || 
-                                order.status === 'completed' || 
-                                order.status === 'livree' || 
-                                order.statut === 'completed' || 
-                                order.statut === 'livree';
-
-    if (!isDeliveryConfirmed) {
-      console.warn(`[Bazik Pay Vendor Reject] Order status does not allow payout. Status: ${order.status}, ReceptionConfirmed: ${order.reception_confirmed}`);
-      return res.status(400).json({ error: "Le virement ne peut pas être initié car la livraison n'est pas confirmée." });
-    }
-
-    // --- Autorisation : seuls l'acheteur, le vendeur de la commande peuvent déclencher le versement ---
-    const participantIds = [
-      order.buyer_id, order.client_id, order.customer_id, order.user_id,
-      order.vendor_id, order.seller_id, order.owner_id
-    ].filter(Boolean);
-    if (!participantIds.includes(caller.id)) {
-      console.warn(`[Bazik Pay Vendor Reject] Caller ${caller.id} is not a participant of order ${orderId}.`);
-      return res.status(403).json({ error: "Accès refusé pour cette commande." });
-    }
-
-    // --- Idempotence : une commande ne peut être versée qu'une seule fois ---
     if (order.vendor_credited === true) {
-      return res.status(409).json({ error: "Cette commande a déjà été versée au vendeur." });
+      return { status: 409, body: { error: "Cette commande a déjà été versée au vendeur." } };
     }
 
     // --- Montant calculé côté serveur (jamais supérieur à ce que dit la base) ---
@@ -1832,7 +1811,7 @@ app.post('/api/bazik/pay-vendor', async (req, res) => {
       console.warn(`[Bazik Pay Vendor] Client amount ${requestedAmount} differs from server amount ${serverAmount} for order ${orderId}; using ${amount}.`);
     }
     if (!(amount > 0)) {
-      return res.status(400).json({ error: "Montant du virement invalide." });
+      return { status: 400, body: { error: "Montant du virement invalide." } };
     }
 
     // --- Portefeuille MonCash lu en base (profil puis boutique), jamais depuis la requête ---
@@ -1857,7 +1836,7 @@ app.post('/api/bazik/pay-vendor', async (req, res) => {
       }
     }
     if (!vendorWallet) {
-      return res.status(400).json({ error: "Le vendeur n'a pas configuré son numéro MonCash." });
+      return { status: 400, body: { error: "Le vendeur n'a pas configuré son numéro MonCash." } };
     }
     const nameParts = moncashName ? moncashName.split(/\s+/) : [];
     const vendorFirstName = nameParts[0] || clientFirstName || 'Vendeur';
@@ -1870,7 +1849,7 @@ app.post('/api/bazik/pay-vendor', async (req, res) => {
       .insert({ vendor_id: payoutVendorId, amount, status: 'pending', reference: payoutRef });
     if (lockErr) {
       if ((lockErr as any).code === '23505') {
-        return res.status(409).json({ error: "Un virement est déjà en cours ou effectué pour cette commande." });
+        return { status: 409, body: { error: "Un virement est déjà en cours ou effectué pour cette commande." } };
       }
       console.warn('[Bazik Pay Vendor] payouts lock insert failed (non bloquant):', lockErr.message);
     } else {
@@ -1879,6 +1858,12 @@ app.post('/api/bazik/pay-vendor', async (req, res) => {
 
     const secretKey = process.env.BAZIK_SECRET_KEY || '';
     const isSimulation = !secretKey || secretKey === "sk_proj_...";
+    if (isSimulation && isProduction() && process.env.ALLOW_PAYMENT_SIMULATION !== 'true') {
+      // SÉCURITÉ : on ne « simule » JAMAIS un virement en production (cela marquerait la commande comme réglée sans argent réel)
+      console.error('[Bazik Pay Vendor] BAZIK_SECRET_KEY missing/placeholder in production: payout refused (set ALLOW_PAYMENT_SIMULATION=true only for tests).');
+      await releasePayoutLock(payoutLockRef);
+      return { status: 503, body: { error: "Passerelle de paiement non configurée (clé Bazik manquante) : le virement est impossible pour l'instant." } };
+    }
     console.log(`[Bazik Pay Vendor Log] Payout attempt details:
       Order ID: ${orderId}
       Amount to transfer: ${amount} GDES/HTG
@@ -1956,13 +1941,13 @@ app.post('/api/bazik/pay-vendor', async (req, res) => {
         }
       }
 
-      return res.json({
+      return { status: 200, body: {
         success: true,
         is_simulated: true,
         status: "succeeded",
         referenceId: `PAY_VENDOR_${orderId}`,
         message: "Virement MonCash simulé initié et crédité avec succès (mode test)."
-      });
+      } };
     }
 
     const token = await getBazikToken();
@@ -1990,23 +1975,97 @@ app.post('/api/bazik/pay-vendor', async (req, res) => {
       const errorText = await response.text();
       console.error('[Bazik API Error] Withdraw call failed:', response.status, errorText);
       await releasePayoutLock(payoutLockRef);
-      return res.status(response.status).json({ error: `Le virement via Bazik a échoué: ${errorText}` });
+      return { status: response.status, body: { error: `Le virement via Bazik a échoué: ${errorText}` } };
     }
 
     const data: any = await response.json();
     console.log('[Bazik API] Withdraw successfully initiated:', data);
 
-    return res.json({
+    return { status: 200, body: {
       success: true,
       status: data.status || 'pending',
       transactionId: data.transactionId || null,
       referenceId: `PAY_VENDOR_${orderId}`
-    });
-
+    } };
   } catch (err: any) {
     console.error('[Bazik Pay Vendor Exception]', err.message);
     await releasePayoutLock(payoutLockRef);
+    return { status: 500, body: { error: err.message || 'Erreur interne lors du traitement du virement' } };
+  }
+}
+
+app.post('/api/bazik/pay-vendor', async (req, res) => {
+  // SÉCURITÉ : le portefeuille de destination et le montant ne sont JAMAIS pris tels quels dans la requête.
+  const { orderId, amount: clientAmount, vendorFirstName: clientFirstName, vendorLastName: clientLastName } = req.body;
+  if (!orderId) {
+    return res.status(400).json({ error: "orderId is required." });
+  }
+  const caller = await getAuthedUser(req);
+  if (!caller) {
+    return res.status(401).json({ error: "Authentification requise." });
+  }
+  if (!isValidUuid(orderId)) {
+    return res.status(400).json({ error: "L'identifiant de commande n'est pas un UUID valide." });
+  }
+
+  try {
+    if (!isSupabaseConfigured || !supabase) {
+      return res.status(500).json({ error: "Database not configured on server." });
+    }
+    const { data: order, error: orderErr } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
+    if (orderErr || !order) {
+      return res.status(404).json({ error: "Commande non trouvée dans la base de données." });
+    }
+
+    // Nouvel essai d'un virement pour une commande DÉJÀ confirmée par l'acheteur (le serveur est seul à écrire ces indicateurs)
+    const isDeliveryConfirmed = order.reception_confirmed === true || order.status === 'completed' || order.status === 'livree';
+    if (!isDeliveryConfirmed) {
+      return res.status(400).json({ error: "Le virement ne peut pas être initié car la livraison n'est pas confirmée par l'acheteur." });
+    }
+    const participantIds = [order.buyer_id, order.client_id, order.customer_id, order.user_id, order.vendor_id, order.seller_id, order.owner_id].filter(Boolean);
+    if (!participantIds.includes(caller.id)) {
+      return res.status(403).json({ error: "Accès refusé pour cette commande." });
+    }
+    if (order.vendor_credited === true) {
+      return res.status(409).json({ error: "Cette commande a déjà été versée au vendeur." });
+    }
+    const unverified = await assertPaymentVerified(supabase, order);
+    if (unverified) return res.status(unverified.status).json(unverified.body);
+
+    const r = await executeVendorPayout(order, { clientAmount, clientFirstName, clientLastName });
+    return res.status(r.status).json(r.body);
+  } catch (err: any) {
+    console.error('[Bazik Pay Vendor Route Exception]', err.message);
     return res.status(500).json({ error: err.message || 'Erreur interne lors du traitement du virement' });
+  }
+});
+
+// Le VENDEUR récupère le code de livraison à afficher en QR (l'acheteur le scanne). Le code n'est lisible que par le serveur.
+app.get('/api/orders/:orderId/delivery-code', async (req, res) => {
+  const caller = await getAuthedUser(req);
+  if (!caller) return res.status(401).json({ error: "Authentification requise." });
+  if (!isValidUuid(req.params.orderId)) return res.status(400).json({ error: "Identifiant de commande invalide." });
+  if (!isSupabaseConfigured || !supabase) return res.status(500).json({ error: "Database not configured on server." });
+  const r = await getOrCreateDeliveryCode(supabase, req.params.orderId, caller.id);
+  return res.status(r.status).json(r.body);
+});
+
+// L'ACHETEUR confirme la réception (bouton ou scan du QR du vendeur) : transition atomique + virement au vendeur.
+app.post('/api/orders/confirm-delivery', async (req, res) => {
+  const { orderId, code } = req.body || {};
+  if (!orderId || !isValidUuid(orderId)) return res.status(400).json({ error: "orderId invalide." });
+  const caller = await getAuthedUser(req);
+  if (!caller) return res.status(401).json({ error: "Authentification requise." });
+  if (!isSupabaseConfigured || !supabase) return res.status(500).json({ error: "Database not configured on server." });
+  try {
+    const r = await confirmDelivery(
+      { db: supabase, payout: (order: any) => executeVendorPayout(order) },
+      { orderId, callerId: caller.id, code }
+    );
+    return res.status(r.status).json(r.body);
+  } catch (err: any) {
+    console.error('[Confirm Delivery Exception]', err.message);
+    return res.status(500).json({ error: err.message || 'Erreur interne.' });
   }
 });
 

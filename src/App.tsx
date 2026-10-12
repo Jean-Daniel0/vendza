@@ -27,6 +27,7 @@ import { PWAUpdater } from './components/PWAUpdater';
 import { Product, CartItem, Order, Review, Message, UserProfile } from './types';
 import { INITIAL_PRODUCTS, INITIAL_REVIEWS } from './data';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
+import { apiFetchAuthed } from './lib/api';
 
 // Predefined live states empty to welcome live database content only
 const INITIAL_MESSAGES: Message[] = [];
@@ -38,17 +39,6 @@ let cacheTime: number | null = null;
 const CACHE_DURATION = 5 * 60 * 1000;
 
 const FRONTEND_FALLBACK_PRODUCTS: Product[] = [];
-
-// Appel API serveur avec le jeton Supabase de l'utilisateur (requis par les routes protégées)
-async function apiFetchAuthed(input: string, init: RequestInit = {}): Promise<Response> {
-  let token = '';
-  try {
-    const { data } = await (supabase as any).auth.getSession();
-    token = data?.session?.access_token || '';
-  } catch {}
-  const headers = { ...((init.headers as Record<string, string>) || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) };
-  return fetch(input, { ...init, headers });
-}
 
 export default function App() {
   const [currentView, setCurrentView] = useState<string>(() => {
@@ -2716,304 +2706,96 @@ export default function App() {
         })
         .eq('id', orderId);
 
-      // 2. Créditer les fonds en séquestre (pending_balance) & total_earned
-      const { data: wallet } = await supabase
-        .from('vendor_wallets')
-        .select('*')
-        .eq('vendor_id', vendorId)
-        .maybeSingle();
-
-      if (wallet) {
-        await supabase
-          .from('vendor_wallets')
-          .update({
-            pending_balance: (Number(wallet.pending_balance) || 0) + montantVendeur,
-            total_earned: (Number(wallet.total_earned) || 0) + montantVendeur,
-            updated_at: new Date().toISOString()
-          })
-          .eq('vendor_id', vendorId);
-      } else {
-        await supabase
-          .from('vendor_wallets')
-          .insert({
-            vendor_id: vendorId,
-            pending_balance: montantVendeur,
-            available_balance: 0,
-            total_earned: montantVendeur,
-            updated_at: new Date().toISOString()
-          });
-      }
-
-      // 3. Enregistrer la transaction de séquestre
-      await supabase
-        .from('vendor_wallet_transactions')
-        .insert({
-          vendor_id: vendorId,
-          order_id: orderId,
-          amount: montantVendeur,
-          type: 'pending_escrow',
-          description: `Fonds sécurisés en séquestre (frais plateforme ${rate * 100}% déduits)`
-        });
-
-      console.log("[Escrow] Successfully credited vendor pending escrow balance for order:", orderId);
+      // 2-3. (Supprimé) Le crédit du portefeuille en séquestre et sa transaction sont faits UNIQUEMENT par le serveur
+      //      lors du webhook de paiement : les refaire ici provoquait un double crédit.
+      console.log("[Escrow] Payment confirmed on client for order:", orderId, "(escrow wallet credited server-side)");
     } catch (e) {
       console.error("[Escrow] Error inside afterPaymentConfirmed:", e);
     }
   };
 
-  // Release payment guarantee & finish cycle
-  const handleConfirmDelivery = async (orderId: string) => {
-    console.log("[Escrow] Confirming delivery (QR Scan or Force Click) for ID:", orderId);
-    const targetOrder = orders.find(o => o.id === orderId);
-
-    setOrders(prev => prev.map(o => {
-      if (o.id === orderId) {
-        return { ...o, status: 'livree' as const };
-      }
-      return o;
-    }));
-
-    if (targetOrder) {
-      // Recalculer le compteur/stock de chaque produit dans la commande
-      setProducts(prev => {
-        const updatedProducts = prev.map(p => {
-          const itemInOrder = targetOrder.items.find(item => item.productId === p.id);
-          if (itemInOrder) {
-            const nextStock = Math.max(0, p.stock - itemInOrder.qte);
-            return { ...p, stock: nextStock };
-          }
-          return p;
-        });
-
-        // Mettre à jour en base de données Supabase si configuré
-        if (isSupabaseConfigured && supabase) {
-          targetOrder.items.forEach(async (item) => {
-            try {
-              // Obtenir la quantité réelle en temps réel dans Supabase pour éviter les désynchronisations de stock
-              const { data: realTimeProduct, error: fetchError } = await supabase
-                .from('products')
-                .select('stock')
-                .eq('id', item.productId)
-                .maybeSingle();
-
-              if (!fetchError && realTimeProduct) {
-                const currentDbStock = Number(realTimeProduct.stock) || 0;
-                const nextStock = Math.max(0, currentDbStock - (Number(item.qte) || 1));
-                
-                const { error: updateError } = await supabase
-                  .from('products')
-                  .update({ stock: nextStock })
-                  .eq('id', item.productId);
-
-                if (updateError) {
-                  console.error(`Erreur de mise à jour du stock pour le produit ${item.productId}:`, updateError.message);
-                } else {
-                  console.log(`[Supabase Stock Sync] Produit ${item.productId} mis à jour avec succès. Ancien stock: ${currentDbStock}, nouveau stock: ${nextStock}`);
-                }
-              } else {
-                // Fallback avec l'état local si le fetch en temps réel échoue
-                const currentProd = prev.find(p => p.id === item.productId);
-                if (currentProd) {
-                  const nextStock = Math.max(0, currentProd.stock - item.qte);
-                  await supabase
-                    .from('products')
-                    .update({ stock: nextStock })
-                    .eq('id', item.productId);
-                }
-              }
-            } catch (err: any) {
-              console.error(`Exception de mise à jour du stock pour le produit ${item.productId}:`, err.message);
-            }
-          });
-        }
-
-        return updatedProducts;
+  // Confirmation de réception par l'ACHETEUR : le serveur vérifie, change le statut, décrémente le stock et lance le virement.
+  const handleConfirmDelivery = async (orderId: string, code?: string): Promise<{ success: boolean; message: string }> => {
+    if (!isSupabaseConfigured || !supabase) return { success: false, message: "Base de données non disponible." };
+    try {
+      const res = await apiFetchAuthed('/api/orders/confirm-delivery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, code })
       });
-    }
+      const data: any = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.success) {
+        return { success: false, message: data?.error || "Impossible de confirmer la livraison pour le moment." };
+      }
 
-    if (isSupabaseConfigured && supabase) {
+      setOrders(prev => prev.map(o => (o.id === orderId ? { ...o, status: 'livree' as const } : o)));
+
+      // Notifications (le serveur a déjà tout enregistré)
+      const targetOrder = orders.find(o => o.id === orderId);
+      const vendorId = targetOrder?.vendorId || '';
+      const buyerId = targetOrder?.clientId || currentUser?.id || '';
+      const payoutOk = !!data.payout?.ok;
       try {
-        const { data: order } = await supabase
-          .from('orders')
-          .select('*, profiles:vendor_id(plan)')
-          .eq('id', orderId)
-          .maybeSingle();
-
-        const plan = order?.profiles?.plan || 'gratuit';
-        const commissions: Record<string, number> = {
-          'gratuit':      0.20,
-          'pro_local':    0.15,
-          'pro_national': 0.10
-        };
-        const rate = commissions[plan] !== undefined ? commissions[plan] : 0.20;
-        const totalPrice = order ? (Number(order.total_price) || 0) : (targetOrder ? targetOrder.totalPrice : 0);
-        const commission = totalPrice * rate;
-        const montantVendeur = totalPrice - commission;
-        const vendorId = order?.vendor_id || targetOrder?.vendorId || '';
-
-        let vendorWallet = '';
-        let vendorFirstName = '';
-        let vendorLastName = '';
-
         if (vendorId) {
-          const { data: prof } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', vendorId)
-            .maybeSingle();
-            
-          if (prof) {
-            vendorWallet = prof.numero_moncash || prof.moncash || prof.moncash_num || '';
-            const mName = prof.moncash_nom || prof.moncashnom || '';
-            if (mName && mName.trim()) {
-              const parts = mName.trim().split(/\s+/);
-              vendorFirstName = parts[0] || 'Vendeur';
-              vendorLastName = parts.slice(1).join(' ') || 'MonCash';
-            } else {
-              vendorFirstName = prof.prenom || prof.first_name || 'Vendeur';
-              vendorLastName = prof.nom || prof.last_name || 'Vendza';
-            }
-          }
-        } else {
-          console.error(`[CRITICAL ERROR] vendorId is empty for orderId ${orderId}. Cannot process payout.`);
-        }
-
-        if (vendorId) {
-          // Trigger automatic seller payout to vendor's preferred account
-          if (vendorWallet) {
-            console.log(`[Bazik Payout] Initiating automatic payout to vendor wallet/account ${vendorWallet} for order ${orderId}...`);
-            try {
-              const payRes = await apiFetchAuthed('/api/bazik/pay-vendor', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  orderId,
-                  vendorWallet,
-                  amount: montantVendeur,
-                  vendorFirstName,
-                  vendorLastName
-                })
-              });
-              const payData = await payRes.json();
-              if (payRes.ok && payData.success) {
-                console.log(`[Bazik Payout Success] Payout successfully initiated via Bazik: PAY_VENDOR_${orderId}`);
-              } else {
-                console.error(`[Bazik Payout Error] API returned failure status:`, payData.error);
-              }
-            } catch (payoutErr: any) {
-              console.error(`[Bazik Payout Exception] Failed to call pay-vendor API:`, payoutErr.message);
-            }
-          } else {
-            console.error(`[CRITICAL ERROR] vendorWallet is empty for vendorId ${vendorId} and orderId ${orderId}. Payout cannot be processed automatically.`);
-            
-            // Insert into vendor_wallet_transactions
-            await supabase
-              .from('vendor_wallet_transactions')
-              .insert({
-                vendor_id: vendorId,
-                order_id: orderId,
-                amount: montantVendeur,
-                type: 'pending_manual',
-                description: 'Paiement en attente - numéro MonCash du vendeur non configuré'
-              });
-
-            // Send push notification to vendor
-            sendPushNotification(
-              vendorId,
-              "⚠️ Action requise",
-              `Configurez votre numéro MonCash pour recevoir votre paiement de ${montantVendeur.toLocaleString('fr-FR')} HTG`,
-              'order'
-            );
-
-            // Insert into platform_messages
-            await supabase
-              .from('platform_messages')
-              .insert({
-                title: '⚠️ Numéro MonCash manquant !',
-                message: `Votre paiement de ${montantVendeur.toLocaleString('fr-FR')} HTG pour la commande ${orderId} est en attente. Veuillez configurer votre numéro MonCash dans vos paramètres de boutique pour recevoir votre argent automatiquement.`,
-                audience: vendorId,
-                is_active: true
-              });
-          }
-
-          // Notifier le vendeur du début de l'envoi
-          await supabase
-            .from('platform_messages')
-            .insert({
-              title: '📦 Livraison validée, virement initié !',
-              message: `La livraison a été confirmée. Le virement de ${montantVendeur.toLocaleString('fr-FR')} HTG vers votre numéro MonCash a été initié et apparaîtra dans votre solde dès confirmation de l'opérateur.`,
-              audience: vendorId,
-              is_active: true
-            });
-
           sendPushNotification(
             vendorId,
             "📦 Livraison validée !",
-            `Le virement de ${montantVendeur.toLocaleString('fr-FR')} HTG vers votre compte MonCash a été initié et est en cours de confirmation.`,
+            payoutOk
+              ? "L'acheteur a confirmé la réception. Le virement vers votre compte MonCash est en cours."
+              : "L'acheteur a confirmé la réception. Votre virement est en attente : vérifiez votre numéro MonCash.",
             'order'
           );
-
-          // Insert delivery confirm chat message for vendor
-          const vendorDeliveredChatMsg: Message = {
-            id: `msg-notif-delivery-vendor-${Date.now()}-${vendorId}`,
-            senderId: '99999999-9999-4999-9999-999999999999',
-            senderNom: 'Vendza',
-            recipientId: vendorId,
-            text: `✅ LIVRAISON VALIDÉE !\n\nID de commande : ${orderId}\nMontant du transfert : ${montantVendeur.toLocaleString('fr-FR')} HTG (frais plateforme déduits)\n\nLa livraison a été confirmée par le client. Le transfert vers votre numéro MonCash a été initié. Vos fonds seront officiellement ajoutés à votre solde disponible dès confirmation du virement. Merci d'utiliser Vendza !`,
-            time: "Aujourd'hui, " + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-            createdAt: new Date().toISOString(),
-            orderId: orderId
-          };
-          setMessages(prev => [...prev, vendorDeliveredChatMsg]);
-          insertMessageAdaptive(vendorDeliveredChatMsg).catch(err => console.warn("[Delivery Message Error] Vendor chat insert failed:", err));
+          await supabase.from('platform_messages').insert({
+            title: '📦 Livraison validée !',
+            message: `La livraison de la commande ${orderId} a été confirmée par l'acheteur. ${payoutOk ? 'Le virement MonCash est en cours.' : 'Le virement est en attente : vérifiez que votre numéro MonCash est configuré.'}`,
+            audience: vendorId,
+            is_active: true
+          });
         }
-
-        const buyerId = targetOrder?.clientId || (order as any)?.buyer_id || (order as any)?.clientId;
         if (buyerId) {
-          sendPushNotification(
-            buyerId,
-            "📦 Commande confirmée !",
-            `La livraison de votre commande (${orderId}) a été validée avec succès via QR Code. Merci de votre confiance !`,
-            'order'
-          );
-
-          // Insert delivery confirm chat message for buyer
-          const buyerDeliveredChatMsg: Message = {
-            id: `msg-notif-delivery-buyer-${Date.now()}-${buyerId}`,
-            senderId: '99999999-9999-4999-9999-999999999999',
-            senderNom: 'Vendza',
-            recipientId: buyerId,
-            text: `📦 LIVRAISON CONFIRMÉE AVEC SUCCÈS !\n\nID de commande : ${orderId}\nMontant total : ${totalPrice} HTG\n\nLa livraison de votre commande a été validée avec succès via le scan de votre Code QR unique. Le vendeur a été payé et le cycle de vente est maintenant terminé. Merci d'utiliser Vendza, le leader du commerce de confiance en Haïti !`,
-            time: "Aujourd'hui, " + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-            createdAt: new Date().toISOString(),
-            orderId: orderId
-          };
-          setMessages(prev => [...prev, buyerDeliveredChatMsg]);
-          insertMessageAdaptive(buyerDeliveredChatMsg).catch(err => console.warn("[Delivery Message Error] Buyer chat insert failed:", err));
+          sendPushNotification(buyerId, "📦 Commande confirmée !", `La livraison de votre commande (${orderId}) a été validée. Merci de votre confiance !`, 'order');
         }
-
-        // Mettre à jour la commande
-        await supabase
-          .from('orders')
-          .update({
-            reception_confirmed: true,
-            buyer_confirmed: true,
-            buyer_confirmed_at: new Date().toISOString(),
-            status: 'completed',
-            is_validated: true,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', orderId);
-
-        console.log("[Escrow] Immediate balance transition completed successfully for order:", orderId);
-        fetchOrders();
-        // Rafraîchir les produits pour voir la baisse de quantité disponible en temps réel dans l'interface
-        fetchProducts(0, false);
-      } catch (err: any) {
-        console.error("Error in handleConfirmDelivery immediate transfer:", err.message);
+      } catch (notifyErr: any) {
+        console.warn("[Confirm Delivery] notifications failed:", notifyErr?.message);
       }
+
+      fetchOrders();
+      fetchProducts(0, false);
+      return {
+        success: true,
+        message: payoutOk
+          ? "Réception confirmée. Le virement MonCash vers le vendeur est en cours."
+          : "Réception confirmée. Le virement au vendeur est en attente de traitement."
+      };
+    } catch (err: any) {
+      return { success: false, message: err?.message || "Erreur réseau." };
     }
   };
+
+  // QR scanné avec l'appareil photo du téléphone : lien https://www.vendza.store/?confirm=<id>&code=<code>
+  const [scanPrefill, setScanPrefill] = useState<string>('');
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const confirmId = params.get('confirm');
+      if (confirmId) {
+        sessionStorage.setItem('pendingConfirm', JSON.stringify({ id: confirmId, code: params.get('code') || '' }));
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    } catch (_) {}
+  }, []);
+  useEffect(() => {
+    if (!currentUser) return;
+    try {
+      const raw = sessionStorage.getItem('pendingConfirm');
+      if (!raw) return;
+      const { id, code } = JSON.parse(raw);
+      sessionStorage.removeItem('pendingConfirm');
+      setScanPrefill(`https://www.vendza.store/?confirm=${encodeURIComponent(id)}&code=${encodeURIComponent(code || '')}`);
+      navigateTo('scanner');
+    } catch (_) {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser]);
 
   // Rule 5: Litige (geler les fonds)
   const ouvrirLitige = async (orderId: string, reason: string): Promise<{ success: boolean; message: string }> => {
@@ -4604,6 +4386,8 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
               orders={orders}
               onConfirmDelivery={handleConfirmDelivery}
               onNavigate={navigateTo}
+              currentUserId={currentUser?.id}
+              initialScan={scanPrefill}
             />
           )}
 
