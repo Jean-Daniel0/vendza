@@ -11,7 +11,7 @@ interface TicketDetailViewProps {
   order: Order;
   user: UserProfile | null;
   onBack: () => void;
-  onConfirmDelivery?: (orderId: string) => void;
+  onConfirmDelivery?: (orderId: string, code?: string) => Promise<{ success: boolean; message: string }> | void;
   onNavigate?: (view: string) => void;
 }
 
@@ -90,8 +90,12 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
     if (!onConfirmDelivery) return;
     setIsConfirming(true);
     try {
-      await onConfirmDelivery(order.id);
-      setActionMessage('✓ Succès! Les fonds ont été reversés sur le portefeuille du marchand.');
+      const result: any = await onConfirmDelivery(order.id);
+      if (result && result.success === false) {
+        setActionMessage(`Erreur: ${result.message}`);
+      } else {
+        setActionMessage(`✓ ${result?.message || 'Réception confirmée. Le versement au vendeur est en cours.'}`);
+      }
     } catch (e: any) {
       setActionMessage(`Erreur: ${e.message || 'Impossible de valider la livraison'}`);
     } finally {
@@ -292,7 +296,7 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
               {isVendor && (
                 <div className="bg-slate-50 border border-teal-150 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-2.5 my-3">
                   <div className="bg-white p-2.5 border border-slate-200 rounded-xl shadow-3xs">
-                    <QRCodeRenderer value={`https://vendza2.netlify.app/client/confirmation?id=${order.id}`} size={110} />
+                    <QRCodeRenderer value={`https://www.vendza.store/?order=${order.id}`} size={110} />
                   </div>
                   <div className="space-y-0.5">
                     <span className="text-[10px] uppercase font-black text-[#0d9488] tracking-widest font-sans block">

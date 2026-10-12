@@ -5,17 +5,26 @@ import jsQR from 'jsqr';
 
 interface ScannerViewProps {
   orders: Order[];
-  onConfirmDelivery: (orderId: string) => void;
+  // Résultat renvoyé par le serveur : seul l'ACHETEUR peut confirmer la réception
+  onConfirmDelivery: (orderId: string, code?: string) => Promise<{ success: boolean; message: string }> | void;
   onNavigate: (view: string) => void;
+  currentUserId?: string;
+  // QR lu depuis l'appareil photo du téléphone (lien ?confirm=<id>&code=<code>)
+  initialScan?: string;
 }
 
 export const ScannerView: React.FC<ScannerViewProps> = ({
   orders,
   onConfirmDelivery,
-  onNavigate
+  onNavigate,
+  currentUserId,
+  initialScan
 }) => {
   const [cameraActive, setCameraActive] = useState<boolean>(false);
   const [manualId, setManualId] = useState<string>('');
+  const [manualCode, setManualCode] = useState<string>('');
+  const [scannedCode, setScannedCode] = useState<string>('');
+  const [isConfirming, setIsConfirming] = useState<boolean>(false);
   
   // States of detected order
   const [scannedOrder, setScannedOrder] = useState<Order | null>(null);
@@ -25,47 +34,52 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Parse scanned text to find actual Order ID (supporting URLs and raw IDs)
-  const parseScannedText = (text: string): string => {
+  // Extrait l'identifiant de commande et le code de livraison d'un QR (lien ?confirm=<id>&code=<code>, ancien ?id=<id>, ou texte brut)
+  const parseScan = (text: string): { id: string; code: string } => {
     const raw = text.trim();
     try {
       if (raw.startsWith('http://') || raw.startsWith('https://')) {
         const url = new URL(raw);
-        const idParam = url.searchParams.get('id');
-        if (idParam) return idParam;
+        const id = url.searchParams.get('confirm') || url.searchParams.get('id') || '';
+        const code = url.searchParams.get('code') || '';
+        if (id) return { id, code };
       }
     } catch (_) {}
-    
-    if (raw.includes('?id=')) {
-      const parts = raw.split('?id=');
-      if (parts[1]) {
-        return parts[1].split('&')[0];
-      }
-    }
-    
-    return raw;
+    const m = raw.match(/[?&](?:confirm|id)=([^&\s]+)(?:.*[?&]code=([^&\s]+))?/i);
+    if (m) return { id: m[1], code: m[2] || '' };
+    return { id: raw, code: '' };
   };
 
-  // Search active orders matching this id
-  const handleSimulateScan = (scannedText: string) => {
+  // Recherche EXACTE parmi les achats de l'utilisateur connecté (plus de correspondance partielle)
+  const handleSimulateScan = (scannedText: string, extraCode?: string) => {
     setScanError('');
     setScanSuccess(false);
-    
-    const searchId = parseScannedText(scannedText);
+
+    const parsed = parseScan(scannedText);
+    const searchId = parsed.id;
+    const code = (extraCode || parsed.code || '').trim();
     if (!searchId) return;
 
-    const found = orders.find(o => 
-      o.id.toLowerCase() === searchId.toLowerCase() || 
-      o.id.toLowerCase().includes(searchId.toLowerCase())
-    );
-
-    if (found) {
-      setScannedOrder(found);
-    } else {
+    const found = orders.find(o => o.id.toLowerCase() === searchId.toLowerCase());
+    if (!found) {
       setScanError(`✕ Commande introuvable pour la référence "${searchId}".`);
       setScannedOrder(null);
+      return;
     }
+    if (currentUserId && found.clientId !== currentUserId) {
+      setScanError("✕ Seul l'acheteur de cette commande peut confirmer la réception.");
+      setScannedOrder(null);
+      return;
+    }
+    setScannedCode(code);
+    setScannedOrder(found);
   };
+
+  // QR ouvert avec l'appareil photo du téléphone : on pré-remplit la validation
+  useEffect(() => {
+    if (initialScan) handleSimulateScan(initialScan);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialScan, orders.length]);
 
   // Setup actual web camera streaming and interval scanning
   useEffect(() => {
@@ -133,13 +147,26 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
   };
 
   // Validate transaction
-  const executeValidation = () => {
-    if (!scannedOrder) return;
-    onConfirmDelivery(scannedOrder.id);
-    setScanSuccess(true);
-    setScannedOrder(null);
-    setCameraActive(false);
-    setManualId('');
+  const executeValidation = async () => {
+    if (!scannedOrder || isConfirming) return;
+    setIsConfirming(true);
+    setScanError('');
+    try {
+      const result = await onConfirmDelivery(scannedOrder.id, scannedCode || undefined);
+      if (result && result.success === false) {
+        // refus du serveur (pas l'acheteur, code invalide, paiement non vérifié, déjà confirmé...)
+        setScanError(`✕ ${result.message}`);
+        return;
+      }
+      setScanSuccess(true);
+      setScannedOrder(null);
+      setCameraActive(false);
+      setManualId('');
+      setManualCode('');
+      setScannedCode('');
+    } finally {
+      setIsConfirming(false);
+    }
   };
 
   return (
@@ -150,7 +177,7 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
           💥 Validation de Livraison Vendza
         </h1>
         <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
-          Scannez le QR Code du ticket marchand ou saisissez l'identifiant pour libérer le versement garanti au vendeur.
+          Scannez le QR Code affiché par le vendeur (ou saisissez l'identifiant et son code) pour confirmer la réception : le versement est alors libéré au vendeur.
         </p>
       </div>
 
@@ -193,6 +220,10 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
             <p><strong>Statut :</strong> <span className="text-amber-500 font-bold uppercase tracking-wider">{scannedOrder.status}</span></p>
           </div>
 
+          {scanError && (
+            <p className="p-2 bg-red-50 text-red-600 text-[10px] font-bold rounded-lg border border-red-100">{scanError}</p>
+          )}
+
           <div className="flex gap-2">
             <button
               onClick={() => setScannedOrder(null)}
@@ -202,9 +233,10 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
             </button>
             <button
               onClick={executeValidation}
+              disabled={isConfirming}
               className="flex-2 py-2 bg-gradient-to-r from-emerald-600 to-teal-500 text-white font-extrabold text-xs tracking-wider uppercase rounded-lg shadow-md cursor-pointer"
             >
-              ✅ Confirmer Réception
+              {isConfirming ? 'Validation…' : '✅ Confirmer Réception'}
             </button>
           </div>
         </div>
@@ -288,10 +320,18 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
                   value={manualId}
                   onChange={e => setManualId(e.target.value)}
                 />
+                <input
+                  type="text"
+                  placeholder="Code de livraison du vendeur (8 caractères)"
+                  maxLength={12}
+                  className="w-full py-2.5 px-3 rounded-lg border border-slate-200 text-xs font-mono uppercase tracking-widest focus:outline-none focus:border-blue-600"
+                  value={manualCode}
+                  onChange={e => setManualCode(e.target.value)}
+                />
                 
                 <button
                   type="button"
-                  onClick={() => handleSimulateScan(manualId)}
+                  onClick={() => handleSimulateScan(manualId, manualCode)}
                   className="w-full py-2 bg-blue-50 text-[#0d9488] hover:bg-[#0d9488] hover:text-white rounded-lg text-xs font-bold transition cursor-pointer"
                 >
                   Vérifier la livraison de conformité

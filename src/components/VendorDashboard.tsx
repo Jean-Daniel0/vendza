@@ -8,6 +8,7 @@ import {
 import { Product, Order, UserProfile, Review } from '../types';
 import { HAITIAN_ZONES } from '../data';
 import { QRCodeRenderer } from './QRCodeRenderer';
+import { DeliveryCodeQR } from './DeliveryCodeQR';
 import { ShopSettingsView } from './ShopSettingsView';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
@@ -17,7 +18,7 @@ interface VendorDashboardProps {
   reviews: Review[];
   user: UserProfile | null;
   onNavigate: (view: string) => void;
-  onConfirmDelivery: (orderId: string) => void;
+  onConfirmDelivery?: (orderId: string, code?: string) => Promise<{ success: boolean; message: string }> | void;
   onUpdateProfile: (updates: Partial<UserProfile>) => void;
   onUpdateProduct: (productId: string, updates: Partial<Product>) => void;
   onDeleteProduct: (productId: string) => void;
@@ -420,15 +421,6 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
     setTimeout(() => {
       setToastMessage('');
     }, 3000);
-  };
-
-  const handleSimulateReceive = (orderId: string) => {
-    onConfirmDelivery(orderId);
-    showToast("✓ Enregistré ! Le paiement de la commande a été débloqué, les Gourdes ont été créditées sur votre solde.");
-    setSelectedOrderDetails(prev => prev ? { ...prev, status: 'livree' } : null);
-    if (selectedTicketOrder?.id === orderId) {
-      setSelectedTicketOrder(prev => prev ? { ...prev, status: 'livree' } : null);
-    }
   };
 
   const handleSaveProfile = () => {
@@ -3152,7 +3144,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                     <div className={`p-2.5 bg-white border border-slate-200 rounded-xl shadow-xs relative ${
                       selectedOrderDetails.status === 'livree' ? 'opacity-40' : 'animate-pulse'
                     }`}>
-                      <QRCodeRenderer value={`https://vendza2.netlify.app/client/confirmation?id=${selectedOrderDetails.id}`} size={105} />
+                      <DeliveryCodeQR orderId={selectedOrderDetails.id} size={105} delivered={selectedOrderDetails.status === 'livree' || selectedOrderDetails.status === 'completed'} />
                       {selectedOrderDetails.status === 'livree' && (
                         <div className="absolute inset-0 bg-white/80 flex items-center justify-center p-1 rounded-xl">
                           <span className="bg-emerald-100 text-emerald-800 text-[8px] font-bold px-1.5 py-1 rounded shadow-xs uppercase border border-emerald-300">
@@ -3195,16 +3187,9 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                 </button>
 
                 {selectedOrderDetails.status === 'payee' ? (
-                  <button
-                    onClick={() => {
-                      handleSimulateReceive(selectedOrderDetails.id);
-                      showToast("✓ gains boutique débloqués sur votre solde !");
-                    }}
-                    className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95 duration-100"
-                  >
-                    <Check size={13} />
-                    <span>Forcer Livraison</span>
-                  </button>
+                  <span className="flex-1 py-3 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl uppercase tracking-wider flex items-center justify-center text-[10px] font-bold text-center px-2">
+                    En attente de la confirmation de l'acheteur
+                  </span>
                 ) : (
                   <span className="flex-1 py-3 bg-slate-100 border text-slate-400 rounded-xl uppercase tracking-wider flex items-center justify-center gap-1.5 select-none font-black text-center text-[10px]">
                     ✓ Solde Libéré
