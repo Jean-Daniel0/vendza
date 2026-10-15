@@ -2085,6 +2085,36 @@ app.post('/api/orders/pending', async (req, res) => {
     return res.status(400).json({ error: "reference_id est manquant" });
   }
 
+  // SÉCURITÉ : seul l'acheteur connecté peut déclarer SA commande en attente (plus d'usurpation de buyer_id)
+  {
+    const caller = await getAuthedUser(req);
+    if (!caller) return res.status(401).json({ error: "Authentification requise." });
+    if (String(buyer_id || '') !== caller.id) return res.status(403).json({ error: "buyer_id doit correspondre à l'utilisateur connecté." });
+
+    // Le total ne peut pas être inférieur au prix des produits en base (protège le vendeur contre un montant falsifié)
+    try {
+      if (isSupabaseConfigured && supabase && Array.isArray(items) && items.length > 0) {
+        const idOf = (it: any) => String(it?.productId || it?.product_id || it?.id || '');
+        const ids = items.map(idOf).filter((v: string) => isValidUuid(v));
+        if (ids.length > 0) {
+          const { data: prods } = await supabase.from('products').select('id, price').in('id', ids);
+          const priceById = new Map<string, number>((prods || []).map((pr: any) => [String(pr.id), Number(pr.price) || 0]));
+          const expected = items.reduce((sum: number, it: any) => {
+            const unit = priceById.get(idOf(it)) || 0;
+            const qty = Math.max(1, Number(it?.qte ?? it?.quantity ?? it?.qty ?? 1) || 1);
+            return sum + unit * qty;
+          }, 0);
+          if (expected > 0 && Number(total_price) + 1 < expected * 0.99) {
+            console.warn(`[Pending Order Reject] total ${total_price} < products subtotal ${expected} (buyer ${caller.id}, ref ${reference_id})`);
+            return res.status(400).json({ error: "Le total de la commande est inférieur au prix des produits. Rechargez la page et réessayez." });
+          }
+        }
+      }
+    } catch (priceErr: any) {
+      console.warn('[Pending Order] price validation skipped:', priceErr?.message);
+    }
+  }
+
   // 1. Validate vendor_id and buyer_id are valid UUIDs
   const isValidVendor = isValidUuid(vendor_id);
   const isValidBuyer = isValidUuid(buyer_id);
