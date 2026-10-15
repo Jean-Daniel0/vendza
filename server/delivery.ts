@@ -81,7 +81,9 @@ export async function assertPaymentVerified(db: Db, order: any): Promise<Result 
       .select('id, total_price')
       .or(`qr_token.eq.${ref},qr_token.like.${ref}_sub_%,payment_reference.eq.${ref}`);
     const total = (siblings || []).reduce((s: number, o: any) => s + (Number(o.total_price) || 0), 0);
-    const tolerance = Math.max(2, paid * 0.005);
+    // Tolérance réglable sans redéploiement de code : PAYOUT_AMOUNT_TOLERANCE_PCT (défaut 0,5 %) — à élargir si le fournisseur retient des frais
+    const pct = Math.max(0, Number(process.env.PAYOUT_AMOUNT_TOLERANCE_PCT ?? 0.5)) / 100;
+    const tolerance = Math.max(2, paid * pct);
     if (total > paid + tolerance) {
       return { status: 409, body: { error: 'Le montant payé est inférieur au total des commandes : versement bloqué.' } };
     }

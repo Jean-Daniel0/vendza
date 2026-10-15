@@ -28,6 +28,7 @@ import { Product, CartItem, Order, Review, Message, UserProfile } from './types'
 import { INITIAL_PRODUCTS, INITIAL_REVIEWS } from './data';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 import { apiFetchAuthed } from './lib/api';
+import { withProductTagOnFirstMessage } from './lib/chatText';
 
 // Predefined live states empty to welcome live database content only
 const INITIAL_MESSAGES: Message[] = [];
@@ -156,14 +157,7 @@ export default function App() {
   const [hasMoreProducts, setHasMoreProducts] = useState<boolean>(true);
   const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
   const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
-  const [messages, setMessages] = useState<Message[]>(() => {
-    try {
-      const saved = localStorage.getItem('vendza_messages');
-      return saved ? JSON.parse(saved) : INITIAL_MESSAGES;
-    } catch {
-      return INITIAL_MESSAGES;
-    }
-  });
+  const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(FRONTEND_FALLBACK_PRODUCTS[0] || null);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
@@ -1532,16 +1526,42 @@ export default function App() {
     fetchReviews();
   }, []);
 
-  // Save messages locally to keep chat history resilient
+  // Cache local des messages PAR UTILISATEUR (résilience hors ligne) : l'ancienne clé globale mélangeait les comptes d'un même appareil.
+  const messagesCacheUserRef = useRef<string>('');
   useEffect(() => {
+    if (!currentUser?.id) return;
+    const uid = currentUser.id;
     try {
-      if (messages && messages.length > 0) {
-        localStorage.setItem('vendza_messages', JSON.stringify(messages));
+      const raw = localStorage.getItem(`vendza_messages_${uid}`);
+      let cached: Message[] = raw ? JSON.parse(raw) : [];
+      const legacyRaw = localStorage.getItem('vendza_messages');
+      if (legacyRaw) {
+        // migration : on récupère seulement ce qui appartient à cet utilisateur, puis on supprime l'ancienne clé partagée
+        const legacy: Message[] = JSON.parse(legacyRaw);
+        cached = cached.concat(legacy.filter(m => m.senderId === uid || m.recipientId === uid));
+        localStorage.removeItem('vendza_messages');
       }
+      if (cached.length > 0) {
+        setMessages(prev => {
+          const known = new Set(prev.map(m => m.id));
+          return [...prev, ...cached.filter(m => !known.has(m.id))];
+        });
+      }
+    } catch (e) {
+      console.warn("Local message cache load error", e);
+    }
+    messagesCacheUserRef.current = uid;
+  }, [currentUser?.id]);
+  useEffect(() => {
+    const uid = messagesCacheUserRef.current;
+    if (!uid || !currentUser?.id || uid !== currentUser.id) return;
+    try {
+      const mine = messages.filter(m => m.senderId === uid || m.recipientId === uid);
+      if (mine.length > 0) localStorage.setItem(`vendza_messages_${uid}`, JSON.stringify(mine));
     } catch (e) {
       console.error("Local storage sync error", e);
     }
-  }, [messages]);
+  }, [messages, currentUser?.id]);
 
   // Messages dynamic synchronization and real-time subscription
   useEffect(() => {
@@ -1551,12 +1571,23 @@ export default function App() {
 
     async function fetchMessages() {
       try {
-        // FIX: ne charger que les messages de l'utilisateur (RLS filtre déjà côté serveur)
-        const { data, error } = await supabase
-          .from('messages')
-          .select('*')
-          .or(`sender_id.eq.${currentUser.id},recipient_id.eq.${currentUser.id}`)
-          .order('created_at', { ascending: true });
+        // Historique COMPLET : lecture par pages de 1000 (l'API plafonne une requête à 1000 lignes), du plus ancien au plus récent.
+        // RLS garantit que l'utilisateur ne reçoit que ses propres conversations.
+        const PAGE = 1000;
+        let data: any[] = [];
+        let error: any = null;
+        for (let from = 0; ; from += PAGE) {
+          const res = await supabase
+            .from('messages')
+            .select('*')
+            .or(`sender_id.eq.${currentUser.id},recipient_id.eq.${currentUser.id}`)
+            .order('created_at', { ascending: true })
+            .order('id', { ascending: true })
+            .range(from, from + PAGE - 1);
+          if (res.error) { error = res.error; break; }
+          data = data.concat(res.data || []);
+          if (!res.data || res.data.length < PAGE) break;
+        }
 
         if (error) {
           console.warn("Messages direct query warn (table might not exist yet):", error.message);
@@ -1589,6 +1620,10 @@ export default function App() {
     }
 
     fetchMessages();
+
+    // Rattrapage : au retour sur l'onglet, on relit l'historique (messages reçus pendant que l'app était en veille)
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchMessages(); };
+    document.addEventListener('visibilitychange', onVisible);
 
     // Listen to real-time message changes (INSERT, UPDATE, DELETE) for instant chat responsiveness
     const channel = supabase
@@ -1633,7 +1668,10 @@ export default function App() {
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        // (Re)connexion du temps réel : on relit l'historique pour combler un éventuel trou
+        if (status === 'SUBSCRIBED') fetchMessages();
+      });
 
     // Listen to real-time orders changes to automatically synchronize buyer and seller dashboards
     const ordersChannel = supabase
@@ -1651,6 +1689,7 @@ export default function App() {
 
     return () => {
       isSubscribed = false;
+      document.removeEventListener('visibilitychange', onVisible);
       supabase.removeChannel(channel);
       supabase.removeChannel(ordersChannel);
     };
@@ -2047,7 +2086,7 @@ export default function App() {
     // Save to database pending orders
     if (isSupabaseConfigured) {
       try {
-        const response = await fetch('/api/orders/pending', {
+        const response = await apiFetchAuthed('/api/orders/pending', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2386,7 +2425,7 @@ export default function App() {
               console.error("======================================================================");
             }
 
-            const response = await fetch('/api/orders/pending', {
+            const response = await apiFetchAuthed('/api/orders/pending', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -2432,7 +2471,7 @@ export default function App() {
             console.error("======================================================================");
           }
 
-          const response = await fetch('/api/orders/pending', {
+          const response = await apiFetchAuthed('/api/orders/pending', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -3918,15 +3957,30 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
   // Instant messaging sender helper
   const handleSendMessage = (text: string, recipientId: string, image?: string, orderId?: string, productId?: string) => {
     if (!currentUser) return;
+    const effectiveProductId = productId || activeChatProductId || undefined;
+
+    // Premier message envoyé à ce vendeur à propos de CE produit : on y joint sa référence (nom + id court)
+    const hasHistory = !!effectiveProductId && messages.some(m =>
+      m.productId === effectiveProductId &&
+      ((m.senderId === currentUser.id && m.recipientId === recipientId) || (m.senderId === recipientId && m.recipientId === currentUser.id))
+    );
+    const taggedProduct = effectiveProductId ? products.find(pr => pr.id === effectiveProductId) : undefined;
+    const finalText = withProductTagOnFirstMessage({
+      text,
+      product: taggedProduct ? { id: taggedProduct.id, nom: taggedProduct.nom } : null,
+      hasHistory,
+      orderId
+    });
+
     const newMsg: Message = {
       id: `msg-${Date.now()}`,
       senderId: currentUser.id,
       senderNom: `${currentUser.prenom} ${currentUser.nom}`,
       recipientId,
-      text,
+      text: finalText,
       image,
       orderId,
-      productId: productId || activeChatProductId || undefined,
+      productId: effectiveProductId,
       time: "Aujourd'hui, " + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
       createdAt: new Date().toISOString(),
       isRead: false
