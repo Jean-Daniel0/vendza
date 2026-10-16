@@ -26,3 +26,18 @@ Règles :
 Variables d'environnement à définir sur Render : `BAZIK_SECRET_KEY`, `BAZIK_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET` (si Stripe).
 
 Tests : `npm test` (20 tests de la logique ci-dessus avec une base simulée en mémoire).
+
+## Annulation et remboursement
+- Un acheteur ne peut annuler qu'AVANT livraison (`attente` / `payee`). `completed`, `livree`, `annulee`, `disputed` sont des états finaux (la base refuse tout retour en arrière depuis le navigateur).
+- Frais d'annulation 7,5 % : la base refuse tout montant de remboursement qui ne respecte pas cette règle (`montant_rembourse`, `frais_annulation`).
+- À l'annulation d'une commande payée : une ligne est créée dans `refunds` (statut `pending`, à rembourser manuellement par MonCash puis marquer `paid`)
+  et l'escrow du vendeur est annulé une seule fois (`vendor_wallets` + transaction `escrow_reversal`).
+
+## Plans et vérification
+- Un client ne peut pas s'attribuer un plan payant, un `boost_score`, `is_featured`, un statut « vérifié » ni modifier `revenus_bloques` (triggers `*_guard_plan`).
+  Il peut seulement repasser à `gratuit`, demander la vérification (`en_attente`) et résilier un abonnement.
+- Les vrais upgrades passent par le paiement -> webhook -> `activerAbonnement()` (service_role).
+
+## Portefeuilles
+- Rapprochés le 2026-10-15 à partir des commandes (instantané : `_backup_vendor_wallets_20261015`, lignes d'audit `reconciliation`).
+  `pending_balance` = escrow net (commandes `payee` + `disputed`) ; `total_earned` = escrow + commandes terminées.
