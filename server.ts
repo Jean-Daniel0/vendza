@@ -7,6 +7,8 @@ import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import Stripe from 'stripe';
 import crypto from 'crypto';
+import { runFlashSale, runRecommendations } from './server/campaigns';
+import { haitiClock } from './server/marketing';
 
 // Icônes des notifications push : badge monochrome (barre d'état Android) + logo couleur (à côté du texte)
 const NOTIF_BADGE_URL = 'https://www.vendza.store/badge.png';
@@ -2905,6 +2907,66 @@ app.post('/api/moderate-image', async (req, res) => {
     return res.status(500).json({ error: "Erreur lors de la modération de l'image: " + err.message });
   }
 });
+
+// Envoi groupé (jusqu'à 1000 destinataires par appel) — campagnes Ventes Flash / suggestions
+async function sendOneSignalPushMany(userIds: string[], title: string, message: string, category: string) {
+  const apiKey = process.env.ONESIGNAL_REST_API_KEY;
+  if (!apiKey || userIds.length === 0) return null;
+  const response = await fetch('https://onesignal.com/api/v1/notifications', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Key ${apiKey}` },
+    body: JSON.stringify({
+      app_id: '75a4d965-5500-4694-abfa-69b8a88c9d1d',
+      contents: { fr: message, en: message },
+      headings: { fr: title, en: title },
+      chrome_web_badge: NOTIF_BADGE_URL,
+      chrome_web_icon: NOTIF_ICON_URL,
+      target_channel: 'push',
+      data: { category },
+      include_aliases: { external_id: userIds }
+    })
+  });
+  const data: any = await response.json();
+  console.log('[sendOneSignalPushMany]', userIds.length, 'destinataires ->', JSON.stringify(data).slice(0, 300));
+  return data;
+}
+
+// Tâches planifiées (appelées par pg_cron via /api/internal/cron/run, + filet de sécurité interne)
+async function cronSecretOk(provided: string | undefined): Promise<boolean> {
+  if (!supabase || !provided) return false;
+  const { data } = await supabase.from('internal_secrets').select('value').eq('name', 'cron').maybeSingle();
+  const expected = data?.value;
+  if (!expected) return false;
+  const a = Buffer.from(provided), b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+async function runCampaign(task: string) {
+  if (!supabase) throw new Error('Supabase non configuré');
+  if (task === 'flash-sale') return runFlashSale(supabase, sendOneSignalPushMany);
+  if (task === 'recommendations') return runRecommendations(supabase, sendOneSignalPushMany);
+  throw new Error('Tâche inconnue');
+}
+
+app.post('/api/internal/cron/run', async (req, res) => {
+  try {
+    if (!(await cronSecretOk(req.header('x-cron-secret')))) return res.status(401).json({ error: 'Non autorisé' });
+    const task = String(req.query.task || '');
+    if (task !== 'flash-sale' && task !== 'recommendations') return res.status(400).json({ error: 'task invalide' });
+    const result = await runCampaign(task);
+    console.log('[cron]', task, JSON.stringify(result));
+    return res.json(result);
+  } catch (err: any) {
+    console.error('[cron] échec:', err?.message);
+    return res.status(500).json({ error: 'Erreur interne' });
+  }
+});
+
+// Filet de sécurité si le serveur est réveillé : idempotent grâce à notification_log
+setInterval(() => {
+  runCampaign('flash-sale').catch(e => console.warn('[cron-local] flash-sale:', e?.message));
+  if (haitiClock(new Date()).hour === 17) runCampaign('recommendations').catch(e => console.warn('[cron-local] reco:', e?.message));
+}, 15 * 60 * 1000);
 
 // ============================================
 // ONESIGNAL MULTI-USER NOTIFICATION PROXY
