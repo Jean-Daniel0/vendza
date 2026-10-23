@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import OneSignal from 'react-onesignal';
+import { PromoOptIn } from './components/PromoOptIn';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { MarketplaceHome, ProductGridCard } from './components/MarketplaceHome';
@@ -4107,6 +4108,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
       <PWAUpdater />
 
       {/* App Header layout block */}
+      <PromoOptIn userId={currentUser?.id} newsletter={(currentUser as any)?.newsletter} onEnabled={() => setCurrentUser(u => (u ? ({ ...u, newsletter: true } as any) : u))} />
       <Header
         user={currentUser}
         cart={cart}
