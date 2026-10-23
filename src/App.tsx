@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import OneSignal from 'react-onesignal';
 import { PromoOptIn } from './components/PromoOptIn';
+import { PushPermissionPrompt } from './components/PushPermissionPrompt';
+import { usePushStatus } from './lib/pushStatus';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { MarketplaceHome, ProductGridCard } from './components/MarketplaceHome';
@@ -344,6 +346,8 @@ export default function App() {
     };
     initOneSignal();
   }, []);
+
+  const { status: pushStatus, enable: enablePush } = usePushStatus(oneSignalInitDone);
 
   // Synchronize OneSignal logged-in user alias
   useEffect(() => {
@@ -4108,7 +4112,8 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
       <PWAUpdater />
 
       {/* App Header layout block */}
-      <PromoOptIn userId={currentUser?.id} newsletter={(currentUser as any)?.newsletter} onEnabled={() => setCurrentUser(u => (u ? ({ ...u, newsletter: true } as any) : u))} />
+      <PushPermissionPrompt userId={currentUser?.id} status={pushStatus} onEnable={enablePush} />
+      {pushStatus.subscribed && <PromoOptIn userId={currentUser?.id} newsletter={(currentUser as any)?.newsletter} onEnabled={() => setCurrentUser(u => (u ? ({ ...u, newsletter: true } as any) : u))} />}
       <Header
         user={currentUser}
         cart={cart}
