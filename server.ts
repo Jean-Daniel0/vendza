@@ -8,6 +8,10 @@ import dotenv from 'dotenv';
 import Stripe from 'stripe';
 import crypto from 'crypto';
 
+// Icônes des notifications push : badge monochrome (barre d'état Android) + logo couleur (à côté du texte)
+const NOTIF_BADGE_URL = 'https://www.vendza.store/badge.png';
+const NOTIF_ICON_URL = 'https://www.vendza.store/pwa-icon-192.png';
+
 // Load environmental variables
 dotenv.config();
 
@@ -126,7 +130,7 @@ if (isSupabaseConfigured && supabase) {
           }
 
           const cleanUrl = supabaseUrl ? supabaseUrl.replace(/\/$/, '') : 'https://giakjeanwekipnvyhlxm.supabase.co';
-          const badgeUrl = `${cleanUrl}/storage/v1/object/public/images_systeme/notification-icon-96.png`;
+          const badgeUrl = NOTIF_BADGE_URL;
 
           const pushPayload = {
             app_id: apiAppId,
@@ -139,6 +143,7 @@ if (isSupabaseConfigured && supabase) {
               en: title
             },
             chrome_web_badge: badgeUrl,
+            chrome_web_icon: NOTIF_ICON_URL,
             target_channel: "push",
             data: {
               category: "message"
@@ -690,7 +695,7 @@ const sendPushNotificationBackend = async (recipientId: string, title: string, m
     }
 
     const cleanUrl = supabaseUrl ? supabaseUrl.replace(/\/$/, '') : 'https://giakjeanwekipnvyhlxm.supabase.co';
-    const badgeUrl = `${cleanUrl}/storage/v1/object/public/images_systeme/notification-icon-96.png`;
+    const badgeUrl = NOTIF_BADGE_URL;
 
     const payload = {
       app_id: apiAppId,
@@ -703,6 +708,7 @@ const sendPushNotificationBackend = async (recipientId: string, title: string, m
         en: title
       },
       chrome_web_badge: badgeUrl,
+            chrome_web_icon: NOTIF_ICON_URL,
       target_channel: "push",
       data: {
         category: category
@@ -2915,7 +2921,7 @@ async function sendOneSignalPush(recipientId: string, title: string, message: st
     }
 
     const cleanUrl = supabaseUrl ? supabaseUrl.replace(/\/$/, '') : 'https://giakjeanwekipnvyhlxm.supabase.co';
-    const badgeUrl = `${cleanUrl}/storage/v1/object/public/images_systeme/notification-icon-96.png`;
+    const badgeUrl = NOTIF_BADGE_URL;
 
     const payload = {
       app_id: apiAppId,
@@ -2928,6 +2934,7 @@ async function sendOneSignalPush(recipientId: string, title: string, message: st
         en: title
       },
       chrome_web_badge: badgeUrl,
+            chrome_web_icon: NOTIF_ICON_URL,
       target_channel: "push",
       data: {
         category: category || 'order'
