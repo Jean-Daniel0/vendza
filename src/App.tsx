@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import OneSignal from 'react-onesignal';
 import { PromoOptIn } from './components/PromoOptIn';
+import { mergeIncoming } from './lib/messageDedupe';
 import { PushPermissionPrompt } from './components/PushPermissionPrompt';
 import { usePushStatus } from './lib/pushStatus';
 import { Header } from './components/Header';
@@ -1616,10 +1617,7 @@ export default function App() {
             isRead: m.is_read !== undefined ? m.is_read : (m.isRead !== undefined ? m.isRead : false)
           })).filter((m: Message) => m.senderId === currentUser.id || m.recipientId === currentUser.id || (m.senderId === '99999999-9999-4999-9999-999999999999' && m.recipientId === currentUser.id));
           
-          setMessages(prev => {
-            const prevFiltered = prev.filter(p => !mapped.some(m => m.id === p.id));
-            return [...prevFiltered, ...mapped];
-          });
+          setMessages(prev => mergeIncoming(prev, mapped));
         }
       } catch (err) {
         console.error("Messages load exception:", err);
@@ -1667,10 +1665,7 @@ export default function App() {
                                (mappedMsg.senderId === '99999999-9999-4999-9999-999999999999' && mappedMsg.recipientId === currentUser.id);
 
             if (isRelevant) {
-              setMessages(prev => {
-                const filtered = prev.filter(p => p.id !== mappedMsg.id);
-                return [...filtered, mappedMsg];
-              });
+              setMessages(prev => mergeIncoming(prev, [mappedMsg]));
             }
           }
         }
@@ -3980,7 +3975,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
     });
 
     const newMsg: Message = {
-      id: `msg-${Date.now()}`,
+      id: generateUUID(),
       senderId: currentUser.id,
       senderNom: `${currentUser.prenom} ${currentUser.nom}`,
       recipientId,
