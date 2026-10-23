@@ -168,6 +168,7 @@ export default function App() {
   // Real-time exchange rate Gdes/USD
   const [tauxUSD, setTauxUSD] = useState<number>(130);
   const [oneSignalInitDone, setOneSignalInitDone] = useState<boolean>(false);
+  const [oneSignalInitError, setOneSignalInitError] = useState<string>('');
   const [permissionState, setPermissionState] = useState<NotificationPermission>(() => {
     return typeof Notification !== 'undefined' ? Notification.permission : 'default';
   });
@@ -340,6 +341,7 @@ export default function App() {
             setOneSignalInitDone(true);
           } else {
             console.error('[OneSignal] Fallback retry also failed:', retryErr);
+            setOneSignalInitError(String((retryErr as any)?.message || retryErr));
           }
         }
       }
@@ -347,7 +349,7 @@ export default function App() {
     initOneSignal();
   }, []);
 
-  const { status: pushStatus, enable: enablePush } = usePushStatus(oneSignalInitDone);
+  const { status: pushStatus, enable: enablePush } = usePushStatus(oneSignalInitDone, oneSignalInitError);
 
   // Synchronize OneSignal logged-in user alias
   useEffect(() => {
@@ -4151,7 +4153,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
         <div className="animate-fade-in duration-300">
           
           {/* Native notification permission banner (Part 1) */}
-          {currentUser && permissionState !== 'granted' && showPermissionBanner && (
+          {false && currentUser && permissionState !== 'granted' && showPermissionBanner && (
             <div id="notification-permission-banner" className="mb-6 bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-2xl shadow-lg p-5 border border-slate-800 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-4 animate-fade-in">
               <div className="absolute right-0 top-0 translate-x-12 -translate-y-6 w-48 h-48 bg-teal-500/10 rounded-full blur-2xl pointer-events-none" />
               
