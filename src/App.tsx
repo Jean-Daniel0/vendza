@@ -3957,12 +3957,13 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
   };
 
   // Instant messaging sender helper
-  const handleSendMessage = (text: string, recipientId: string, image?: string, orderId?: string, productId?: string) => {
+  const handleSendMessage = (text: string, recipientId: string, image?: string, orderId?: string, productId?: string, mentionProduct?: boolean) => {
     if (!currentUser) return;
     const effectiveProductId = productId || activeChatProductId || undefined;
 
     // Premier message envoyé à ce vendeur à propos de CE produit : on y joint sa référence (nom + id court)
-    const hasHistory = !!effectiveProductId && messages.some(m =>
+    // Chat ouvert depuis la page du produit : on le mentionne toujours dans ce premier message, même s'il y a déjà eu des échanges
+    const hasHistory = !mentionProduct && !!effectiveProductId && messages.some(m =>
       m.productId === effectiveProductId &&
       ((m.senderId === currentUser.id && m.recipientId === recipientId) || (m.senderId === recipientId && m.recipientId === currentUser.id))
     );
@@ -4468,6 +4469,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
               initialRecipientId={activeChatRecipientId}
               initialRecipientNom={activeChatRecipientNom}
               initialProductId={activeChatProductId}
+              onProductMentioned={() => setActiveChatProductId(null)}
             />
           )}
 
