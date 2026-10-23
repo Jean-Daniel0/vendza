@@ -5,6 +5,8 @@
     <meta name="google-site-verification" content="McK9WVy4GIQktv8QnGZBo_TdohJgA_vi-l9nRLnX8BA" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vendza | Marketplace Sécurisé en Haïti</title>
+    <link rel="canonical" href="https://www.vendza.store/" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
 
     <!-- Logo & icônes (fichiers du dépôt, pas la base de données) : Google lit ces balises ; favicon en multiples de 48 px -->
     <link rel="icon" href="/favicon.ico" sizes="any" />
@@ -69,7 +71,15 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Contenu lisible par Google avant le chargement de l'application (remplacé automatiquement par React) -->
+      <main style="font-family:system-ui,sans-serif;max-width:640px;margin:0 auto;padding:32px 20px;color:#0f172a">
+        <h1 style="font-size:28px;margin:0 0 12px">Vendza — Marketplace sécurisé en Haïti</h1>
+        <p style="font-size:16px;line-height:1.5;margin:0 0 12px">Achetez et vendez en toute sécurité en Haïti. Votre paiement est gardé en séquestre et n'est libéré au vendeur qu'après validation physique de la livraison par QR Code.</p>
+        <p style="font-size:14px;color:#475569;margin:0">Paiement par MonCash et carte bancaire · Boutiques vérifiées · Ventes Flash chaque jour de 8h à 20h.</p>
+        <noscript><p>Activez JavaScript pour parcourir les produits Vendza.</p></noscript>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

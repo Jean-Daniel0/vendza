@@ -2656,6 +2656,8 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
   res.json({ received: true });
 });
 
+const SITE_ORIGIN = (process.env.SITE_URL || 'https://www.vendza.store').replace(/\/$/, '');
+
 // 1. DYNAMIC SITEMAP.XML GENERATOR
 app.get('/sitemap.xml', async (req, res) => {
   res.header('Content-Type', 'application/xml');
@@ -2666,12 +2668,14 @@ app.get('/sitemap.xml', async (req, res) => {
     try {
       const { data, error } = await supabase
         .from('products')
-        .select('id, name, updated_at, created_at');
+        .select('id, name, updated_at, created_at, status, is_active');
       
       if (!error && data && data.length > 0) {
         // Map keys correctly
         products = data.map((p: any) => ({
           id: p.id,
+          lastmod: p.updated_at || p.created_at || null,
+          hidden: p.is_active === false || (p.status && p.status !== 'published'),
           nom: p.nom || p.name || 'Produit',
           desc: p.desc || p.description || '',
           prix: Number(p.prix || 0),
@@ -2684,7 +2688,7 @@ app.get('/sitemap.xml', async (req, res) => {
     }
   }
 
-  const hostUrl = `${req.protocol}://${req.get('host')}`;
+  const hostUrl = SITE_ORIGIN;
   
   // Format dynamic XML
   let xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -2695,23 +2699,13 @@ app.get('/sitemap.xml', async (req, res) => {
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
-  <url>
-    <loc>${hostUrl}/#about</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>${hostUrl}/#terms</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
   
   <!-- Produits Dynamiques -->`;
 
-  products.forEach(p => {
+  products.filter((p: any) => !p.hidden).forEach((p: any) => {
     xml += `
   <url>
-    <loc>${hostUrl}/?product=${p.id}</loc>
+    <loc>${hostUrl}/?product=${p.id}</loc>${p.lastmod ? `\n    <lastmod>${new Date(p.lastmod).toISOString()}</lastmod>` : ''}
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>`;
@@ -2795,7 +2789,7 @@ app.get('*', async (req, res, next) => {
         const pDesc = escapeHtml(product.desc.substring(0, 160) + (product.desc.length > 160 ? '...' : ''));
         const pPrice = `${product.prix.toLocaleString('fr-FR')} Gdes`;
         const pImage = product.image;
-        const pUrl = `${req.protocol}://${req.get('host')}/detail-produit.html?id=${product.id}`;
+        const pUrl = `${SITE_ORIGIN}/?product=${product.id}`;
 
         const fullTitle = `${pName} | ${pPrice} sur Vendza`;
         const fullDesc = `${pDesc} - Achetez sereinement avec notre modèle sécurisé de séquestre de fonds à Haïti.`;
@@ -2803,6 +2797,8 @@ app.get('*', async (req, res, next) => {
         // Perform fast injections over meta tags supporting standard and self-closing styles
         html = html.replace(/<title>.*?<\/title>/, `<title>${fullTitle}</title>`);
         html = html.replace(/<meta name="description" content=".*?"\s*\/?>/, `<meta name="description" content="${fullDesc}" />`);
+
+        html = html.replace(/<link rel="canonical" href=".*?"\s*\/?>/, `<link rel="canonical" href="${pUrl}" />`);
 
         // OG replacements
         html = html.replace(/<meta property="og:title" content=".*?"\s*\/?>/, `<meta property="og:title" content="${fullTitle}" />`);
