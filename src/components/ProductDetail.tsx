@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Product, Review, UserProfile } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import { trackProductInterest } from '../lib/tracking';
 
 interface ProductDetailProps {
   product: Product;
@@ -63,6 +64,10 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({
   const [selectedCapacity, setSelectedCapacity] = useState<string>(product.capacites && product.capacites[0] ? product.capacites[0] : '');
   
   const [vendeur, setVendeur] = useState<UserProfile | null>(null);
+
+  React.useEffect(() => {
+    trackProductInterest(product?.id, user?.id, 1);
+  }, [product?.id, user?.id]);
 
   React.useEffect(() => {
     const fetchVendorProfile = async () => {

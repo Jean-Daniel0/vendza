@@ -4111,7 +4111,15 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
         user={currentUser}
         cart={cart}
         unreadMsgsCount={unreadCount}
-        onNavigate={navigateTo}
+        onNavigate={(view: string) => {
+          // L'icône messagerie du header ouvre la LISTE des conversations (pas l'ancien chat resté en mémoire)
+          if (view === 'inbox') {
+            setActiveChatRecipientId(null);
+            setActiveChatRecipientNom(null);
+            setActiveChatProductId(null);
+          }
+          navigateTo(view);
+        }}
         onToggleDrawer={() => setSidebarOpen(!sidebarOpen)}
         currentView={currentView}
       />

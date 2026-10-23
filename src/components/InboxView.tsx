@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Send, Image, RefreshCw, MessageSquare, Clock, ArrowLeft, Ticket, ShieldCheck, Mail, AlertCircle, CheckCheck } from 'lucide-react';
 import { Message, UserProfile, Product, Order } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import { derivePartner } from '../lib/inboxPartner';
 
 interface InboxViewProps {
   messages: Message[];
@@ -61,6 +62,8 @@ export const InboxView: React.FC<InboxViewProps> = ({
   initialRecipientNom,
   initialProductId
 }) => {
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
   const [selectedRecipientId, setSelectedRecipientId] = useState<string>(initialRecipientId || '99999999-9999-4999-9999-999999999999');
   const [selectedRecipientNom, setSelectedRecipientNom] = useState<string>(initialRecipientNom || 'Vendza');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(initialProductId || null);
@@ -108,7 +111,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
     }
 
     async function executeFetch() {
-      const isVendor = user.userType === 'vendeur';
+      // Toutes MES conversations, quel que soit mon rôle (un vendeur qui achète chez un autre vendeur en a aussi comme acheteur)
       let query = supabase
         .from('conversations')
         .select(`
@@ -124,11 +127,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
           )
         `);
 
-      if (isVendor) {
-        query = query.eq('vendor_id', user.id);
-      } else {
-        query = query.eq('buyer_id', user.id);
-      }
+      query = query.or(`buyer_id.eq.${user.id},vendor_id.eq.${user.id}`);
 
       let convs: any[] = [];
       let error: any = null;
@@ -233,18 +232,18 @@ export const InboxView: React.FC<InboxViewProps> = ({
         return;
       }
 
-      const isVendor = user.userType === 'vendeur';
       if (convs && convs.length > 0) {
         const dbMapped = convs.map((conv: any) => {
-          const partner = isVendor ? conv.buyer : conv.vendor;
-          const partnerId = isVendor ? conv.buyer_id : conv.vendor_id;
           const pId = conv.product_id || conv.product?.id || '';
+          const { partnerId } = derivePartner(conv, user.id, messagesRef.current);
+          const partnerIsVendor = partnerId === conv.vendor_id;
+          const partner = partnerIsVendor ? conv.vendor : conv.buyer;
 
           if (!partner) {
             return {
               id: partnerId || '',
               nom: 'Utilisateur Vendza',
-              type: isVendor ? 'client' : 'vendeur',
+              type: partnerIsVendor ? 'vendeur' : 'client',
               subtitle: conv.product?.name ? `Produit : ${conv.product.name}` : 'Discussion sécurisée',
               productId: pId
             };
@@ -258,12 +257,12 @@ export const InboxView: React.FC<InboxViewProps> = ({
 
           const subtitle = conv.product?.name 
             ? `Produit : ${conv.product.name}` 
-            : (isVendor ? 'Acheteur de confiance' : 'Marchand Partenaire');
+            : (partnerIsVendor ? 'Marchand Partenaire' : 'Acheteur de confiance');
 
           return {
             id: partnerId || partner.id || '',
             nom: nomAffiche,
-            type: isVendor ? 'client' : 'vendeur',
+            type: partnerIsVendor ? 'vendeur' : 'client',
             subtitle: subtitle,
             productId: pId
           };
@@ -287,40 +286,9 @@ export const InboxView: React.FC<InboxViewProps> = ({
           }
         }
       } else {
-        // Fallback to Profiles if no existing conversations, so users can still see contacts to start a chat
-        try {
-          const { data: profiles, error: profErr } = await supabase
-            .from('profiles')
-            .select('*');
-
-          if (!profErr && profiles && profiles.length > 0) {
-            const mappedProfiles = profiles.map((p: any) => {
-              const fullName = p.prenom ? `${p.prenom} ${p.nom}`.trim() : p.email || 'Utilisateur Vendza';
-              const finalType = p.type || p.user_type || 'vendeur';
-              return {
-                id: p.id,
-                nom: fullName,
-                type: finalType,
-                subtitle: finalType === 'vendeur' ? 'Marchand Partenaire' : 'Acheteur de confiance'
-              };
-            }).filter((p: any) => p.id !== user.id);
-
-            const withSystem = [
-              { id: '99999999-9999-4999-9999-999999999999', nom: 'Vendza', type: 'system', subtitle: 'Alertes de livraison & séquestre' },
-              ...mappedProfiles
-            ];
-
-            setContacts(withSystem);
-          } else {
-            setLoadError("Impossible d'actualiser, réessai en cours...");
-            setContacts(prev => prev.length > 1 ? prev : [{ id: '99999999-9999-4999-9999-999999999999', nom: 'Vendza', type: 'system', subtitle: 'Notifications de sécurité' }]);
-            setSelectedRecipientId('99999999-9999-4999-9999-999999999999');
-            setSelectedRecipientNom('Vendza');
-          }
-        } catch (e) {
-          setLoadError("Impossible d'actualiser, réessai en cours...");
-          setContacts(prev => prev.length > 1 ? prev : [{ id: '99999999-9999-4999-9999-999999999999', nom: 'Vendza', type: 'system', subtitle: 'Notifications de sécurité' }]);
-        }
+        // Aucune conversation : seulement le contact système (on n'affiche plus la liste de tous les utilisateurs)
+        setContacts([{ id: '99999999-9999-4999-9999-999999999999', nom: 'Vendza', type: 'system', subtitle: 'Alertes de livraison & séquestre' }]);
+        setLoadError(null);
       }
     }
 
