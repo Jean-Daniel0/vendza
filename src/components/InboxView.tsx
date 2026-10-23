@@ -3,11 +3,13 @@ import { Send, Image, RefreshCw, MessageSquare, Clock, ArrowLeft, Ticket, Shield
 import { Message, UserProfile, Product, Order } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { derivePartner } from '../lib/inboxPartner';
+import { productRefTag } from '../lib/chatText';
 
 interface InboxViewProps {
   messages: Message[];
   user: UserProfile | null;
-  onSendMessage: (text: string, recipientId: string, image?: string, orderId?: string, productId?: string) => void;
+  onSendMessage: (text: string, recipientId: string, image?: string, orderId?: string, productId?: string, mentionProduct?: boolean) => void;
+  onProductMentioned?: () => void;
   onMarkMessagesAsRead?: (senderId: string) => void;
   products: Product[];
   orders: Order[];
@@ -60,13 +62,16 @@ export const InboxView: React.FC<InboxViewProps> = ({
   orders,
   initialRecipientId,
   initialRecipientNom,
-  initialProductId
+  initialProductId,
+  onProductMentioned
 }) => {
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
   const [selectedRecipientId, setSelectedRecipientId] = useState<string>(initialRecipientId || '99999999-9999-4999-9999-999999999999');
   const [selectedRecipientNom, setSelectedRecipientNom] = useState<string>(initialRecipientNom || 'Vendza');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(initialProductId || null);
+  // Produit depuis lequel le chat a été ouvert : mentionné automatiquement dans le prochain message envoyé
+  const [pendingMentionId, setPendingMentionId] = useState<string | null>(initialProductId || null);
   const [typedMessage, setTypedMessage] = useState<string>('');
   const [contacts, setContacts] = useState<{ id: string; nom: string; type: string; subtitle: string; productId?: string }[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -89,6 +94,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
     }
     if (initialProductId) {
       setSelectedProductId(initialProductId);
+      setPendingMentionId(initialProductId);
     }
   }, [initialRecipientId, initialRecipientNom, initialProductId]);
 
@@ -356,9 +362,16 @@ export const InboxView: React.FC<InboxViewProps> = ({
     (m.senderId === selectedRecipientId && m.recipientId === user.id)
   );
 
+  // La carte n'est affichée que dans la conversation avec le vendeur du produit ouvert
+  const pendingProduct = pendingMentionId && selectedRecipientId === initialRecipientId
+    ? products.find(pr => pr.id === pendingMentionId) || null
+    : null;
+
   const handleSend = () => {
     if (!typedMessage.trim()) return;
-    onSendMessage(typedMessage, selectedRecipientId, undefined, undefined, selectedProductId || undefined);
+    const mention = !!pendingProduct;
+    onSendMessage(typedMessage, selectedRecipientId, undefined, undefined, selectedProductId || undefined, mention);
+    if (mention) { setPendingMentionId(null); onProductMentioned?.(); }
     setTypedMessage('');
   };
 
@@ -630,6 +643,15 @@ export const InboxView: React.FC<InboxViewProps> = ({
             </div>
           ) : (
             <div className="p-3.5 bg-white border-t border-slate-100 space-y-2.5 shrink-0">
+              {pendingProduct && (
+                <div className="flex items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-[9px] font-black uppercase tracking-wide text-emerald-700">Vous écrivez à propos de</p>
+                    <p className="truncate text-xs font-bold text-slate-800">{productRefTag({ id: pendingProduct.id, nom: pendingProduct.nom })}</p>
+                  </div>
+                  <button type="button" onClick={() => setPendingMentionId(null)} className="shrink-0 rounded-lg px-2 py-1 text-xs font-bold text-slate-400 hover:bg-white" title="Ne pas mentionner ce produit">✕</button>
+                </div>
+              )}
               {/* Quick shortcuts widgets */}
               <div className="flex gap-2 border-b border-slate-50 pb-2 overflow-x-auto scrollbar-none">
                 <button
