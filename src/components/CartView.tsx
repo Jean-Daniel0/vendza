@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ShoppingBag, MapPin, Tag, ArrowRight, Home, Trash2, ShieldCheck, Ticket, CreditCard, Smartphone } from 'lucide-react';
 import { CartItem, UserProfile, Product, Order } from '../types';
 import { HAITIAN_ZONES } from '../data';
+import { isLowStock } from '../lib/cartSync';
 
 interface CartViewProps {
   cart: CartItem[];
@@ -140,6 +141,8 @@ export const CartView: React.FC<CartViewProps> = ({
                       </div>
                       <div>
                         <h4 className="text-xs font-extrabold text-slate-800 leading-snug">{item.product.nom}</h4>
+                        {isLowStock(item.product) && <p className="mt-0.5 text-[10px] font-black text-amber-600">⚠️ Plus que {item.product.stock} en stock</p>}
+                        {item.product.stock <= 0 && <p className="mt-0.5 text-[10px] font-black text-rose-600">Épuisé pour le moment — gardé dans votre panier</p>}
                         <div className="flex flex-wrap items-center gap-1.5 mt-1 font-sans">
                           <span className="text-[10px] text-slate-500 font-bold bg-slate-50 px-1.5 py-0.5 rounded">Quantité : {item.quantity}</span>
                           {item.selectedColor && (
