@@ -33,8 +33,8 @@ export const breadcrumb = (items: Array<[string, string]>) => ({ '@context': 'ht
   itemListElement: items.map(([name, path], i) => ({ '@type': 'ListItem', position: i + 1, name, item: abs(path) })) });
 
 export const NAV: Array<[string, string]> = [
-  ['/marketplace-haiti', 'Marketplace Haïti'], ['/acheter-en-ligne-haiti', 'Acheter en ligne'], ['/vendre-en-ligne-haiti', 'Vendre en ligne'],
-  ['/comment-ca-marche', 'Comment ça marche'], ['/faq', 'FAQ'],
+  ['/devenir-vendeur', 'Devenir vendeur'], ['/creer-un-compte', 'Créer un compte'], ['/ventes-flash', 'Ventes Flash'], ['/acheter-en-ligne-haiti', 'Acheter en ligne'],
+  ['/comment-ca-marche', 'Comment ça marche'], ['/en-savoir-plus', 'En savoir plus'], ['/faq', 'FAQ'], ['/contact', 'Contact'],
 ];
 
 const CSS = `:root{--g:#0f766e;--g2:#059669;--ink:#0f172a;--mut:#475569;--bg:#f8fafc;--card:#fff;--line:#e2e8f0}
@@ -55,10 +55,10 @@ function chrome(body: string, f?: FooterData): string {
   const cats = (f?.categories || []).map(c => `<a href="${esc(categoryPath(c))}">${esc(c)}</a>`).join(' ');
   const shops = (f?.shops || []).slice(0, 12).map(s => `<a href="${esc(shopPath(s))}">${esc(s.shop_name)}</a>`).join(' ');
   return `<header><a class="brand" href="/"><img src="/logo-vendza-512.png" alt="Logo Vendza" width="40" height="40"/>Vendza</a>
-<nav aria-label="Navigation principale">${NAV.map(([h, l]) => `<a href="${h}">${esc(l)}</a>`).join('')}<a class="btn" href="/" style="padding:6px 14px;margin:0">Ouvrir le marché</a></nav></header>
+<nav aria-label="Navigation principale">${NAV.slice(0, 6).map(([h, l]) => `<a href="${h}">${esc(l)}</a>`).join('')}<a class="btn" href="/" style="padding:6px 14px;margin:0">Ouvrir le marché</a></nav></header>
 <main>${body}</main>
 <footer><p><b>Vendza</b> — marketplace sécurisé en Haïti : paiement en séquestre, livraison validée par QR Code.</p>
-<p>${NAV.map(([h, l]) => `<a href="${h}">${esc(l)}</a>`).join('')}<a href="/a-propos">À propos</a><a href="/paiement-moncash-carte-haiti">MonCash &amp; carte</a><a href="/achte-sou-entenet-ayiti">Kreyòl</a></p>
+<p>${NAV.map(([h, l]) => `<a href="${h}">${esc(l)}</a>`).join('')}<a href="/marketplace-haiti">Marketplace Haïti</a><a href="/vendre-en-ligne-haiti">Vendre en ligne</a><a href="/se-connecter">Se connecter</a><a href="/a-propos">À propos</a><a href="/paiement-moncash-carte-haiti">MonCash &amp; carte</a><a href="/achte-sou-entenet-ayiti">Kreyòl</a></p>
 ${cats ? `<p>Catégories : ${cats}</p>` : ''}${shops ? `<p>Boutiques : ${shops}</p>` : ''}
 <p><a href="/llms.txt">llms.txt</a><a href="/catalogue.json">Catalogue JSON</a><a href="/sitemap.xml">Plan du site</a></p></footer>`;
 }
@@ -140,7 +140,7 @@ export function categoryPage(label: string, products: Product[], footer?: Footer
 }
 
 // ---------- pages d'information (mots-clés : vendza, marketplace Haïti, acheter en ligne en Haïti…) ----------
-export type Landing = { path: string; title: string; description: string; h1: string; lang?: string; sections: Array<{ h2: string; p: string[] }>; faq?: Array<[string, string]> };
+export type Landing = { cta?: { href: string; label: string }; path: string; title: string; description: string; h1: string; lang?: string; sections: Array<{ h2: string; p: string[] }>; faq?: Array<[string, string]> };
 export const FAQ: Array<[string, string]> = [
   ['Qu\'est-ce que Vendza ?', 'Vendza est une marketplace haïtienne : des boutiques vendent leurs produits et les acheteurs paient en sécurité. L\'argent est gardé en séquestre jusqu\'à la validation de la livraison.'],
   ['Comment acheter en ligne en Haïti sur Vendza ?', 'Choisissez un produit, payez par MonCash ou carte bancaire, puis recevez votre commande. Vous confirmez la livraison avec un QR Code : seulement alors le vendeur est payé.'],
@@ -151,6 +151,29 @@ export const FAQ: Array<[string, string]> = [
   ['Qu\'est-ce que les Ventes Flash ?', 'Chaque jour de 8h à 20h (heure d\'Haïti), Vendza met en avant les produits en promotion.'],
 ];
 export const LANDINGS: Landing[] = [
+  { path: '/devenir-vendeur', cta: { href: '/?page=devenir-vendeur', label: 'Devenir vendeur maintenant' }, title: 'Devenir vendeur sur Vendza – Ouvrir sa boutique en Haïti',
+    description: 'Devenez vendeur sur Vendza : ouvrez votre boutique en ligne en Haïti, publiez vos produits et soyez payé en toute sécurité grâce au séquestre et au QR Code.',
+    h1: 'Devenir vendeur sur Vendza', sections: [
+      { h2: 'Pourquoi vendre sur Vendza', p: ['Vos produits sont visibles par tous les acheteurs de la marketplace et sur Google. Les clients paient à l\'avance : l\'argent est gardé en séquestre puis libéré dès que l\'acheteur valide la livraison par QR Code.', 'Vous échangez directement avec vos clients grâce à la messagerie intégrée et vous participez aux Ventes Flash chaque jour de 8h à 20h.'] },
+      { h2: 'Comment devenir vendeur en 4 étapes', p: ['1. Créez votre compte Vendza. 2. Renseignez votre boutique et faites vérifier votre identité. 3. Publiez vos produits avec photos, prix en gourdes et description. 4. Livrez vos commandes : le paiement vous est versé après la validation de l\'acheteur.'] },
+      { h2: 'Besoin d\'aide ?', p: ['Consultez la page Comment ça marche ou écrivez-nous à info@vendza.store.'] }] },
+  { path: '/creer-un-compte', cta: { href: '/?page=inscription', label: 'Créer mon compte' }, title: 'Créer un compte Vendza – Inscription acheteur ou vendeur',
+    description: 'Créez votre compte Vendza pour acheter en ligne en Haïti avec paiement sécurisé ou pour ouvrir votre boutique et vendre vos produits.',
+    h1: 'Créer un compte Vendza', sections: [
+      { h2: 'Avec un compte Vendza, vous pouvez', p: ['Acheter en toute sécurité avec paiement en séquestre, suivre vos commandes, écrire aux vendeurs, recevoir les notifications de vos livraisons et ne rater aucune Vente Flash.'] },
+      { h2: 'Acheteur ou vendeur', p: ['Le même compte sert à acheter. Pour vendre, ouvrez ensuite votre boutique depuis la page Devenir vendeur.'] }] },
+  { path: '/se-connecter', cta: { href: '/?page=connexion', label: 'Me connecter' }, title: 'Se connecter à Vendza – Accéder à mon compte',
+    description: 'Connectez-vous à votre compte Vendza pour suivre vos commandes, discuter avec les vendeurs et gérer votre boutique.',
+    h1: 'Se connecter à Vendza', sections: [{ h2: 'Accédez à votre espace', p: ['Retrouvez vos commandes, vos messages, vos QR Codes de livraison et, si vous êtes vendeur, le tableau de bord de votre boutique.'] }] },
+  { path: '/en-savoir-plus', title: 'En savoir plus sur Vendza – Marketplace sécurisé en Haïti',
+    description: 'Tout savoir sur Vendza : comment acheter, comment vendre, paiements MonCash et carte, séquestre, QR Code, Ventes Flash et contact.',
+    h1: 'En savoir plus sur Vendza', sections: [
+      { h2: 'Vendza en bref', p: ['Vendza (vendza.store) est une marketplace haïtienne : des boutiques vendent, des acheteurs paient en sécurité. Le paiement est gardé en séquestre jusqu\'à la validation de la livraison par QR Code.'] },
+      { h2: 'Pour aller plus loin', p: ['Acheter en ligne en Haïti · Devenir vendeur · Créer un compte · Comment ça marche · Paiement MonCash et carte · Ventes Flash · FAQ · Contact. Tous ces liens sont dans le menu en haut de la page.'] }] },
+  { path: '/contact', title: 'Contact Vendza – Nous écrire', description: 'Contactez l\'équipe Vendza : email info@vendza.store, Instagram vendzaplatform et messagerie intégrée pour les commandes.',
+    h1: 'Contacter Vendza', sections: [
+      { h2: 'Nous écrire', p: ['Email : info@vendza.store. Instagram : vendzaplatform.'] },
+      { h2: 'Un problème avec une commande ?', p: ['Signalez-le depuis la messagerie de votre compte Vendza : le vendeur et l\'équipe peuvent ainsi suivre l\'échange.'] }] },
   { path: '/marketplace-haiti', title: 'Marketplace Haïti : acheter et vendre en ligne | Vendza', description: 'Vendza est la marketplace sécurisée en Haïti : boutiques vérifiées, paiement MonCash et carte, argent gardé en séquestre jusqu\'à la livraison.',
     h1: 'Vendza, la marketplace sécurisée en Haïti', sections: [
       { h2: 'Une marketplace pensée pour Haïti', p: ['Vendza réunit des boutiques haïtiennes et des acheteurs sur une seule plateforme. Vous trouvez de la mode, de l\'électronique, de la beauté, des accessoires et des articles pour la maison, avec le prix en gourdes (Gdes).', 'Chaque achat est protégé : votre argent reste en séquestre et n\'est libéré au vendeur qu\'après la validation de la livraison.'] },
@@ -189,7 +212,7 @@ export function landingPage(l: Landing, footer?: FooterData): string {
   const body = `<p class="crumbs"><a href="/">Accueil</a> › ${esc(l.h1)}</p><h1>${esc(l.h1)}</h1>
 ${l.sections.map(s => `<h2>${esc(s.h2)}</h2>${s.p.map(t => `<p>${esc(t)}</p>`).join('')}`).join('')}
 ${l.faq ? l.faq.map(([q, a]) => `<h2>${esc(q)}</h2><p>${esc(a)}</p>`).join('') : ''}
-<p><a class="btn" href="/">Découvrir la marketplace</a><a class="btn alt" href="/vendre-en-ligne-haiti">Vendre sur Vendza</a></p>`;
+<p>${l.cta ? `<a class="btn" href="${esc(l.cta.href)}">${esc(l.cta.label)}</a><a class="btn alt" href="/">Découvrir la marketplace</a>` : `<a class="btn" href="/">Découvrir la marketplace</a><a class="btn alt" href="/devenir-vendeur">Devenir vendeur</a>`}</p>`;
   const jsonld: unknown[] = [breadcrumb([['Accueil', '/'], [l.h1, l.path]])];
   if (l.faq) jsonld.push({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: l.faq.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) });
   else jsonld.push({ '@context': 'https://schema.org', '@type': 'WebPage', name: l.title, description: l.description, url: abs(l.path), inLanguage: l.lang || 'fr', isPartOf: { '@id': SITE_ORIGIN + '/#website' } });
@@ -203,7 +226,7 @@ export function homeFallback(products: Product[], shops: Shop[], categories: str
   return `${HOME_MARK_START}<main style="font-family:system-ui,sans-serif;max-width:900px;margin:0 auto;padding:24px 20px;color:#0f172a">
 <h1 style="font-size:28px;margin:0 0 12px">Vendza — Marketplace sécurisé en Haïti : acheter et vendre en ligne</h1>
 <p>Achetez en ligne en Haïti avec paiement en séquestre (MonCash, carte bancaire) : le vendeur est payé seulement après la validation de la livraison par QR Code.</p>
-<nav><a href="/marketplace-haiti">Marketplace Haïti</a> · <a href="/acheter-en-ligne-haiti">Acheter en ligne</a> · <a href="/vendre-en-ligne-haiti">Vendre en ligne</a> · <a href="/comment-ca-marche">Comment ça marche</a> · <a href="/faq">FAQ</a> · <a href="/achte-sou-entenet-ayiti">Kreyòl</a></nav>
+<nav><a href="/devenir-vendeur">Devenir vendeur</a> · <a href="/creer-un-compte">Créer un compte</a> · <a href="/ventes-flash">Ventes Flash</a> · <a href="/acheter-en-ligne-haiti">Acheter en ligne</a> · <a href="/marketplace-haiti">Marketplace Haïti</a> · <a href="/comment-ca-marche">Comment ça marche</a> · <a href="/en-savoir-plus">En savoir plus</a> · <a href="/faq">FAQ</a> · <a href="/contact">Contact</a> · <a href="/achte-sou-entenet-ayiti">Kreyòl</a></nav>
 ${categories.length ? `<h2>Catégories</h2><p>${categories.map(c => `<a href="${esc(categoryPath(c))}">${esc(c)}</a>`).join(' · ')}</p>` : ''}
 ${live.length ? `<h2>Produits récents</h2><ul>${live.map(p => `<li><a href="${esc(productPath(p))}">${esc(p.name)}</a> — ${fmtPrice(p.price)} Gdes</li>`).join('')}</ul>` : ''}
 ${shops.length ? `<h2>Boutiques</h2><ul>${shops.map(s => `<li><a href="${esc(shopPath(s))}">${esc(s.shop_name)}</a></li>`).join('')}</ul>` : ''}
@@ -239,4 +262,12 @@ export function robotsTxt(): string {
   const ai = ['GPTBot', 'ChatGPT-User', 'OAI-SearchBot', 'ClaudeBot', 'Claude-User', 'Claude-SearchBot', 'anthropic-ai', 'PerplexityBot', 'Perplexity-User', 'Google-Extended', 'Applebot-Extended', 'CCBot', 'cohere-ai', 'Bytespider', 'Meta-ExternalAgent', 'Amazonbot', 'DuckAssistBot', 'MistralAI-User'];
   const priv = 'Disallow: /admin/\nDisallow: /api/\nDisallow: /checkout/\nDisallow: /panier/\n';
   return `User-agent: *\nAllow: /\n${priv}\n${ai.map(b => `User-agent: ${b}\nAllow: /\n${priv}`).join('\n')}\nSitemap: ${SITE_ORIGIN}/sitemap.xml\n`;
+}
+
+export function flashPage(products: Product[], footer?: FooterData): string {
+  const flash = products.filter(p => isAvailable(p) && p.old_price && Number(p.old_price) > Number(p.price)).sort((a, b) => (1 - b.price / Number(b.old_price)) - (1 - a.price / Number(a.old_price)));
+  const desc = flash.length ? `${flash.length} produit${flash.length > 1 ? 's' : ''} en promotion sur Vendza aujourd'hui. Ventes Flash tous les jours de 8h à 20h (heure d'Haïti), paiement sécurisé.` : 'Les Ventes Flash de Vendza reviennent chaque jour de 8h à 20h (heure d\'Haïti). Découvrez les promotions de la marketplace.';
+  const body = `<p class="crumbs"><a href="/">Accueil</a> › Ventes Flash</p><h1>Ventes Flash Vendza : promotions du jour en Haïti</h1><p>${esc(desc)}</p>
+<p><a class="btn" href="/?page=ventes-flash">Voir les Ventes Flash dans l'application</a></p>${flash.length ? productGrid(flash) : '<p>Aucune promotion en ce moment. Revenez chaque jour entre 8h et 20h.</p>'}`;
+  return layout({ title: 'Ventes Flash Vendza – Promotions du jour en Haïti', description: desc, path: '/ventes-flash', body, footer, jsonld: [itemList(flash), breadcrumb([['Accueil', '/'], ['Ventes Flash', '/ventes-flash']])] });
 }

@@ -15,7 +15,9 @@ export const AuthView: React.FC<AuthViewProps> = ({
   onLogin,
   onNavigate
 }) => {
-  const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
+  const [activeTab, setActiveTab] = useState<'login' | 'signup'>(() => {
+    try { return new URLSearchParams(window.location.search).get('page') === 'inscription' ? 'signup' : 'login'; } catch { return 'login'; }
+  });
   const [isLoading, setIsLoading] = useState<boolean>(false);
   
   // Custom non-blocking visual feedback state (safely bypassing browser sandbox modal blocks)
