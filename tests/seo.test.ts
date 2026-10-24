@@ -46,13 +46,16 @@ const db = { from: (n: string) => { let rows = tables[n] || []; const api: any =
     r = await get(`/boutique/boutique-lala-${V}`); h = await r.text(); assert.equal(r.status, 200); assert.match(h, /"@type":"Store"/); assert.match(h, /Robe/);
     r = await get('/categorie/mode'); h = await r.text(); assert.equal(r.status, 200); assert.match(h, /ItemList/);
     r = await get('/categorie/inconnue'); assert.equal(r.status, 404);
-    for (const p of ['/marketplace-haiti', '/acheter-en-ligne-haiti', '/vendre-en-ligne-haiti', '/comment-ca-marche', '/paiement-moncash-carte-haiti', '/a-propos', '/faq', '/achte-sou-entenet-ayiti']) {
+    for (const p of ['/devenir-vendeur', '/creer-un-compte', '/se-connecter', '/en-savoir-plus', '/contact', '/ventes-flash', '/marketplace-haiti', '/acheter-en-ligne-haiti', '/vendre-en-ligne-haiti', '/comment-ca-marche', '/paiement-moncash-carte-haiti', '/a-propos', '/faq', '/achte-sou-entenet-ayiti']) {
       r = await get(p); h = await r.text(); assert.equal(r.status, 200, p); assert.match(h, /<h1>/); assert.match(h, new RegExp(`rel="canonical" href="https://www.vendza.store${p}"`)); }
     assert.match(await (await get('/faq')).text(), /FAQPage/); assert.match(await (await get('/achte-sou-entenet-ayiti')).text(), /<html lang="ht">/);
     // sitemap : tout y est (présents, épuisés, supprimés), pas les brouillons, https, pas de fragments
     const sm = await (await get('/sitemap.xml')).text();
     assert.match(sm, /\/produit\/robe-elegante/); assert.match(sm, /casque-audio-2222/); assert.match(sm, /ancien-sac-3333/); assert.ok(!sm.includes('44444444')); assert.ok(!/<loc>[^<]*#/.test(sm) && !/<loc>http:\/\//.test(sm));
     assert.match(sm, /\/boutique\/boutique-lala/); assert.match(sm, /\/categorie\/mode/); assert.match(sm, /\/faq/); assert.match(sm, /image:loc/);
+    assert.match(sm, /\/devenir-vendeur/); assert.match(sm, /\/creer-un-compte/); assert.match(sm, /\/ventes-flash/);
+    h = await (await get('/ventes-flash')).text(); assert.match(h, /Robe/); assert.ok(!h.includes('Casque Audio')); // seulement les promos disponibles
+    h = await (await get('/devenir-vendeur')).text(); assert.match(h, /href="\/\?page=devenir-vendeur"/); assert.match(h, />Devenir vendeur</); assert.match(h, />Créer un compte</);
     // robots, IA
     const rb = await (await get('/robots.txt')).text(); assert.match(rb, /User-agent: GPTBot\nAllow: \//); assert.match(rb, /User-agent: ClaudeBot/); assert.match(rb, /Sitemap: https:\/\/www\.vendza\.store\/sitemap\.xml/);
     const llms = await (await get('/llms.txt')).text(); assert.match(llms, /^# Vendza/); assert.match(llms, /catalogue\.json/);

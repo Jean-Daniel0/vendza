@@ -47,6 +47,12 @@ const FRONTEND_FALLBACK_PRODUCTS: Product[] = [];
 
 export default function App() {
   const [currentView, setCurrentView] = useState<string>(() => {
+    // Liens directs depuis les pages publiques (Google) : /?page=inscription, connexion, devenir-vendeur, ventes-flash, conditions, confidentialite, a-propos
+    try {
+      const page = new URLSearchParams(window.location.search).get('page') || '';
+      const DEEP: Record<string, string> = { inscription: 'auth', connexion: 'auth', 'devenir-vendeur': 'become-seller', 'ventes-flash': 'flash-sales', conditions: 'terms', confidentialite: 'privacy', 'a-propos': 'about' };
+      if (DEEP[page]) return DEEP[page];
+    } catch {}
     return localStorage.getItem('vendza_current_view') || 'home';
   });
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);

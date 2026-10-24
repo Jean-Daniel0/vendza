@@ -4,7 +4,7 @@ import path from 'path';
 import type { Express, Request, Response, NextFunction } from 'express';
 import {
   SITE_ORIGIN, Product, Shop, LANDINGS, FooterData, abs, cleanCategory, slugify, idFromSlug, imageUrl, isAvailable, productPath, shopPath, categoryPath,
-  productPage, shopPage, categoryPage, landingPage, layout, homeFallback, buildSitemap, buildLlmsTxt, buildLlmsFull, buildCatalogJson, robotsTxt,
+  productPage, shopPage, categoryPage, landingPage, flashPage, layout, homeFallback, buildSitemap, buildLlmsTxt, buildLlmsFull, buildCatalogJson, robotsTxt,
   HOME_MARK_START, HOME_MARK_END, SitemapEntry
 } from './seo';
 
@@ -42,6 +42,7 @@ export function allSeoUrls(c: Catalog): SitemapEntry[] {
   const latest = (ps: Product[]) => ps.reduce<string | null>((m, x) => (x.updated_at && (!m || x.updated_at > m) ? x.updated_at : m), null);
   const out: SitemapEntry[] = [{ loc: `${SITE_ORIGIN}/`, priority: 1.0, lastmod: latest(c.products) || new Date().toISOString() }];
   LANDINGS.forEach(l => out.push({ loc: abs(l.path), priority: 0.8 }));
+  out.push({ loc: abs('/ventes-flash'), priority: 0.8, lastmod: new Date().toISOString() });
   c.categories.forEach(cat => out.push({ loc: abs(categoryPath(cat)), priority: 0.7, lastmod: latest(c.products.filter(p => cleanCategory(p.category) === cat)) }));
   c.shops.forEach(s => out.push({ loc: abs(shopPath(s)), priority: 0.7, lastmod: s.updated_at || s.created_at }));
   c.products.forEach(p => out.push({ loc: abs(productPath(p)), priority: p.archived || !isAvailable(p) ? 0.4 : 0.8, lastmod: p.updated_at || p.created_at, images: [imageUrl(p)] }));
@@ -79,6 +80,7 @@ export function registerSeoRoutes(app: Express, db: any) {
   app.get('/catalogue.json', safe(async (_req, res) => { const c = await catalog(); text(res, 'application/json', JSON.stringify(buildCatalogJson(c.products, c.shops)), 600); }));
   app.get('/sitemap.xml', safe(async (_req, res) => { const c = await catalog(); text(res, 'application/xml', buildSitemap(allSeoUrls(c)), 600); }));
 
+  app.get('/ventes-flash', safe(async (_req, res) => { const c = await catalog(); html(res, 200, flashPage(c.products.filter(p => !p.archived), footerOf(c))); }));
   LANDINGS.forEach(l => app.get(l.path, safe(async (_req, res) => html(res, 200, landingPage(l, footerOf(await catalog()))))));
 
   app.get('/produit/:slug', safe(async (req, res) => {
