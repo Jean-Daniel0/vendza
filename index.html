@@ -45,7 +45,10 @@
       "@type": "Organization",
       "@id": "https://www.vendza.store/#organization",
       "name": "Vendza",
+      "alternateName": ["Vendza Haïti", "Vendza Store", "vendza.store"],
       "url": "https://www.vendza.store/",
+      "sameAs": ["https://www.instagram.com/vendzaplatform/"],
+      "areaServed": { "@type": "Country", "name": "Haïti" },
       "logo": {
         "@type": "ImageObject",
         "url": "https://www.vendza.store/logo-vendza-512.png",
@@ -60,7 +63,7 @@
       "@id": "https://www.vendza.store/#website",
       "url": "https://www.vendza.store/",
       "name": "Vendza",
-      "alternateName": "Vendza Marketplace",
+      "alternateName": ["Vendza Marketplace", "Vendza Haïti", "vendza.store"],
       "inLanguage": "fr",
       "publisher": {
         "@id": "https://www.vendza.store/#organization"
@@ -72,13 +75,12 @@
   </head>
   <body>
     <div id="root">
-      <!-- Contenu lisible par Google avant le chargement de l'application (remplacé automatiquement par React) -->
-      <main style="font-family:system-ui,sans-serif;max-width:640px;margin:0 auto;padding:32px 20px;color:#0f172a">
+      <!--SEO_FALLBACK_START--><main style="font-family:system-ui,sans-serif;max-width:640px;margin:0 auto;padding:32px 20px;color:#0f172a">
         <h1 style="font-size:28px;margin:0 0 12px">Vendza — Marketplace sécurisé en Haïti</h1>
         <p style="font-size:16px;line-height:1.5;margin:0 0 12px">Achetez et vendez en toute sécurité en Haïti. Votre paiement est gardé en séquestre et n'est libéré au vendeur qu'après validation physique de la livraison par QR Code.</p>
         <p style="font-size:14px;color:#475569;margin:0">Paiement par MonCash et carte bancaire · Boutiques vérifiées · Ventes Flash chaque jour de 8h à 20h.</p>
         <noscript><p>Activez JavaScript pour parcourir les produits Vendza.</p></noscript>
-      </main>
+      </main><!--SEO_FALLBACK_END-->
     </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
