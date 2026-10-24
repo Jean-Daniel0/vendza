@@ -9,6 +9,8 @@ import Stripe from 'stripe';
 import crypto from 'crypto';
 import { runFlashSale, runRecommendations } from './server/campaigns';
 import { haitiClock } from './server/marketing';
+import { registerSeoRoutes, runIndexNow } from './server/seoRoutes';
+import { productPath, cleanCategory } from './server/seo';
 
 // Icônes des notifications push : badge monochrome (barre d'état Android) + logo couleur (à côté du texte)
 const NOTIF_BADGE_URL = 'https://www.vendza.store/badge.png';
@@ -2657,63 +2659,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
 });
 
 const SITE_ORIGIN = (process.env.SITE_URL || 'https://www.vendza.store').replace(/\/$/, '');
-
-// 1. DYNAMIC SITEMAP.XML GENERATOR
-app.get('/sitemap.xml', async (req, res) => {
-  res.header('Content-Type', 'application/xml');
-
-  let products = [...FALLBACK_PRODUCTS];
-
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('id, name, updated_at, created_at, status, is_active');
-      
-      if (!error && data && data.length > 0) {
-        // Map keys correctly
-        products = data.map((p: any) => ({
-          id: p.id,
-          lastmod: p.updated_at || p.created_at || null,
-          hidden: p.is_active === false || (p.status && p.status !== 'published'),
-          nom: p.nom || p.name || 'Produit',
-          desc: p.desc || p.description || '',
-          prix: Number(p.prix || 0),
-          image: p.image || '',
-          categorie: p.cat || p.category || 'Général'
-        }));
-      }
-    } catch (e) {
-      console.warn("Error loading products for sitemap.xml, serving fallbacks instead:", e);
-    }
-  }
-
-  const hostUrl = SITE_ORIGIN;
-  
-  // Format dynamic XML
-  let xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <!-- Pages Générales -->
-  <url>
-    <loc>${hostUrl}/</loc>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-  </url>
-  
-  <!-- Produits Dynamiques -->`;
-
-  products.filter((p: any) => !p.hidden).forEach((p: any) => {
-    xml += `
-  <url>
-    <loc>${hostUrl}/?product=${p.id}</loc>${p.lastmod ? `\n    <lastmod>${new Date(p.lastmod).toISOString()}</lastmod>` : ''}
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>`;
-  });
-
-  xml += `\n</urlset>`;
-  res.send(xml);
-});
+if (supabase) registerSeoRoutes(app, supabase);
 
 // Helper to escape HTML safely for meta values
 function escapeHtml(text: string): string {
@@ -2789,7 +2735,7 @@ app.get('*', async (req, res, next) => {
         const pDesc = escapeHtml(product.desc.substring(0, 160) + (product.desc.length > 160 ? '...' : ''));
         const pPrice = `${product.prix.toLocaleString('fr-FR')} Gdes`;
         const pImage = product.image;
-        const pUrl = `${SITE_ORIGIN}/?product=${product.id}`;
+        const pUrl = `${SITE_ORIGIN}${productPath({ id: String(product.id), name: String(product.nom) })}`;
 
         const fullTitle = `${pName} | ${pPrice} sur Vendza`;
         const fullDesc = `${pDesc} - Achetez sereinement avec notre modèle sécurisé de séquestre de fonds à Haïti.`;
@@ -2941,6 +2887,8 @@ async function runCampaign(task: string) {
   if (!supabase) throw new Error('Supabase non configuré');
   if (task === 'flash-sale') return runFlashSale(supabase, sendOneSignalPushMany);
   if (task === 'recommendations') return runRecommendations(supabase, sendOneSignalPushMany);
+  if (task === 'indexnow') return runIndexNow(supabase, false);
+  if (task === 'indexnow-all') return runIndexNow(supabase, true);
   throw new Error('Tâche inconnue');
 }
 
@@ -2948,7 +2896,7 @@ app.post('/api/internal/cron/run', async (req, res) => {
   try {
     if (!(await cronSecretOk(req.header('x-cron-secret')))) return res.status(401).json({ error: 'Non autorisé' });
     const task = String(req.query.task || '');
-    if (task !== 'flash-sale' && task !== 'recommendations') return res.status(400).json({ error: 'task invalide' });
+    if (!['flash-sale', 'recommendations', 'indexnow', 'indexnow-all'].includes(task)) return res.status(400).json({ error: 'task invalide' });
     const result = await runCampaign(task);
     console.log('[cron]', task, JSON.stringify(result));
     return res.json(result);
