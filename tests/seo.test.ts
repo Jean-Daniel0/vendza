@@ -56,6 +56,8 @@ const db = { from: (n: string) => { let rows = tables[n] || []; const api: any =
     assert.match(sm, /\/devenir-vendeur/); assert.match(sm, /\/creer-un-compte/); assert.match(sm, /\/ventes-flash/);
     h = await (await get('/ventes-flash')).text(); assert.match(h, /Robe/); assert.ok(!h.includes('Casque Audio')); // seulement les promos disponibles
     h = await (await get('/devenir-vendeur')).text(); assert.match(h, /href="\/\?page=devenir-vendeur"/); assert.match(h, />Devenir vendeur</); assert.match(h, />Créer un compte</);
+    r = await get('/apropos'); assert.equal(r.status, 301); assert.equal(r.headers.get('location'), '/a-propos');
+    r = await get('/inscription'); assert.equal(r.headers.get('location'), '/creer-un-compte');
     // robots, IA
     const rb = await (await get('/robots.txt')).text(); assert.match(rb, /User-agent: GPTBot\nAllow: \//); assert.match(rb, /User-agent: ClaudeBot/); assert.match(rb, /Sitemap: https:\/\/www\.vendza\.store\/sitemap\.xml/);
     const llms = await (await get('/llms.txt')).text(); assert.match(llms, /^# Vendza/); assert.match(llms, /catalogue\.json/);

@@ -80,6 +80,11 @@ export function registerSeoRoutes(app: Express, db: any) {
   app.get('/catalogue.json', safe(async (_req, res) => { const c = await catalog(); text(res, 'application/json', JSON.stringify(buildCatalogJson(c.products, c.shops)), 600); }));
   app.get('/sitemap.xml', safe(async (_req, res) => { const c = await catalog(); text(res, 'application/xml', buildSitemap(allSeoUrls(c)), 600); }));
 
+  // Anciennes adresses (liens existants, Google les a déjà trouvées) : redirection définitive vers la bonne page
+  const LEGACY: Record<string, string> = { '/apropos': '/a-propos', '/about': '/a-propos', '/contactez-nous': '/contact', '/connexion': '/se-connecter', '/login': '/se-connecter',
+    '/inscription': '/creer-un-compte', '/register': '/creer-un-compte', '/signup': '/creer-un-compte', '/vendeur': '/devenir-vendeur', '/become-seller': '/devenir-vendeur',
+    '/flash-sales': '/ventes-flash', '/ventes-flashs': '/ventes-flash', '/aide': '/faq', '/help': '/faq', '/marketplace': '/marketplace-haiti', '/marche': '/' };
+  Object.entries(LEGACY).forEach(([from, to]) => app.get(from, (_req, res) => res.redirect(301, to)));
   app.get('/ventes-flash', safe(async (_req, res) => { const c = await catalog(); html(res, 200, flashPage(c.products.filter(p => !p.archived), footerOf(c))); }));
   LANDINGS.forEach(l => app.get(l.path, safe(async (_req, res) => html(res, 200, landingPage(l, footerOf(await catalog()))))));
 

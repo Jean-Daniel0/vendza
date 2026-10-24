@@ -31,7 +31,7 @@ export default defineConfig(() => {
             /supabase/,
             // pages SEO rendues par le serveur (jamais remplacées par le shell de l'application)
             /^\/(produit|boutique|categorie|media)\//,
-            /^\/(marketplace-haiti|acheter-en-ligne-haiti|vendre-en-ligne-haiti|comment-ca-marche|paiement-moncash-carte-haiti|a-propos|faq|achte-sou-entenet-ayiti|devenir-vendeur|creer-un-compte|se-connecter|en-savoir-plus|contact|ventes-flash)$/,
+            /^\/(marketplace-haiti|acheter-en-ligne-haiti|vendre-en-ligne-haiti|comment-ca-marche|paiement-moncash-carte-haiti|a-propos|faq|achte-sou-entenet-ayiti|devenir-vendeur|creer-un-compte|se-connecter|en-savoir-plus|contact|ventes-flash|apropos|about|contactez-nous|connexion|login|inscription|register|signup|vendeur|become-seller|flash-sales|ventes-flashs|aide|help|marketplace|marche)$/,
             /^\/(sitemap\.xml|robots\.txt|llms\.txt|llms-full\.txt|catalogue\.json|[0-9a-f]{32}\.txt)$/
           ],
           runtimeCaching: [
