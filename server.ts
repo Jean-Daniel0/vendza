@@ -9,6 +9,7 @@ import Stripe from 'stripe';
 import crypto from 'crypto';
 import { runFlashSale, runRecommendations } from './server/campaigns';
 import { haitiClock } from './server/marketing';
+import { runCartReminders, runLowStockAlerts } from './server/cartAlerts';
 import { registerSeoRoutes, runIndexNow } from './server/seoRoutes';
 import { productPath, cleanCategory } from './server/seo';
 
@@ -2887,6 +2888,8 @@ async function runCampaign(task: string) {
   if (!supabase) throw new Error('Supabase non configuré');
   if (task === 'flash-sale') return runFlashSale(supabase, sendOneSignalPushMany);
   if (task === 'recommendations') return runRecommendations(supabase, sendOneSignalPushMany);
+  if (task === 'cart-reminders') return runCartReminders(supabase, sendOneSignalPushMany);
+  if (task === 'low-stock') return runLowStockAlerts(supabase, sendOneSignalPushMany);
   if (task === 'indexnow') return runIndexNow(supabase, false);
   if (task === 'indexnow-all') return runIndexNow(supabase, true);
   throw new Error('Tâche inconnue');
@@ -2896,7 +2899,7 @@ app.post('/api/internal/cron/run', async (req, res) => {
   try {
     if (!(await cronSecretOk(req.header('x-cron-secret')))) return res.status(401).json({ error: 'Non autorisé' });
     const task = String(req.query.task || '');
-    if (!['flash-sale', 'recommendations', 'indexnow', 'indexnow-all'].includes(task)) return res.status(400).json({ error: 'task invalide' });
+    if (!['flash-sale', 'recommendations', 'cart-reminders', 'low-stock', 'indexnow', 'indexnow-all'].includes(task)) return res.status(400).json({ error: 'task invalide' });
     const result = await runCampaign(task);
     console.log('[cron]', task, JSON.stringify(result));
     return res.json(result);

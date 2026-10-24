@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import OneSignal from 'react-onesignal';
 import { PromoOptIn } from './components/PromoOptIn';
 import { mergeIncoming } from './lib/messageDedupe';
+import { CartRow, toRows, mergeRows, hydrate, mergeCartItems, diffRows, removePaid, readLocalRows, localCartKey } from './lib/cartSync';
+import { CartReminderToast } from './components/CartReminderToast';
 import { PushPermissionPrompt } from './components/PushPermissionPrompt';
 import { usePushStatus } from './lib/pushStatus';
 import { Header } from './components/Header';
@@ -1279,7 +1281,7 @@ export default function App() {
             setMoncashSuccessOrder(rawOrder.id);
             sendAutomatedOrderNotification(rawOrder);
             
-            setCart([]);
+            setCart(prev => removePaid(prev, rawOrder.items || []));
             localStorage.removeItem('cart');
             sessionStorage.removeItem('pendingOrder');
           } catch (err) {
@@ -1432,8 +1434,9 @@ export default function App() {
             setSelectedOrder({ id: orderId || 'mc-fallback', status: 'payee' } as any);
           }
 
-          // Clear cart & session
-          setCart([]);
+          // Panier : on retire seulement les articles payés, le reste est conservé
+          const paidItems = ((foundOrder as any)?.items || (rawOrder as any)?.items || []) as any[];
+          setCart(prev => removePaid(prev, paidItems));
           localStorage.removeItem('cart');
           sessionStorage.removeItem('pendingOrder');
 
@@ -1976,6 +1979,57 @@ export default function App() {
   const handleQuickVendorLogin = () => {
     navigateTo('auth');
   };
+
+  // ---- Panier persistant : conservé (appareil + compte) jusqu'à suppression par le client ou paiement ----
+  const cartOwner = currentUser?.id || 'guest';
+  const cartLoadedFor = useRef<string | null>(null);
+  const cartSynced = useRef<CartRow[]>([]);
+
+  useEffect(() => {
+    if (products.length === 0 || cartLoadedFor.current === cartOwner) return;
+    let cancelled = false;
+    (async () => {
+      let rows = readLocalRows(cartOwner);
+      cartSynced.current = [];
+      if (currentUser && isSupabaseConfigured && supabase) {
+        const { data } = await supabase.from('cart_items').select('product_id,color,size,quantity').eq('user_id', currentUser.id);
+        cartSynced.current = (data || []) as CartRow[];
+        rows = mergeRows(mergeRows(cartSynced.current, rows), readLocalRows('guest'));   // compte + appareil + panier d'invité
+        try { localStorage.removeItem(localCartKey('guest')); } catch {}
+      }
+      if (cancelled) return;
+      cartLoadedFor.current = cartOwner;
+      setCart(prev => mergeCartItems(hydrate(rows, products), prev));
+    })().catch(e => console.warn('[cart] chargement impossible:', e?.message));
+    return () => { cancelled = true; };
+  }, [cartOwner, products.length > 0]);
+
+  useEffect(() => {
+    if (cartLoadedFor.current !== cartOwner) return;
+    const rows = toRows(cart);
+    try { localStorage.setItem(localCartKey(cartOwner), JSON.stringify(rows)); } catch {}
+    if (!currentUser || !isSupabaseConfigured || !supabase) return;
+    const uid = currentUser.id;
+    const t = setTimeout(async () => {
+      // Deux essais : si la base a changé entre-temps (autre appareil), on relit son état puis on recalcule les différences
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const { inserts, updates, deletes } = diffRows(cartSynced.current, rows);
+        if (!inserts.length && !updates.length && !deletes.length) return;
+        try {
+          if (inserts.length) { const { error } = await supabase!.from('cart_items').insert(inserts.map(r => ({ user_id: uid, ...r }))); if (error) throw error; }
+          for (const r of updates) { const { error } = await supabase!.from('cart_items').update({ quantity: r.quantity }).eq('user_id', uid).eq('product_id', r.product_id).eq('color', r.color).eq('size', r.size); if (error) throw error; }
+          for (const r of deletes) { const { error } = await supabase!.from('cart_items').delete().eq('user_id', uid).eq('product_id', r.product_id).eq('color', r.color).eq('size', r.size); if (error) throw error; }
+          cartSynced.current = rows;
+          return;
+        } catch (e: any) {
+          console.warn('[cart] synchronisation, nouvel essai:', e?.message);
+          const { data } = await supabase!.from('cart_items').select('product_id,color,size,quantity').eq('user_id', uid);
+          cartSynced.current = (data || []) as CartRow[];
+        }
+      }
+    }, 800);
+    return () => clearTimeout(t);
+  }, [cart, cartOwner]);
 
   // Cart operations
   const handleAddToCart = (product: Product, quantity = 1, color?: string, size?: string) => {
@@ -4116,6 +4170,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
       <PWAUpdater />
 
       {/* App Header layout block */}
+      <CartReminderToast count={cart.reduce((n, i) => n + i.quantity, 0)} enabled={!!currentUser && cartLoadedFor.current === cartOwner} hidden={currentView === 'cart' || currentView === 'auth' || currentView === 'checkout-return'} onOpen={() => navigateTo('cart')} />
       <PushPermissionPrompt userId={currentUser?.id} status={pushStatus} onEnable={enablePush} />
       {pushStatus.subscribed && <PromoOptIn userId={currentUser?.id} newsletter={(currentUser as any)?.newsletter} onEnabled={() => setCurrentUser(u => (u ? ({ ...u, newsletter: true } as any) : u))} />}
       <Header
@@ -4486,7 +4541,10 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
               isSupabaseConfigured={isSupabaseConfigured}
               supabase={supabase}
               clearCart={() => {
-                setCart([]);
+                // seuls les articles de la commande payée quittent le panier
+                let paid: any[] = [];
+                try { paid = (JSON.parse(sessionStorage.getItem('pendingOrder') || 'null') as Order | null)?.items || []; } catch {}
+                setCart(prev => removePaid(prev, paid));
                 localStorage.removeItem('cart');
               }}
               onViewTicket={async (orderId) => {
