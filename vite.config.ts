@@ -14,14 +14,14 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         filename: 'OneSignalSDKWorker.js',
-        registerType: 'autoUpdate',
+        registerType: 'prompt', // la nouvelle version attend le clic du client : aucun rechargement automatique
         injectRegister: isProd ? 'inline' : null,
         devOptions: {
           enabled: false,
         },
         workbox: {
           importScripts: ['/sw-pre.js', 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js'],
-          skipWaiting: true,
+          skipWaiting: false,
           clientsClaim: true,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp}'],
           navigateFallback: '/index.html',
