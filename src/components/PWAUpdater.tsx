@@ -1,26 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { RefreshCw, X } from 'lucide-react';
 
 export function PWAUpdater() {
   const [needRefresh, setNeedRefresh] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
+  const updateSWRef = useRef<((reload?: boolean) => Promise<void>) | undefined>(undefined);
 
   useEffect(() => {
     // We register the Service Worker programmatically to hook into update events.
     // In autoUpdate mode, the new service worker activates and claims the clients immediately.
     // This triggers the 'controllerchange' event on navigator.serviceWorker.
-    const handleControllerChange = () => {
-      console.log('[PWA Updater] Le Service Worker a été mis à jour et a pris le contrôle.');
-      setNeedRefresh(true);
-      sessionStorage.setItem('vendza_sw_update_pending', 'true');
-    };
-
     // If 'virtual:pwa-register' is loaded, we also listen to its update events
-    let updateSW: (() => Promise<void>) | undefined;
     try {
       // @ts-ignore
       import('virtual:pwa-register').then(({ registerSW }) => {
-        updateSW = registerSW({
+        updateSWRef.current = registerSW({
           onNeedRefresh() {
             console.log('[PWA Updater] Nouvelle version disponible (onNeedRefresh).');
             setNeedRefresh(true);
@@ -38,8 +32,6 @@ export function PWAUpdater() {
     }
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
-      
       // Check for updates on startup
       navigator.serviceWorker.ready.then((registration) => {
         // Manually check if there is an updated service worker waiting
@@ -47,11 +39,6 @@ export function PWAUpdater() {
       });
     }
 
-    return () => {
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
-      }
-    };
   }, []);
 
   // Effect to show notification when update is available
@@ -80,7 +67,8 @@ export function PWAUpdater() {
   const handleForceUpdate = () => {
     console.log('[PWA Updater] Mise à jour forcée par l\'utilisateur.');
     sessionStorage.removeItem('vendza_sw_update_pending');
-    window.location.reload();
+    // Active la nouvelle version puis recharge, uniquement parce que le client l'a demandé
+    if (updateSWRef.current) updateSWRef.current(true); else window.location.reload();
   };
 
   return (

@@ -1956,11 +1956,6 @@ export default function App() {
     
     setCurrentUser(user);
     setCurrentView(targetView);
-    
-    // Automatically refresh modern site after login
-    setTimeout(() => {
-      window.location.reload();
-    }, 150);
   };
 
   const handleLogout = async () => {
