@@ -5,6 +5,7 @@ import { mergeIncoming } from './lib/messageDedupe';
 import { UUID_RE, CartRow, toRows, mergeRows, hydrate, mergeCartItems, diffRows, removePaid, readLocalRows, localCartKey } from './lib/cartSync';
 import { CartReminderToast } from './components/CartReminderToast';
 import type { ShippingConfig } from './lib/shipping';
+import { loadPrivate, savePrivate, privateFromUpdates, stripKeys, LEGACY_PROFILE_KEYS, LEGACY_SHOP_KEYS } from './lib/privateData';
 import { PushPermissionPrompt } from './components/PushPermissionPrompt';
 import { usePushStatus } from './lib/pushStatus';
 import { Header } from './components/Header';
@@ -579,6 +580,7 @@ export default function App() {
       }
       
       if (profile) {
+        const priv = await loadPrivate(uid);   // MonCash, banque, pièce d'identité : table privée
         const firstName = profile.prenom || profile.first_name || profile.name || profile.full_name?.split(' ')[0] || '';
         const lastName = profile.nom || profile.last_name || profile.full_name?.split(' ').slice(1).join(' ') || '';
         const shopNameVal = profile.boutique_nom || profile.shop_name || profile.boutique || profile.name;
@@ -644,13 +646,13 @@ export default function App() {
             }
             return [];
           })(),
-          moncash: profile.numero_moncash || profile.moncash || profile.moncash_num || '',
-          moncashNom: profile.moncash_nom || profile.moncashnom || '',
-          banque: profile.banque || profile.bank_name || '',
-          compteBanque: profile.compte_banque || profile.comptebanque || profile.bank_account || '',
-          idType: profile.id_type || profile.idtype || '',
-          idNumber: profile.id_number || profile.idnumber || '',
-          idFile: profile.id_file || profile.idfile || profile.id_document_url || ''
+          moncash: priv?.moncash || profile.numero_moncash || profile.moncash || profile.moncash_num || '',
+          moncashNom: priv?.moncashNom || profile.moncash_nom || profile.moncashnom || '',
+          banque: priv?.banque || profile.banque || profile.bank_name || '',
+          compteBanque: priv?.compteBanque || profile.compte_banque || profile.comptebanque || profile.bank_account || '',
+          idType: priv?.idType || profile.id_type || profile.idtype || '',
+          idNumber: priv?.idNumber || profile.id_number || profile.idnumber || '',
+          idFile: priv?.idFile || profile.id_file || profile.idfile || profile.id_document_url || ''
         });
       } else {
         // Auto-recreate missing profile rows safely
@@ -3651,6 +3653,13 @@ export default function App() {
         dbUpdates.revenusbloques = cleanedUpdates.revenusBloques;
       }
 
+      // Données sensibles : table privée uniquement (jamais dans les colonnes publiques)
+      const privFields = privateFromUpdates(cleanedUpdates);
+      if (Object.keys(privFields).length && !(await savePrivate(currentUser.id, privFields))) {
+        alert("❌ Impossible d'enregistrer vos informations de paiement et d'identité. Réessayez.");
+        return;
+      }
+      stripKeys(dbUpdates, LEGACY_PROFILE_KEYS);
       const result = await adaptiveUpdate('profiles', dbUpdates, currentUser.id);
 
       if (!result.ok) {
@@ -3687,6 +3696,7 @@ export default function App() {
           delai_livraison: currentUser.delaiLivraison || '3j'
         };
 
+        stripKeys(shopPayload as any, LEGACY_SHOP_KEYS);
         try {
           const { data: existingShop } = await supabase
             .from('shops')
