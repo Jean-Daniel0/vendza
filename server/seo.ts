@@ -33,7 +33,7 @@ export const breadcrumb = (items: Array<[string, string]>) => ({ '@context': 'ht
   itemListElement: items.map(([name, path], i) => ({ '@type': 'ListItem', position: i + 1, name, item: abs(path) })) });
 
 export const NAV: Array<[string, string]> = [
-  ['/devenir-vendeur', 'Devenir vendeur'], ['/creer-un-compte', 'Créer un compte'], ['/ventes-flash', 'Ventes Flash'], ['/acheter-en-ligne-haiti', 'Acheter en ligne'],
+  ['/devenir-vendeur', 'Devenir vendeur'], ['/forfaits-vendeurs', 'Forfaits vendeurs'], ['/creer-un-compte', 'Créer un compte'], ['/ventes-flash', 'Ventes Flash'], ['/acheter-en-ligne-haiti', 'Acheter en ligne'],
   ['/comment-ca-marche', 'Comment ça marche'], ['/en-savoir-plus', 'En savoir plus'], ['/faq', 'FAQ'], ['/contact', 'Contact'],
 ];
 
@@ -140,7 +140,7 @@ export function categoryPage(label: string, products: Product[], footer?: Footer
 }
 
 // ---------- pages d'information (mots-clés : vendza, marketplace Haïti, acheter en ligne en Haïti…) ----------
-export type Landing = { cta?: { href: string; label: string }; path: string; title: string; description: string; h1: string; lang?: string; sections: Array<{ h2: string; p: string[] }>; faq?: Array<[string, string]> };
+export type Landing = { table?: { head: string[]; rows: string[][] }; jsonld?: unknown[]; related?: string[]; cta?: { href: string; label: string }; path: string; title: string; description: string; h1: string; lang?: string; sections: Array<{ h2: string; p: string[] }>; faq?: Array<[string, string]> };
 export const FAQ: Array<[string, string]> = [
   ['Qu\'est-ce que Vendza ?', 'Vendza est une marketplace haïtienne : des boutiques vendent leurs produits et les acheteurs paient en sécurité. L\'argent est gardé en séquestre jusqu\'à la validation de la livraison.'],
   ['Comment acheter en ligne en Haïti sur Vendza ?', 'Choisissez un produit, payez par MonCash ou carte bancaire, puis recevez votre commande. Vous confirmez la livraison avec un QR Code : seulement alors le vendeur est payé.'],
@@ -150,8 +150,50 @@ export const FAQ: Array<[string, string]> = [
   ['Puis-je discuter avec le vendeur avant d\'acheter ?', 'Oui. Depuis la page d\'un produit, vous pouvez écrire au vendeur : le produit concerné est mentionné automatiquement dans votre message.'],
   ['Qu\'est-ce que les Ventes Flash ?', 'Chaque jour de 8h à 20h (heure d\'Haïti), Vendza met en avant les produits en promotion.'],
 ];
+
+const planOffer = (name: string, monthly: number, yearly: number, commission: number, depts: string, perks: string) => ({
+  '@type': 'Service', name: `Vendza ${name}`, serviceType: 'Abonnement vendeur sur la marketplace Vendza', provider: { '@type': 'Organization', name: 'Vendza', url: SITE_ORIGIN + '/' },
+  areaServed: { '@type': 'Country', name: 'Haïti' }, description: `${perks} Commission de ${commission} % par vente. ${depts}.`,
+  offers: [
+    { '@type': 'Offer', price: monthly, priceCurrency: 'HTG', name: `${name} mensuel`, url: abs('/forfaits-vendeurs'), priceSpecification: { '@type': 'UnitPriceSpecification', price: monthly, priceCurrency: 'HTG', billingDuration: 1, unitCode: 'MON' } },
+    ...(yearly ? [{ '@type': 'Offer', price: yearly, priceCurrency: 'HTG', name: `${name} annuel`, url: abs('/forfaits-vendeurs'), priceSpecification: { '@type': 'UnitPriceSpecification', price: yearly, priceCurrency: 'HTG', billingDuration: 12, unitCode: 'MON' } }] : []),
+  ],
+});
+export const PLAN_FAQ: Array<[string, string]> = [
+  ['Quels sont les forfaits vendeurs de Vendza ?', 'Vendza propose trois forfaits : Gratuit (0 Gdes, commission de 20 %, 1 département), Pro Local (350 Gdes par mois ou 3 500 Gdes par an, commission de 15 %, jusqu\'à 5 départements) et Pro National (499 Gdes par mois ou 4 990 Gdes par an, commission de 10 %, les 10 départements d\'Haïti).'],
+  ['Combien coûte un abonnement vendeur sur Vendza ?', 'Le forfait Gratuit coûte 0 Gdes. Pro Local coûte 350 Gdes par mois ou 3 500 Gdes par an. Pro National coûte 499 Gdes par mois ou 4 990 Gdes par an. Le paiement annuel revient moins cher que 12 mois payés séparément.'],
+  ['Quelle commission Vendza prélève-t-il sur chaque vente ?', 'La commission est prélevée sur chaque vente : 20 % avec le forfait Gratuit, 15 % avec Pro Local et 10 % avec Pro National. Par exemple, pour une vente de 1 000 Gdes, le vendeur reçoit 800 Gdes en Gratuit, 850 Gdes en Pro Local et 900 Gdes en Pro National.'],
+  ['À quoi sert le nombre de départements ?', 'Le forfait détermine les départements où vous pouvez livrer : 1 (le vôtre) en Gratuit, jusqu\'à 5 de votre choix en Pro Local, les 10 départements d\'Haïti en Pro National. Vous livrez uniquement dans les départements couverts par votre forfait.'],
+  ['Quel forfait choisir ?', 'Le forfait Pro National devient plus rentable que le Gratuit dès 4 990 Gdes de ventes par mois, et Pro Local dès 7 000 Gdes de ventes par mois, grâce à la commission réduite. Le forfait Gratuit convient pour tester Vendza.'],
+  ['Quels badges et quelle visibilité selon le forfait ?', 'Le forfait Gratuit n\'offre pas le badge « Vérifié ». Pro Local donne le badge Vendeur Vérifié et la priorité dans les résultats. Pro National donne le badge Or Vedette et la visibilité maximale.'],
+  ['Comment souscrire ou changer de forfait ?', 'Depuis votre espace vendeur, ouvrez la page Abonnement, choisissez Pro Local ou Pro National, mensuel ou annuel, sélectionnez vos départements de livraison, puis payez par MonCash ou carte bancaire. Le forfait est activé après confirmation du paiement.'],
+  ['Quand le vendeur est-il payé ?', 'Le paiement du client est gardé en séquestre. Il est libéré au vendeur dès que le client valide la livraison avec le QR Code de la commande, quel que soit le forfait.'],
+];
+
 export const LANDINGS: Landing[] = [
-  { path: '/devenir-vendeur', cta: { href: '/?page=devenir-vendeur', label: 'Devenir vendeur maintenant' }, title: 'Devenir vendeur sur Vendza – Ouvrir sa boutique en Haïti',
+  { path: '/forfaits-vendeurs', cta: { href: '/?page=devenir-vendeur', label: 'Devenir vendeur' }, related: ['/devenir-vendeur', '/comment-ca-marche', '/faq'],
+    title: 'Forfaits vendeurs Vendza : Gratuit, Pro Local, Pro National – prix et commissions',
+    description: 'Les forfaits vendeurs Vendza : Gratuit (20 %), Pro Local 350 Gdes/mois (15 %) et Pro National 499 Gdes/mois (10 %). Commissions, départements couverts, badges.',
+    h1: 'Forfaits vendeurs Vendza : prix, commissions et avantages',
+    table: { head: ['Forfait', 'Prix', 'Commission par vente', 'Départements de livraison', 'Badge et visibilité', 'Pour 1 000 Gdes vendus'], rows: [
+      ['Gratuit', '0 Gdes', '20 %', '1 département (le vôtre)', 'Pas de badge Vérifié', 'Vous recevez 800 Gdes'],
+      ['Pro Local', '350 Gdes/mois ou 3 500 Gdes/an', '15 %', 'Jusqu\'à 5 départements', 'Badge Vendeur Vérifié et priorité', 'Vous recevez 850 Gdes'],
+      ['Pro National', '499 Gdes/mois ou 4 990 Gdes/an', '10 %', 'Les 10 départements d\'Haïti', 'Badge Or Vedette et visibilité maximale', 'Vous recevez 900 Gdes'],
+    ] },
+    jsonld: [{ '@context': 'https://schema.org', '@type': 'ItemList', name: 'Forfaits vendeurs Vendza', itemListElement: [
+      { '@type': 'ListItem', position: 1, item: planOffer('Gratuit', 0, 0, 20, '1 département de livraison', 'Plan de base pour tester Vendza.') },
+      { '@type': 'ListItem', position: 2, item: planOffer('Pro Local', 350, 3500, 15, 'Jusqu\'à 5 départements de livraison', 'Badge Vendeur Vérifié et priorité.') },
+      { '@type': 'ListItem', position: 3, item: planOffer('Pro National', 499, 4990, 10, 'Les 10 départements d\'Haïti', 'Badge Or Vedette et visibilité maximale.') } ] }],
+    sections: [
+      { h2: 'Trois forfaits pour vendre en Haïti', p: ['Vendza est une marketplace où chaque vendeur choisit son forfait. Le forfait fixe trois choses : la commission prélevée sur chaque vente, les départements où vous pouvez livrer, et votre visibilité sur la plateforme.', 'Les prix sont en gourdes haïtiennes (Gdes ou HTG). Le paiement de l\'abonnement se fait par MonCash ou carte bancaire, au mois ou à l\'année.'] },
+      { h2: 'Forfait Gratuit : tester Vendza sans abonnement', p: ['0 Gdes. Commission de 20 % sur chaque vente. Livraison dans 1 département, celui de votre boutique. Pas de badge Vérifié. C\'est le plan de base pour démarrer et vendre quelques articles.'] },
+      { h2: 'Forfait Pro Local : 350 Gdes par mois ou 3 500 Gdes par an', p: ['Commission réduite à 15 %. Jusqu\'à 5 départements de livraison à choisir. Badge Vendeur Vérifié et priorité dans les résultats. Pensé pour les marchands qui vendent dans plusieurs zones de leur région.', 'Avec le paiement annuel (3 500 Gdes), vous économisez 700 Gdes par rapport à 12 mois à 350 Gdes.'] },
+      { h2: 'Forfait Pro National : 499 Gdes par mois ou 4 990 Gdes par an', p: ['Commission ultra réduite à 10 %. Livraison dans les 10 départements d\'Haïti. Badge Or Vedette et visibilité maximale. Pensé pour les grandes enseignes qui couvrent tout le territoire.', 'Avec le paiement annuel (4 990 Gdes), vous économisez 998 Gdes par rapport à 12 mois à 499 Gdes.'] },
+      { h2: 'Comment fonctionne la commission', p: ['La commission est prélevée sur chaque vente et dépend uniquement de votre forfait. Une partie de cette commission couvre les frais de la passerelle de paiement.', 'Le client paie à l\'avance, son argent est gardé en séquestre, puis libéré à votre profit quand il valide la livraison avec le QR Code. Vous fixez vous-même vos frais de livraison dans les paramètres de votre boutique.'] },
+      { h2: 'Quel forfait est le plus rentable ?', p: ['Comparé au forfait Gratuit, Pro National est rentable dès 4 990 Gdes de ventes par mois (10 % de commission économisée couvrent les 499 Gdes). Pro Local est rentable dès 7 000 Gdes de ventes par mois (5 % économisés couvrent les 350 Gdes).'] },
+      { h2: 'Comment changer de forfait', p: ['Dans votre espace vendeur, ouvrez Abonnement, choisissez votre forfait et la durée, sélectionnez vos départements de livraison, puis payez. Le forfait est activé après la confirmation du paiement par Vendza.'] },
+    ], faq: PLAN_FAQ },
+  { path: '/devenir-vendeur', related: ['/forfaits-vendeurs', '/comment-ca-marche'], cta: { href: '/?page=devenir-vendeur', label: 'Devenir vendeur maintenant' }, title: 'Devenir vendeur sur Vendza – Ouvrir sa boutique en Haïti',
     description: 'Devenez vendeur sur Vendza : ouvrez votre boutique en ligne en Haïti, publiez vos produits et soyez payé en toute sécurité grâce au séquestre et au QR Code.',
     h1: 'Devenir vendeur sur Vendza', sections: [
       { h2: 'Pourquoi vendre sur Vendza', p: ['Vos produits sont visibles par tous les acheteurs de la marketplace et sur Google. Les clients paient à l\'avance : l\'argent est gardé en séquestre puis libéré dès que l\'acheteur valide la livraison par QR Code.', 'Vous échangez directement avec vos clients grâce à la messagerie intégrée et vous participez aux Ventes Flash chaque jour de 8h à 20h.'] },
@@ -211,9 +253,11 @@ export const LANDINGS: Landing[] = [
 export function landingPage(l: Landing, footer?: FooterData): string {
   const body = `<p class="crumbs"><a href="/">Accueil</a> › ${esc(l.h1)}</p><h1>${esc(l.h1)}</h1>
 ${l.sections.map(s => `<h2>${esc(s.h2)}</h2>${s.p.map(t => `<p>${esc(t)}</p>`).join('')}`).join('')}
+${l.table ? `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:14px"><thead><tr>${l.table.head.map(h => `<th style="text-align:left;padding:8px;border-bottom:2px solid var(--line)">${esc(h)}</th>`).join('')}</tr></thead><tbody>${l.table.rows.map(r => `<tr>${r.map((c, i) => `<td style="padding:8px;border-bottom:1px solid var(--line)${i === 0 ? ';font-weight:700' : ''}">${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : ''}
 ${l.faq ? l.faq.map(([q, a]) => `<h2>${esc(q)}</h2><p>${esc(a)}</p>`).join('') : ''}
+${l.related?.length ? `<h2>Voir aussi</h2><p>${l.related.map(r => { const t = LANDINGS.find(x => x.path === r); return t ? `<a class="pill" href="${esc(t.path)}">${esc(t.h1)}</a>` : ''; }).join('')}</p>` : ''}
 <p>${l.cta ? `<a class="btn" href="${esc(l.cta.href)}">${esc(l.cta.label)}</a><a class="btn alt" href="/">Découvrir la marketplace</a>` : `<a class="btn" href="/">Découvrir la marketplace</a><a class="btn alt" href="/devenir-vendeur">Devenir vendeur</a>`}</p>`;
-  const jsonld: unknown[] = [breadcrumb([['Accueil', '/'], [l.h1, l.path]])];
+  const jsonld: unknown[] = [breadcrumb([['Accueil', '/'], [l.h1, l.path]]), ...(l.jsonld || [])];
   if (l.faq) jsonld.push({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: l.faq.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) });
   else jsonld.push({ '@context': 'https://schema.org', '@type': 'WebPage', name: l.title, description: l.description, url: abs(l.path), inLanguage: l.lang || 'fr', isPartOf: { '@id': SITE_ORIGIN + '/#website' } });
   return layout({ title: l.title, description: l.description, path: l.path, body, footer, lang: l.lang, jsonld });
@@ -226,7 +270,7 @@ export function homeFallback(products: Product[], shops: Shop[], categories: str
   return `${HOME_MARK_START}<main style="font-family:system-ui,sans-serif;max-width:900px;margin:0 auto;padding:24px 20px;color:#0f172a">
 <h1 style="font-size:28px;margin:0 0 12px">Vendza — Marketplace sécurisé en Haïti : acheter et vendre en ligne</h1>
 <p>Achetez en ligne en Haïti avec paiement en séquestre (MonCash, carte bancaire) : le vendeur est payé seulement après la validation de la livraison par QR Code.</p>
-<nav><a href="/devenir-vendeur">Devenir vendeur</a> · <a href="/creer-un-compte">Créer un compte</a> · <a href="/ventes-flash">Ventes Flash</a> · <a href="/acheter-en-ligne-haiti">Acheter en ligne</a> · <a href="/marketplace-haiti">Marketplace Haïti</a> · <a href="/comment-ca-marche">Comment ça marche</a> · <a href="/en-savoir-plus">En savoir plus</a> · <a href="/faq">FAQ</a> · <a href="/contact">Contact</a> · <a href="/achte-sou-entenet-ayiti">Kreyòl</a></nav>
+<nav><a href="/devenir-vendeur">Devenir vendeur</a> · <a href="/forfaits-vendeurs">Forfaits vendeurs</a> · <a href="/creer-un-compte">Créer un compte</a> · <a href="/ventes-flash">Ventes Flash</a> · <a href="/acheter-en-ligne-haiti">Acheter en ligne</a> · <a href="/marketplace-haiti">Marketplace Haïti</a> · <a href="/comment-ca-marche">Comment ça marche</a> · <a href="/en-savoir-plus">En savoir plus</a> · <a href="/faq">FAQ</a> · <a href="/contact">Contact</a> · <a href="/achte-sou-entenet-ayiti">Kreyòl</a></nav>
 ${categories.length ? `<h2>Catégories</h2><p>${categories.map(c => `<a href="${esc(categoryPath(c))}">${esc(c)}</a>`).join(' · ')}</p>` : ''}
 ${live.length ? `<h2>Produits récents</h2><ul>${live.map(p => `<li><a href="${esc(productPath(p))}">${esc(p.name)}</a> — ${fmtPrice(p.price)} Gdes</li>`).join('')}</ul>` : ''}
 ${shops.length ? `<h2>Boutiques</h2><ul>${shops.map(s => `<li><a href="${esc(shopPath(s))}">${esc(s.shop_name)}</a></li>`).join('')}</ul>` : ''}
