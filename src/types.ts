@@ -39,6 +39,7 @@ export interface CartItem {
 export type OrderStatus = 'attente' | 'payee' | 'livree' | 'annulee';
 
 export interface Order {
+  promoCode?: string;
   id: string;
   clientId: string;
   clientNom: string;

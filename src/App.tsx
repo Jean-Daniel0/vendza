@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import OneSignal from 'react-onesignal';
 import { PromoOptIn } from './components/PromoOptIn';
 import { mergeIncoming } from './lib/messageDedupe';
-import { CartRow, toRows, mergeRows, hydrate, mergeCartItems, diffRows, removePaid, readLocalRows, localCartKey } from './lib/cartSync';
+import { UUID_RE, CartRow, toRows, mergeRows, hydrate, mergeCartItems, diffRows, removePaid, readLocalRows, localCartKey } from './lib/cartSync';
 import { CartReminderToast } from './components/CartReminderToast';
+import type { ShippingConfig } from './lib/shipping';
 import { PushPermissionPrompt } from './components/PushPermissionPrompt';
 import { usePushStatus } from './lib/pushStatus';
 import { Header } from './components/Header';
@@ -1975,6 +1976,15 @@ export default function App() {
     navigateTo('auth');
   };
 
+  // Tarifs de livraison saisis par les vendeurs du panier
+  const [vendorShipping, setVendorShipping] = useState<Record<string, ShippingConfig & { shop_name?: string }>>({});
+  const cartVendorKey = Array.from(new Set<string>(cart.map(i => String(i.product.vendeurId)))).filter(v => UUID_RE.test(v)).sort().join('|');
+  useEffect(() => {
+    if (!cartVendorKey || !isSupabaseConfigured || !supabase) return;
+    supabase.from('shops').select('vendor_id, shop_name, shipping_fee_default, shipping_fees').in('vendor_id', cartVendorKey.split('|'))
+      .then(({ data }) => setVendorShipping(Object.fromEntries((data || []).map((r: any) => [String(r.vendor_id), r]))));
+  }, [cartVendorKey]);
+
   // ---- Panier persistant : conservé (appareil + compte) jusqu'à suppression par le client ou paiement ----
   const cartOwner = currentUser?.id || 'guest';
   const cartLoadedFor = useRef<string | null>(null);
@@ -2494,7 +2504,9 @@ export default function App() {
                 total_price: subTotal,
                 shipping_fee: subShippingFee,
                 delivery_commune: rawOrder.commune,
-                delivery_address: rawOrder.departement || ''
+                delivery_address: rawOrder.departement || '',
+                delivery_departement: rawOrder.departement || '',
+                promo_code: rawOrder.promoCode || ''
               })
             });
 
@@ -2540,7 +2552,9 @@ export default function App() {
               total_price: rawOrder.total,
               shipping_fee: rawOrder.fraisLivraison || 0,
               delivery_commune: rawOrder.commune,
-              delivery_address: rawOrder.departement || ''
+              delivery_address: rawOrder.departement || '',
+              delivery_departement: rawOrder.departement || '',
+              promo_code: rawOrder.promoCode || ''
             })
           });
 
@@ -4265,6 +4279,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
               onLoadMore={handleLoadMoreProducts}
               hasMore={hasMoreProducts}
               tauxUSD={tauxUSD}
+              vendorShipping={vendorShipping}
             />
           )}
 

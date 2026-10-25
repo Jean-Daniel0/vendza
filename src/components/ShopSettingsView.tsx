@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Save, User2, Store, Lock, Sparkles, MapPin, CheckCircle, RefreshCw, Upload, CreditCard, ShieldCheck, AlertCircle, Trash } from 'lucide-react';
 import { UserProfile } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import { ShippingFeesCard } from './ShippingFeesCard';
 
 interface ShopSettingsViewProps {
   user: UserProfile;
@@ -927,6 +928,8 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
           {/* Right block: Payments and Security */}
           <div className="md:col-span-4 lg:col-span-5 space-y-5">
             
+            {user?.id && <ShippingFeesCard vendorId={user.id} />}
+
             {/* Payment Account Details */}
             <div id="moncash_container" className="bg-white border border-slate-100 rounded-3xl p-5 shadow-3xs space-y-4">
               <div className="flex items-center gap-2 border-b border-slate-100 pb-2">

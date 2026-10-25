@@ -10,6 +10,8 @@ import crypto from 'crypto';
 import { runFlashSale, runRecommendations } from './server/campaigns';
 import { haitiClock } from './server/marketing';
 import { runCartReminders, runLowStockAlerts } from './server/cartAlerts';
+import { priceVendorOrder, promoPercent, isUnderpaid, usdCents, DbProduct } from './server/pricing';
+import { resolveShippingFee } from './src/lib/shipping';
 import { registerSeoRoutes, runIndexNow } from './server/seoRoutes';
 import { productPath, cleanCategory } from './server/seo';
 
@@ -804,6 +806,18 @@ function getLocalPendingOrdersByGroup(orderId: string) {
   }
 }
 
+// Commandes en attente d'un même paiement (une par vendeur) : c'est CE total, calculé par le serveur, qui est débité
+async function getGroupPendingOrders(orderId: string): Promise<any[]> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data } = await supabase.from('pending_orders').select('*')
+        .or(`reference_id.eq.${orderId},checkout_group_id.eq.${orderId},reference_id.like.${orderId}_sub_%`);
+      if (data && data.length) return data;
+    } catch (_) {}
+  }
+  return getLocalPendingOrdersByGroup(orderId);
+}
+
 // Helper to save orphaned payment
 function saveOrphanedPayment(payment: any) {
   try {
@@ -862,7 +876,7 @@ const creerCommandeApresPaiement = async (
       const { data, error: pendingErr } = await supabase
         .from('pending_orders')
         .select('*')
-        .or(`reference_id.eq.${orderId},checkout_group_id.eq.${orderId}`);
+        .or(`reference_id.eq.${orderId},checkout_group_id.eq.${orderId},reference_id.like.${orderId}_sub_%`);
       
       if (!pendingErr && data && data.length > 0) {
         pendingOrders = data;
@@ -928,6 +942,19 @@ const creerCommandeApresPaiement = async (
         status: 'pending_untraceable'
       });
       return null;
+    }
+
+    // Garde-fou : un paiement nettement inférieur au total dû ne crée PAS de commandes payées (mis de côté pour traitement manuel)
+    {
+      const expectedGroupTotal = pendingOrders.reduce((sum: number, po: any) => sum + (Number(po.total_price) || 0), 0);
+      if (paymentMethod !== 'stripe' && isUnderpaid(paidAmount, expectedGroupTotal, Number(process.env.UNDERPAID_BLOCK_PCT ?? 10))) {
+        console.error(`[SÉCURITÉ] Paiement insuffisant pour ${orderId} : reçu ${paidAmount} HTG, dû ${expectedGroupTotal} HTG. Commandes non créées.`);
+        const underpaid = { id: `orph-under-${crypto.randomBytes(3).toString('hex').toUpperCase()}`, order_id: orderId, buyer_id: pendingOrders[0]?.buyer_id || null,
+          amount: Number(paidAmount) || 0, payment_method: paymentMethod, transaction_id: transactionId || orderId, status: 'underpaid',
+          payload_details: JSON.stringify({ expected: expectedGroupTotal, paid: paidAmount, pending: pendingOrders }), created_at: new Date().toISOString() };
+        try { await supabase.from('orphaned_payments').insert([underpaid]); } catch (_) { saveOrphanedPayment(underpaid); }
+        return null;
+      }
     }
 
     // Now we loop over each pending order in pendingOrders to create final orders!
@@ -1268,10 +1295,25 @@ const creerCommandeApresPaiement = async (
           console.warn(`[CRITICAL - FALLBACK WARNING] Storing orphaned payment to local JSON file as a last resort!`);
           saveOrphanedPayment(orderPayload);
         }
+        continue; // pas de commande : on ne crédite pas le vendeur
       } else {
         // Order created successfully, we can safely delete from local pending cache
         deleteLocalPendingOrder(subRefId);
         lastStoredOrder = orderStored;
+
+        // Stock réservé dès le paiement (si un article manque, on rend ce qui a été pris : la livraison déduira comme avant)
+        try {
+          const lines: any[] = Array.isArray(pendingOrder.items) ? pendingOrder.items : [];
+          const taken: Array<{ id: string; qty: number }> = []; let allOk = lines.length > 0;
+          for (const it of lines) {
+            const pid = String(it?.productId || it?.product_id || it?.id || ''); const qty = Math.max(1, Math.floor(Number(it?.qte ?? it?.quantity ?? 1) || 1));
+            if (!isValidUuid(pid)) { allOk = false; continue; }
+            const { data: ok, error: rErr } = await supabase.rpc('reserve_stock', { p_product_id: pid, p_qty: qty });
+            if (!rErr && ok === true) taken.push({ id: pid, qty }); else allOk = false;
+          }
+          if (allOk) { if (orderStored?.id) await supabase.from('orders').update({ stock_reserved: true }).eq('id', orderStored.id); }
+          else for (const t of taken) await supabase.rpc('release_stock', { p_product_id: t.id, p_qty: t.qty });
+        } catch (e: any) { console.warn('[Webhook] réservation du stock impossible:', e?.message); }
       }
 
       // 5. Créditer le wallet vendeur (en séquestre)
@@ -1386,7 +1428,7 @@ app.post('/api/bazik/create-payment', async (req, res) => {
     return res.status(400).json({ error: "orderId et amount sont requis." });
   }
 
-  const numericAmount = Number(amount);
+  let numericAmount = Number(amount);
   if (isNaN(numericAmount) || numericAmount < 1 || numericAmount > 1000000) {
     return res.status(400).json({ error: 'Montant invalide (1 à 1 000 000 HTG)' });
   }
@@ -1394,6 +1436,16 @@ app.post('/api/bazik/create-payment', async (req, res) => {
   // Pre-save subscription metadata resiliently if starting with 'sub-'
   const metadata = req.body.metadata || {};
   const isSubscription = (orderId && orderId.startsWith('sub-')) || (metadata && metadata.type === 'subscription');
+
+  // Commande : le montant est FIXÉ PAR LE SERVEUR (somme des commandes de tous les vendeurs, livraison comprise)
+  if (!isSubscription) {
+    const group = await getGroupPendingOrders(String(orderId));
+    if (!group.length) return res.status(404).json({ error: "Commande introuvable ou expirée. Retournez au panier et réessayez." });
+    const serverTotal = Math.round(group.reduce((sum: number, po: any) => sum + (Number(po.total_price) || 0), 0));
+    if (serverTotal < 1 || serverTotal > 1000000) return res.status(400).json({ error: 'Montant invalide (1 à 1 000 000 HTG)' });
+    if (Math.abs(serverTotal - numericAmount) > 1) console.warn(`[Bazik] Montant du navigateur ignoré : ${numericAmount} → ${serverTotal} HTG (commande ${orderId})`);
+    numericAmount = serverTotal;
+  }
 
   if (isSubscription) {
     const subMeta = metadata || {
@@ -1555,7 +1607,7 @@ app.post('/api/bazik/webhook/payment', express.raw({ type: '*/*' }), async (req:
         const { data: pendingData } = await supabase
           .from('pending_orders')
           .select('id')
-          .or(`reference_id.eq.${finalOrderId},checkout_group_id.eq.${finalOrderId}`);
+          .or(`reference_id.eq.${finalOrderId},checkout_group_id.eq.${finalOrderId},reference_id.like.${finalOrderId}_sub_%`);
 
         const { data: orderData } = await supabase
           .from('orders')
@@ -2085,12 +2137,17 @@ app.post('/api/orders/pending', async (req, res) => {
     reference_id,
     buyer_id,
     vendor_id,
-    items,
-    total_price,
-    shipping_fee,
+    items: clientItems,
+    total_price: clientTotal,
+    shipping_fee: clientShipping,
     delivery_commune,
-    delivery_address
+    delivery_address,
+    promo_code
   } = req.body;
+  let items = clientItems;
+  let total_price = clientTotal;
+  let shipping_fee = clientShipping;
+  let discount_amount = 0;
 
   if (!reference_id) {
     return res.status(400).json({ error: "reference_id est manquant" });
@@ -2102,28 +2159,33 @@ app.post('/api/orders/pending', async (req, res) => {
     if (!caller) return res.status(401).json({ error: "Authentification requise." });
     if (String(buyer_id || '') !== caller.id) return res.status(403).json({ error: "buyer_id doit correspondre à l'utilisateur connecté." });
 
-    // Le total ne peut pas être inférieur au prix des produits en base (protège le vendeur contre un montant falsifié)
-    try {
-      if (isSupabaseConfigured && supabase && Array.isArray(items) && items.length > 0) {
-        const idOf = (it: any) => String(it?.productId || it?.product_id || it?.id || '');
-        const ids = items.map(idOf).filter((v: string) => isValidUuid(v));
-        if (ids.length > 0) {
-          const { data: prods } = await supabase.from('products').select('id, price').in('id', ids);
-          const priceById = new Map<string, number>((prods || []).map((pr: any) => [String(pr.id), Number(pr.price) || 0]));
-          const expected = items.reduce((sum: number, it: any) => {
-            const unit = priceById.get(idOf(it)) || 0;
-            const qty = Math.max(1, Number(it?.qte ?? it?.quantity ?? it?.qty ?? 1) || 1);
-            return sum + unit * qty;
-          }, 0);
-          if (expected > 0 && Number(total_price) + 1 < expected * 0.99) {
-            console.warn(`[Pending Order Reject] total ${total_price} < products subtotal ${expected} (buyer ${caller.id}, ref ${reference_id})`);
-            return res.status(400).json({ error: "Le total de la commande est inférieur au prix des produits. Rechargez la page et réessayez." });
-          }
-        }
+    // MONTANTS FIXÉS PAR LE SERVEUR : prix en base, frais de livraison du vendeur, promotion validée, stock vérifié.
+    // Ce que le navigateur envoie comme total ou comme prix n'est plus utilisé.
+    if (isSupabaseConfigured && supabase && Array.isArray(items) && items.length > 0 && isValidUuid(String(vendor_id || ''))) {
+      const idOf = (it: any) => String(it?.productId || it?.product_id || it?.id || '');
+      const ids = [...new Set(items.map(idOf).filter((v: string) => isValidUuid(v)))];
+      if (ids.length !== new Set(items.map(idOf)).size) return res.status(400).json({ error: "Un produit de votre panier est invalide. Rechargez la page." });
+      const [{ data: prods, error: prodErr }, { data: shop }] = await Promise.all([
+        supabase.from('products').select('id, name, price, stock, vendor_id, is_active, status').in('id', ids),
+        supabase.from('shops').select('shipping_fee_default, shipping_fees').eq('vendor_id', vendor_id).maybeSingle()
+      ]);
+      if (prodErr) return res.status(503).json({ error: "Vérification des prix impossible pour le moment. Réessayez dans un instant." });
+      const products = new Map<string, DbProduct>((prods || []).map((pr: any) => [String(pr.id), pr as DbProduct]));
+      const dept = String(req.body.delivery_departement || req.body.departement || delivery_address || '').trim();
+      const fee = resolveShippingFee(shop as any, dept, String(delivery_commune || '').trim());
+      const priced = priceVendorOrder({ items, products, vendorId: String(vendor_id), shippingFee: fee, promoPct: promoPercent(promo_code) });
+      if (priced.ok === false) {
+        console.warn(`[Pending Order Reject] ${priced.error} (buyer ${caller.id}, ref ${reference_id})`);
+        return res.status(400).json({ error: priced.error });
       }
-    } catch (priceErr: any) {
-      console.warn('[Pending Order] price validation skipped:', priceErr?.message);
+      items = priced.items;
+      total_price = priced.total;
+      shipping_fee = priced.shipping;
+      discount_amount = priced.discount;
+    } else if (isValidUuid(String(vendor_id || ''))) {
+      return res.status(400).json({ error: "Commande invalide : aucun produit." });
     }
+    // vendeur invalide : traité juste en dessous (enregistré pour vérification manuelle)
   }
 
   // 1. Validate vendor_id and buyer_id are valid UUIDs
@@ -2216,6 +2278,8 @@ app.post('/api/orders/pending', async (req, res) => {
     items,
     total_price: Number(total_price) || 0,
     shipping_fee: Number(shipping_fee) || 0,
+    discount: discount_amount,
+    checkout_group_id: String(req.body.checkout_group_id || reference_id),
     delivery_commune: delivery_commune || '',
     delivery_address: delivery_address || '',
     created_at: new Date().toISOString()
@@ -2291,6 +2355,7 @@ app.post('/api/orders/pending', async (req, res) => {
 
 // Endpoint serving the interactive mock Stripe Simulation screen
 app.get('/stripe-simulation', (req, res) => {
+  if (process.env.ALLOW_STRIPE_SIMULATION !== 'true') return res.status(404).send('Not found');
   const { orderId, totalUSD, customerEmail } = req.query;
   const cleanOrderId = String(orderId || 'order-unknown');
   const cleanTotalUSD = String(totalUSD || '0.00');
@@ -2463,15 +2528,34 @@ app.post('/api/stripe/create-checkout-session', async (req, res) => {
     }
   }
 
+  // Commande : montants fixés par le serveur (une ligne par vendeur, livraison comprise)
+  let serverLines: Array<{ name: string; cents: number }> | null = null;
+  if (type !== 'subscription') {
+    const group = await getGroupPendingOrders(String(cleanOrderId));
+    if (!group.length) return res.status(404).json({ error: "Commande introuvable ou expirée. Retournez au panier et réessayez." });
+    const names = new Map<string, string>();
+    try {
+      const { data: shops } = await supabase!.from('shops').select('vendor_id, shop_name').in('vendor_id', group.map((g: any) => g.vendor_id));
+      (shops || []).forEach((sh: any) => names.set(String(sh.vendor_id), String(sh.shop_name || '').trim()));
+    } catch (_) {}
+    serverLines = group.map((g: any) => ({ name: `Commande Vendza — ${names.get(String(g.vendor_id)) || 'Boutique'}`, cents: usdCents(Number(g.total_price) || 0, currentRate) }));
+  }
+
   // Calculate order total in USD
-  const totalUSD = items.reduce((acc, item) => {
+  let totalUSD = items.reduce((acc, item) => {
     const price = item.product ? Number(item.product.prix) : Number(item.price);
     const qty = item.quantity || 1;
     return acc + (price / currentRate) * qty;
   }, 0);
 
+  if (serverLines) totalUSD = serverLines.reduce((acc, l) => acc + l.cents / 100, 0);
+
+  if (!stripeSecretKey && process.env.ALLOW_STRIPE_SIMULATION !== 'true') {
+    console.error("[Stripe Backend ERROR] STRIPE_SECRET_KEY manquante : paiement par carte indisponible (simulation désactivée).");
+    return res.status(503).json({ error: "Le paiement par carte est momentanément indisponible. Utilisez MonCash ou réessayez plus tard." });
+  }
   if (!stripeSecretKey) {
-    console.error("[Stripe Backend ERROR] STRIPE_SECRET_KEY is missing. Falling back to interactive Stripe Simulation...");
+    console.error("[Stripe Backend ERROR] STRIPE_SECRET_KEY is missing. Falling back to interactive Stripe Simulation (ALLOW_STRIPE_SIMULATION=true)...");
     const simulationUrl = `${baseUrl}/stripe-simulation?orderId=${encodeURIComponent(cleanOrderId)}&totalUSD=${encodeURIComponent(totalUSD.toFixed(2))}&customerEmail=${encodeURIComponent(customerEmail || '')}`;
     return res.json({ url: simulationUrl });
   }
@@ -2490,7 +2574,7 @@ app.post('/api/stripe/create-checkout-session', async (req, res) => {
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       customer_email: customerEmail || undefined,
-      line_items: items.map(item => {
+      line_items: serverLines ? serverLines.map(l => ({ price_data: { currency: 'usd', product_data: { name: l.name }, unit_amount: l.cents }, quantity: 1 })) : items.map(item => {
         // Handle cart item format: { product: { nom, prix, image_url }, quantity }
         if (item.product) {
           return {
@@ -2550,6 +2634,10 @@ app.post('/api/stripe/verify-session', async (req, res) => {
   }
 
   // Handle local stripe simulator verification
+  if (sessionId.startsWith('stripe-sim-') && process.env.ALLOW_STRIPE_SIMULATION !== 'true') {
+    console.warn('[SÉCURITÉ] Tentative de validation par fausse session Stripe refusée.');
+    return res.status(400).json({ error: 'Session de paiement invalide.' });
+  }
   if (sessionId.startsWith('stripe-sim-')) {
     const orderId = sessionId.split('_')[1];
     if (orderId) {

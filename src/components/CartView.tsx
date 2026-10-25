@@ -3,6 +3,7 @@ import { ShoppingBag, MapPin, Tag, ArrowRight, Home, Trash2, ShieldCheck, Ticket
 import { CartItem, UserProfile, Product, Order } from '../types';
 import { HAITIAN_ZONES } from '../data';
 import { isLowStock } from '../lib/cartSync';
+import { resolveShippingFee, ShippingConfig } from '../lib/shipping';
 
 interface CartViewProps {
   cart: CartItem[];
@@ -15,6 +16,7 @@ interface CartViewProps {
   products: Product[];
   onSetProduct: (product: Product) => void;
   tauxUSD?: number;
+  vendorShipping?: Record<string, ShippingConfig & { shop_name?: string }>;
 }
 
 export const CartView: React.FC<CartViewProps> = ({
@@ -27,7 +29,8 @@ export const CartView: React.FC<CartViewProps> = ({
   onPlaceOrder,
   products,
   onSetProduct,
-  tauxUSD = 130
+  tauxUSD = 130,
+  vendorShipping = {}
 }) => {
   const [selectedDept, setSelectedDept] = useState<string>(user?.departement || '');
   const [selectedCommune, setSelectedCommune] = useState<string>(user?.commune || '');
@@ -43,13 +46,17 @@ export const CartView: React.FC<CartViewProps> = ({
   // Calculate raw subtotal
   const subtotal = cart.reduce((acc, item) => acc + item.product.prix * item.quantity, 0);
 
-  // Delivery criteria
-  const getShippingFee = () => {
-    if (!selectedCommune) return 0;
-    const freeCapitalCommunes = ['Port-au-Prince', 'Pétion-Ville', 'Delmas', 'Carrefour'];
-    return freeCapitalCommunes.includes(selectedCommune) ? 0 : 200;
-  };
-  const shippingFee = getShippingFee();
+  // Frais de livraison : fixés par CHAQUE vendeur (tarif de sa boutique selon la zone du client)
+  type VendorGroup = { vendorId: string; name: string; subtotal: number; fee: number };
+  const groupMap: Record<string, VendorGroup> = {};
+  for (const item of cart) {
+    const vid = String(item.product.vendeurId);
+    if (!groupMap[vid]) groupMap[vid] = { vendorId: vid, name: vendorShipping[vid]?.shop_name || item.product.vendeur || 'Vendeur', subtotal: 0, fee: 0 };
+    groupMap[vid].subtotal += item.product.prix * item.quantity;
+  }
+  const vendorGroups: VendorGroup[] = Object.keys(groupMap).map(k => groupMap[k]);
+  vendorGroups.forEach(g => { g.fee = selectedCommune ? resolveShippingFee(vendorShipping[g.vendorId], selectedDept, selectedCommune) : 0; });
+  const shippingFee = vendorGroups.reduce((sum, g) => sum + g.fee, 0);
 
   // Promo validating list
   const applyPromo = () => {
@@ -73,7 +80,8 @@ export const CartView: React.FC<CartViewProps> = ({
     }
   };
 
-  const discountAmount = Math.round((subtotal * discountPercent) / 100);
+  // Même arrondi que le serveur : promotion calculée vendeur par vendeur
+  const discountAmount = vendorGroups.reduce((sum, g) => sum + Math.round((g.subtotal * discountPercent) / 100), 0);
   const finalTotal = subtotal + shippingFee - discountAmount;
 
   // Handle order checkout
@@ -220,6 +228,12 @@ export const CartView: React.FC<CartViewProps> = ({
                 <span>Frais de livraison</span>
                 <span className="font-mono font-bold text-slate-800">{shippingFee ? `${shippingFee.toLocaleString('fr-FR')} Gdes` : 'Gratuit'}</span>
               </div>
+              {vendorGroups.length > 1 && selectedCommune && vendorGroups.map(g => (
+                <div key={g.vendorId} className="flex justify-between pl-3 text-[11px] text-slate-400">
+                  <span>↳ Livraison {g.name}</span>
+                  <span className="font-mono">{g.fee ? `${g.fee.toLocaleString('fr-FR')} Gdes` : 'Gratuit'}</span>
+                </div>
+              ))}
               {discountAmount > 0 && (
                 <div className="flex justify-between text-emerald-600 font-bold">
                   <span>Code coupon appliqué</span>
@@ -257,6 +271,7 @@ export const CartView: React.FC<CartViewProps> = ({
                     })),
                     fraisLivraison: shippingFee,
                     discount: discountAmount,
+                    promoCode: discountPercent > 0 ? promoCode.trim().toUpperCase() : '',
                     total: finalTotal,
                     departement: selectedDept,
                     commune: selectedCommune
