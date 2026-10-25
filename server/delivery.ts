@@ -178,8 +178,9 @@ export async function confirmDelivery(
     return { status: 409, body: { error: 'Cette commande vient déjà d\'être confirmée.' } };
   }
 
-  // 6) Stock : décrémenté une seule fois, par le serveur (opération atomique côté base)
-  for (const it of extractItems(updated)) {
+  // 6) Stock : décrémenté une seule fois, par le serveur (opération atomique côté base).
+  //    Si le stock a déjà été réservé au paiement, rien à faire ici.
+  for (const it of (updated as any).stock_reserved ? [] : extractItems(updated)) {
     try {
       const { error } = await db.rpc('decrement_product_stock', { p_product_id: it.productId, p_qty: it.qty });
       if (error) console.warn('[Confirm Delivery] stock decrement failed:', it.productId, error.message);
