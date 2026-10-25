@@ -1881,13 +1881,15 @@ async function executeVendorPayout(
     let vendorWallet = '';
     let moncashName = '';
     if (payoutVendorId) {
+      // 1) table privée (source de vérité) ; 2) anciennes colonnes, tant qu'elles existent
+      const { data: payoutPrivate } = await supabase.from('vendor_private').select('moncash, moncash_nom').eq('user_id', payoutVendorId).maybeSingle();
       const { data: payoutProfile } = await supabase
         .from('profiles')
         .select('numero_moncash, moncash_nom')
         .eq('id', payoutVendorId)
         .maybeSingle();
-      vendorWallet = payoutProfile?.numero_moncash || '';
-      moncashName = (payoutProfile?.moncash_nom || '').trim();
+      vendorWallet = payoutPrivate?.moncash || payoutProfile?.numero_moncash || '';
+      moncashName = ((payoutPrivate?.moncash_nom || payoutProfile?.moncash_nom) || '').trim();
       if (!vendorWallet) {
         const { data: payoutShop } = await supabase
           .from('shops')

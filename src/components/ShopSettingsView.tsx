@@ -3,6 +3,7 @@ import { Save, User2, Store, Lock, Sparkles, MapPin, CheckCircle, RefreshCw, Upl
 import { UserProfile } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { ShippingFeesCard } from './ShippingFeesCard';
+import { loadPrivate } from '../lib/privateData';
 
 interface ShopSettingsViewProps {
   user: UserProfile;
@@ -95,7 +96,16 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
             setFormShopName(profil.boutique_nom || profil.shop_name || '');
             setFormShopDesc(profil.boutique_desc || profil.shop_desc || '');
             setFormAvatar(profil.avatar_url || profil.avatar || '');
-            setFormMoncash(profil.numero_moncash || profil.moncash || '');
+            const priv = await loadPrivate(user.id);   // table privée
+            setFormMoncash(priv?.moncash || profil.numero_moncash || profil.moncash || '');
+            if (priv) {
+              if (priv.moncashNom) setFormMoncashNom(priv.moncashNom);
+              if (priv.banque) setFormBanque(priv.banque);
+              if (priv.compteBanque) setFormCompteBanque(priv.compteBanque);
+              if (priv.idType) setFormIdType(priv.idType);
+              if (priv.idNumber) setFormIdNumber(priv.idNumber);
+              if (priv.idFile) setFormIdFile(priv.idFile);
+            }
             setFormStatutVerification(profil.statut_verification || 'non_verifie');
             setPrefOrders(profil.notif_commandes !== undefined ? profil.notif_commandes : true);
             setPrefPromo(profil.notif_livraisons !== undefined ? profil.notif_livraisons : true);
@@ -221,9 +231,6 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
             commune: formCommune,
             boutique_nom: formShopName,
             boutique_desc: formShopDesc,
-            numero_moncash: formMoncash,
-            moncash_nom: formMoncashNom,
-            moncashnom: formMoncashNom,
             avatar_url: formAvatar,
             notif_commandes: prefOrders,
             notif_livraisons: prefPromo,
