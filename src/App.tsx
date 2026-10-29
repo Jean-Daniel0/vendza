@@ -1511,7 +1511,7 @@ export default function App() {
           if (userIds.length > 0) {
             try {
               const { data: profilesData } = await supabase
-                .from('profiles')
+                .from('profiles_public')
                 .select('id, prenom, nom')
                 .in('id', userIds);
 
@@ -2787,7 +2787,7 @@ export default function App() {
       let planStr = 'gratuit';
       if (vendorId) {
         const { data: profile } = await supabase
-          .from('profiles')
+          .from('profiles_public')
           .select('plan')
           .eq('id', vendorId)
           .maybeSingle();

@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { Product, Review, Order, UserProfile } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import { cleanPhone } from '../lib/contacts';
 
 interface VendorProfileViewProps {
   vendorId: string;
@@ -169,10 +170,16 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
       try {
         if (isSupabaseConfigured && supabase) {
           let { data, error } = await supabase
-            .from('profiles')
+            .from('profiles_public')
             .select('*')
             .eq('id', vendorId)
             .maybeSingle();
+          // Téléphone du vendeur : réservé aux utilisateurs connectés (la fonction renvoie rien sinon)
+          let contactTel: string | undefined;
+          if (data) {
+            const { data: telData } = await supabase.rpc('get_vendor_contact', { p_vendor_id: vendorId });
+            contactTel = cleanPhone(telData);
+          }
 
           if (error) {
             console.error("Error loading vendor profile info:", error.message);
@@ -186,8 +193,8 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
             const shopDescVal = data.boutique_desc || data.shop_desc || data.shop_description || 'Boutique certifiée partenaire Vendza, offrant des produits vérifiés de qualité.';
             const avatarVal = data.avatar_url || data.avatar || data.photo_url || data.profile_image;
             const bannerVal = data.banner || data.cover_url || data.cover_image || data.banner_url || '';
-            const telVal = data.telephone || data.tel || data.phone_number || data.phone || '';
-            const emailVal = data.email || '';
+            const telVal = contactTel || '';
+            const emailVal = '';   // l'e-mail n'est plus affiché publiquement : la messagerie de Vendza sert de contact
             const premiumDeptsVal = data.premium_depts || data.premiumdepts || [];
             let parsedDepts: string[] = [];
             if (Array.isArray(premiumDeptsVal)) {

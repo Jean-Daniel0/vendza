@@ -78,7 +78,7 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({
       }
       try {
         const { data, error } = await supabase
-          .from('profiles')
+          .from('profiles_public')
           .select('*')
           .eq('id', vendorId)
           .maybeSingle();
