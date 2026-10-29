@@ -1,3 +1,4 @@
+import { displayName } from '../lib/contacts';
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, Image, RefreshCw, MessageSquare, Clock, ArrowLeft, Ticket, ShieldCheck, Mail, AlertCircle, CheckCheck } from 'lucide-react';
 import { Message, UserProfile, Product, Order } from '../types';
@@ -151,8 +152,8 @@ export const InboxView: React.FC<InboxViewProps> = ({
           let profilesMap: Record<string, any> = {};
           if (uniquePartnerIds.length > 0) {
             const { data: profiles, error: profErr } = await supabase
-              .from('profiles')
-              .select('id, prenom, nom, avatar_url, email')
+              .from('profiles_public')
+              .select('id, prenom, nom, avatar_url')
               .in('id', uniquePartnerIds);
             
             if (profErr) {
@@ -255,11 +256,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
             };
           }
 
-          const prenomStr = partner.prenom || '';
-          const nomStr = partner.nom || '';
-          const nomAffiche = prenomStr 
-            ? `${prenomStr} ${nomStr}`.trim() 
-            : partner.email || 'Utilisateur Vendza';
+          const nomAffiche = displayName(partner.prenom, partner.nom);
 
           const subtitle = conv.product?.name 
             ? `Produit : ${conv.product.name}` 

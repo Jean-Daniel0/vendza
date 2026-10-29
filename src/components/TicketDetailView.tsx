@@ -6,6 +6,7 @@ import {
 import { Order, UserProfile } from '../types';
 import { QRCodeRenderer } from './QRCodeRenderer';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import { parseOrderContacts } from '../lib/contacts';
 
 interface TicketDetailViewProps {
   order: Order;
@@ -36,27 +37,26 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
       if (!isSupabaseConfigured || !supabase) return;
       setLoading(true);
       try {
-        const buyerId = order.clientId || (order as any).buyer_id;
-        if (buyerId) {
-          const { data: clientData, error: clientErr } = await supabase
-            .from('profiles')
-            .select('prenom, nom, telephone, avatar_url')
-            .eq('id', buyerId)
-            .single();
-          if (!clientErr && clientData) {
-            setClientProfil(clientData);
-          }
+        // Téléphones : seulement l'acheteur et le vendeur de cette commande les reçoivent (fonction SQL protégée)
+        let gotContacts = false;
+        const { data: rpcData, error: rpcErr } = await supabase.rpc('get_order_contacts', { p_order_id: order.id });
+        if (!rpcErr) {
+          const contacts = parseOrderContacts(rpcData);
+          if (contacts.buyer) setClientProfil(contacts.buyer);
+          if (contacts.vendor) setVendeurProfil(contacts.vendor);
+          gotContacts = !!(contacts.buyer || contacts.vendor);
         }
-
-        const vendorId = (order as any).vendor_id || order.items[0]?.vendeurId;
-        if (vendorId) {
-          const { data: vendorData, error: vendorErr } = await supabase
-            .from('profiles')
-            .select('prenom, nom, telephone')
-            .eq('id', vendorId)
-            .single();
-          if (!vendorErr && vendorData) {
-            setVendeurProfil(vendorData);
+        if (!gotContacts) {
+          // Repli : noms et photo seulement (vue publique), sans téléphone
+          const buyerId = order.clientId || (order as any).buyer_id;
+          if (buyerId) {
+            const { data: clientData } = await supabase.from('profiles_public').select('prenom, nom, avatar_url').eq('id', buyerId).maybeSingle();
+            if (clientData) setClientProfil(clientData);
+          }
+          const vendorId = (order as any).vendor_id || order.items[0]?.vendeurId;
+          if (vendorId) {
+            const { data: vendorData } = await supabase.from('profiles_public').select('prenom, nom').eq('id', vendorId).maybeSingle();
+            if (vendorData) setVendeurProfil(vendorData);
           }
         }
       } catch (err) {
