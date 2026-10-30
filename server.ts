@@ -15,6 +15,7 @@ import { normalizePlan, normalizeBilling, planPriceHtg, decideActivation, stripe
 import { resolveShippingFee } from './src/lib/shipping';
 import { registerSeoRoutes, runIndexNow } from './server/seoRoutes';
 import { registerSellerexRoutes, sellerexHostMiddleware } from './server/sellerexRoutes';
+import { isSellerexHostname } from './server/sellerexCore';
 import { runEscrowAutoRelease } from './server/escrowRelease';
 import { productPath, cleanCategory } from './server/seo';
 
@@ -2826,7 +2827,13 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
 
 const SITE_ORIGIN = (process.env.SITE_URL || 'https://www.vendza.store').replace(/\/$/, '');
 if (supabase) registerSellerexRoutes(app, { supabase, getAuthedUser });
-if (supabase) registerSeoRoutes(app, supabase);
+if (supabase) {
+  // Pages SEO de Vendza (accueil avec catalogue, produits, sitemap…) : jamais servies sur sellerex.*,
+  // sinon le catalogue Vendza s'y afficherait (et serait lu par les robots) à la place de l'application Sellerex.
+  const seoRouter = express.Router();
+  registerSeoRoutes(seoRouter as any, supabase);
+  app.use((req, res, next) => (isSellerexHostname(req.hostname) ? next() : seoRouter(req, res, next)));
+}
 
 // Helper to escape HTML safely for meta values
 function escapeHtml(text: string): string {
