@@ -2935,7 +2935,31 @@ app.get('*', async (req, res, next) => {
 // ============================================
 // SIGHTENGINE IMAGE MODERATION API PROXY
 // ============================================
+// Limite de débit en mémoire : 20 analyses / 10 min / utilisateur (chaque appel coûte des crédits Sightengine)
+const moderationHits = new Map<string, number[]>();
+function moderationRateLimited(userId: string): boolean {
+  const now = Date.now();
+  const windowMs = 10 * 60 * 1000;
+  const recent = (moderationHits.get(userId) || []).filter(t => now - t < windowMs);
+  if (recent.length >= 20) {
+    moderationHits.set(userId, recent);
+    return true;
+  }
+  recent.push(now);
+  moderationHits.set(userId, recent);
+  if (moderationHits.size > 5000) {
+    for (const [k, v] of moderationHits) if (!v.some(t => now - t < windowMs)) moderationHits.delete(k);
+  }
+  return false;
+}
+
 app.post('/api/moderate-image', async (req, res) => {
+  // SÉCURITÉ : réservé aux utilisateurs connectés + limite de débit (évite la consommation abusive du quota IA)
+  const caller = await getAuthedUser(req);
+  if (!caller) return res.status(401).json({ error: "Authentification requise." });
+  if (moderationRateLimited(caller.id)) {
+    return res.status(429).json({ error: "Trop d'analyses d'images. Réessayez dans quelques minutes." });
+  }
   const { imageUrl, imageBase64 } = req.body;
   try {
     const apiUser = process.env.SIGHTENGINE_API_USER;

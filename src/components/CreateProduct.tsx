@@ -4,6 +4,7 @@ import {
   HelpCircle, Sparkles, Image as ImageIcon, Plus, Trash2, X, FileText, Info, DollarSign, MapPin
 } from 'lucide-react';
 import { Product } from '../types';
+import { apiFetchAuthed } from '../lib/api';
 
 interface CreateProductProps {
   onAddProduct: (product: Omit<Product, 'id' | 'vendeur' | 'vendeurId' | 'rating' | 'dateCreation'>) => void;
@@ -282,7 +283,7 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
     if (mainPreviewUrl) {
       try {
         const isBase64 = mainPreviewUrl.startsWith('data:');
-        const response = await fetch('/api/moderate-image', {
+        const response = await apiFetchAuthed('/api/moderate-image', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
