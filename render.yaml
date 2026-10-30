@@ -55,5 +55,11 @@ services:
         sync: false
       - key: VITE_ONESIGNAL_APP_ID
         sync: false
+      - key: SELLEREX_ENABLED
+        value: "false"
+        description: "Passer à 'true' pour ouvrir Sellerex (POD + grossistes) aux utilisateurs"
+      - key: SELLEREX_ENCRYPTION_KEY
+        sync: false
+        description: "Clé AES-256 (32 octets en base64) pour chiffrer les clés API fournisseurs : openssl rand -base64 32"
       - key: SYSTEM_VENDZA_ID
         value: 00000000-0000-0000-0000-000000000001
