@@ -14,6 +14,7 @@ import { priceVendorOrder, promoPercent, isUnderpaid, usdCents, DbProduct } from
 import { normalizePlan, normalizeBilling, planPriceHtg, decideActivation, stripePaidHtg, newSubscriptionRef, isUuid, isSubscriptionRef } from './server/subscriptions';
 import { resolveShippingFee } from './src/lib/shipping';
 import { registerSeoRoutes, runIndexNow } from './server/seoRoutes';
+import { registerSellerexRoutes, sellerexHostMiddleware } from './server/sellerexRoutes';
 import { runEscrowAutoRelease } from './server/escrowRelease';
 import { productPath, cleanCategory } from './server/seo';
 
@@ -45,6 +46,9 @@ app.use((req, res, next) => {
   }
 });
 app.use(express.urlencoded({ extended: true }));
+
+// Sous-domaine Sellerex : en-têtes de sécurité, noindex, robots.txt fermé (sans effet sur les autres noms d'hôte)
+app.use(sellerexHostMiddleware);
 
 // Initialize Supabase Client on Server Side securely
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
@@ -2821,6 +2825,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
 });
 
 const SITE_ORIGIN = (process.env.SITE_URL || 'https://www.vendza.store').replace(/\/$/, '');
+if (supabase) registerSellerexRoutes(app, { supabase, getAuthedUser });
 if (supabase) registerSeoRoutes(app, supabase);
 
 // Helper to escape HTML safely for meta values
