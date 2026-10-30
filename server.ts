@@ -14,6 +14,7 @@ import { priceVendorOrder, promoPercent, isUnderpaid, usdCents, DbProduct } from
 import { normalizePlan, normalizeBilling, planPriceHtg, decideActivation, stripePaidHtg, newSubscriptionRef, isUuid, isSubscriptionRef } from './server/subscriptions';
 import { resolveShippingFee } from './src/lib/shipping';
 import { registerSeoRoutes, runIndexNow } from './server/seoRoutes';
+import { runEscrowAutoRelease } from './server/escrowRelease';
 import { productPath, cleanCategory } from './server/seo';
 
 // Icônes des notifications push : badge monochrome (barre d'état Android) + logo couleur (à côté du texte)
@@ -3050,6 +3051,7 @@ async function runCampaign(task: string) {
   if (task === 'recommendations') return runRecommendations(supabase, sendOneSignalPushMany);
   if (task === 'cart-reminders') return runCartReminders(supabase, sendOneSignalPushMany);
   if (task === 'low-stock') return runLowStockAlerts(supabase, sendOneSignalPushMany);
+  if (task === 'escrow-release') return runEscrowAutoRelease({ db: supabase, send: sendOneSignalPushMany, payout: (order: any) => executeVendorPayout(order) });
   if (task === 'indexnow') return runIndexNow(supabase, false);
   if (task === 'indexnow-all') return runIndexNow(supabase, true);
   throw new Error('Tâche inconnue');
@@ -3059,7 +3061,7 @@ app.post('/api/internal/cron/run', async (req, res) => {
   try {
     if (!(await cronSecretOk(req.header('x-cron-secret')))) return res.status(401).json({ error: 'Non autorisé' });
     const task = String(req.query.task || '');
-    if (!['flash-sale', 'recommendations', 'cart-reminders', 'low-stock', 'indexnow', 'indexnow-all'].includes(task)) return res.status(400).json({ error: 'task invalide' });
+    if (!['flash-sale', 'recommendations', 'cart-reminders', 'low-stock', 'escrow-release', 'indexnow', 'indexnow-all'].includes(task)) return res.status(400).json({ error: 'task invalide' });
     const result = await runCampaign(task);
     console.log('[cron]', task, JSON.stringify(result));
     return res.json(result);
