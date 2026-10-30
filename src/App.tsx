@@ -2991,7 +2991,12 @@ export default function App() {
 
       const blob = new Blob([uInt8Array], { type: contentType });
       const extension = contentType.split('/')[1] || 'png';
-      const fileName = `product-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${extension}`;
+      // Les fichiers sont rangés sous le dossier de l'utilisateur connecté (<uid>/…) : la règle de stockage
+      // n'autorise l'écriture que dans son propre dossier.
+      const { data: sessionData } = await (supabase as any).auth.getSession();
+      const ownerId = sessionData?.session?.user?.id;
+      const baseName = `product-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${extension}`;
+      const fileName = ownerId ? `${ownerId}/${baseName}` : baseName;
 
       let uploadResult = await supabase.storage
         .from(bucketName)

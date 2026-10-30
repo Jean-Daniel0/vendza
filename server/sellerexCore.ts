@@ -5,6 +5,46 @@ import crypto from 'node:crypto';
 // Tant que SELLEREX_ENABLED n'est pas "true", aucune route /api/sellerex (hors /config) ne répond et le front affiche « bientôt ».
 export const sellerexEnabled = (env: Record<string, string | undefined> = process.env) => env.SELLEREX_ENABLED === 'true';
 
+// ---------- CSP stricte du sous-domaine ----------
+// Scripts : uniquement notre origine + le script de configuration injecté (nonce différent à chaque réponse).
+// Styles : 'unsafe-inline' seulement pour les attributs style="" de React (aucun script en ligne n'est autorisé).
+export function buildSellerexCsp(opts: { supabaseUrl?: string; nonce: string }): string {
+  const connect = ["'self'"];
+  try {
+    const u = new URL(opts.supabaseUrl || '');
+    connect.push(u.origin, `wss://${u.host}`);
+  } catch { /* pas d'URL Supabase : 'self' seulement */ }
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${opts.nonce}'`,
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com data:",
+    "img-src 'self' data: blob: https:",
+    `connect-src ${connect.join(' ')}`,
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join('; ');
+}
+
+// Page servie sur sellerex.* : même application compilée, mais sans l'identité SEO/PWA de Vendza
+// (titre, canonical, Open Graph, données structurées, texte de repli, manifeste, service worker en ligne).
+export function sellerexHtml(html: string, opts: { nonce: string; supabaseUrl: string; supabaseAnonKey: string }): string {
+  let out = html
+    .replace(/<title>[\s\S]*?<\/title>/i, '<title>Sellerex | Vendza</title>')
+    .replace(/<link[^>]*rel="canonical"[^>]*>/gi, '')
+    .replace(/<link[^>]*rel="manifest"[^>]*>/gi, '')
+    .replace(/<meta[^>]*(?:property|name)="(?:og:[^"]*|twitter:[^"]*|description|robots|google-site-verification)"[^>]*>/gi, '')
+    .replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/gi, '')
+    .replace(/<script id="vite-plugin-pwa:inline-sw">[\s\S]*?<\/script>/gi, '')
+    .replace(/<!--SEO_FALLBACK_START-->[\s\S]*?<!--SEO_FALLBACK_END-->/, '')
+    .replace(/<script type="module"/g, `<script type="module" nonce="${opts.nonce}"`);
+  const config = `<script id="supabase-config" nonce="${opts.nonce}">window.__SUPABASE_CONFIG__ = ${JSON.stringify({ supabaseUrl: opts.supabaseUrl, supabaseAnonKey: opts.supabaseAnonKey }).replace(/</g, '\\u003c')};</script>`
+    + '<meta name="robots" content="noindex, nofollow" />';
+  return out.replace('<head>', `<head>${config}`);
+}
+
 // ---------- Nom d'hôte ----------
 export function isSellerexHostname(host?: string | null): boolean {
   const h = String(host || '').split(':')[0].trim().toLowerCase();

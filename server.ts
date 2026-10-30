@@ -15,7 +15,8 @@ import { normalizePlan, normalizeBilling, planPriceHtg, decideActivation, stripe
 import { resolveShippingFee } from './src/lib/shipping';
 import { registerSeoRoutes, runIndexNow } from './server/seoRoutes';
 import { registerSellerexRoutes, sellerexHostMiddleware } from './server/sellerexRoutes';
-import { isSellerexHostname } from './server/sellerexCore';
+import { isSellerexHostname, sellerexHtml } from './server/sellerexCore';
+import { corsOriginFor } from './server/cors';
 import { runEscrowAutoRelease } from './server/escrowRelease';
 import { productPath, cleanCategory } from './server/seo';
 
@@ -1464,15 +1465,22 @@ const creerCommandeApresPaiement = async (
 
 // OPTIONS CORS preflight handler for Bazik creation
 app.options('/api/bazik/create-payment', (req, res) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  // Liste d'origines autorisées (jamais « * ») : sans origine reconnue, aucun en-tête CORS n'est envoyé
+  const corsOrigin = corsOriginFor(req.headers.origin);
+  res.header('Vary', 'Origin');
+  if (corsOrigin) {
+    res.header('Access-Control-Allow-Origin', corsOrigin);
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  }
   return res.sendStatus(204);
 });
 
 // 1. Create Payment (Backend -> Bazik)
 app.post('/api/bazik/create-payment', async (req, res) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  const corsOrigin = corsOriginFor(req.headers.origin);
+  res.header('Vary', 'Origin');
+  if (corsOrigin) res.header('Access-Control-Allow-Origin', corsOrigin);
   const { orderId: bodyOrderId, amount, buyerName, buyerEmail, description } = req.body;
   let orderId: string = bodyOrderId;
 
@@ -3316,7 +3324,9 @@ async function startServer() {
   } else {
     // Serve production static assets compiled inside /dist
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    // index: false : « / » ne doit pas être servi tel quel par le serveur de fichiers, il passe par la route ci-dessous
+    // (injection de la configuration, et version dédiée pour sellerex.*)
+    app.use(express.static(distPath, { index: false }));
     app.get('*', (req, res) => {
       const htmlPath = path.join(distPath, 'index.html');
       fs.readFile(htmlPath, 'utf8', (err, html) => {
@@ -3325,6 +3335,10 @@ async function startServer() {
         }
         const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
         const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+        if (isSellerexHostname(req.hostname) && res.locals.cspNonce) {
+          // Sellerex : page sans l'identité SEO/PWA de Vendza, scripts autorisés par nonce (voir sellerexHostMiddleware)
+          return res.type('html').send(sellerexHtml(html, { nonce: res.locals.cspNonce, supabaseUrl: url, supabaseAnonKey: anonKey }));
+        }
         const configScript = `
           <script id="supabase-config">
             window.__SUPABASE_CONFIG__ = {

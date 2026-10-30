@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {
   sellerexEnabled, isSellerexHostname, cleanPhoneNumber, validateWholesalerApplication, validateApiKeyFormat,
-  loadEncryptionKey, encryptSecret, decryptSecret, secretHint, createRateLimiter, isAdminEmail, validateReview,
+  loadEncryptionKey, encryptSecret, decryptSecret, secretHint, createRateLimiter, isAdminEmail, validateReview, buildSellerexCsp, sellerexHtml,
 } from '../server/sellerexCore';
 import { isSellerexHost } from '../src/lib/host';
 
@@ -102,5 +102,32 @@ assert.equal(validateReview({ decision: 'rejected', note: 'Pièces illisibles' }
 assert.equal(validateReview({ decision: 'delete' }).ok, false);
 assert.equal(validateReview({ decision: 'approved', note: 'x'.repeat(501) }).ok, false);
 assert.equal(validateReview(null).ok, false);
+
+// CSP
+const csp = buildSellerexCsp({ supabaseUrl: 'https://abc.supabase.co', nonce: 'N0nce' });
+assert.ok(csp.includes("script-src 'self' 'nonce-N0nce'"));
+assert.ok(!/script-src[^;]*unsafe-inline/.test(csp));     // aucun script en ligne sans nonce
+assert.ok(!/script-src[^;]*unsafe-eval/.test(csp));
+assert.ok(csp.includes("connect-src 'self' https://abc.supabase.co wss://abc.supabase.co"));
+assert.ok(csp.includes("frame-ancestors 'none'") && csp.includes("object-src 'none'") && csp.includes("base-uri 'self'"));
+assert.ok(!csp.includes('*'));
+assert.ok(buildSellerexCsp({ supabaseUrl: '', nonce: 'x' }).includes("connect-src 'self'"));  // pas d'URL : pas d'erreur
+
+// page servie sur sellerex.*
+const sample = `<!doctype html><html><head><meta charset="UTF-8" /><meta name="google-site-verification" content="x" />
+<title>Vendza | Marketplace</title><link rel="canonical" href="https://www.vendza.store/" /><meta name="robots" content="index, follow" />
+<meta property="og:title" content="Vendza" /><meta name="description" content="Vendza" /><meta property="twitter:card" content="x" />
+<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#0f172a" />
+<script type="application/ld+json">{"@type":"Organization"}</script></head><body><div id="root"><!--SEO_FALLBACK_START--><main>Vendza texte</main><!--SEO_FALLBACK_END--></div>
+<script type="module" crossorigin src="/assets/index.js"></script><script id="vite-plugin-pwa:inline-sw">navigator.serviceWorker.register('/sw.js')</script></body></html>`;
+const page = sellerexHtml(sample, { nonce: 'N1', supabaseUrl: 'https://abc.supabase.co', supabaseAnonKey: 'k</script><x>' });
+assert.ok(page.includes('<title>Sellerex | Vendza</title>') && !page.includes('Vendza | Marketplace'));
+for (const gone of ['canonical', 'manifest', 'og:title', 'twitter:card', 'ld+json', 'inline-sw', 'serviceWorker', 'Vendza texte', 'google-site-verification', 'index, follow']) assert.ok(!page.includes(gone), gone);
+assert.ok(page.includes('name="robots" content="noindex, nofollow"'));
+assert.ok(page.includes('<script id="supabase-config" nonce="N1">'));
+assert.ok(page.includes('<script type="module" nonce="N1" crossorigin src="/assets/index.js">'));
+assert.ok(page.includes('theme-color'));                       // le reste de la page est conservé
+assert.ok(!page.includes('k</script><x>'));                    // une valeur ne peut pas fermer le script en ligne
+assert.equal((page.match(/<script/g) || []).length, 2);        // config + module : aucun autre script exécutable
 
 console.log('  ✓ sellerex: indicateur, hôte, grossiste, clés chiffrées, débit OK');

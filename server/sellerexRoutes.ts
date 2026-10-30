@@ -1,8 +1,9 @@
 // Routes Sellerex : fournisseurs POD (connexion par clé API chiffrée) et inscription grossiste.
 // Même origine uniquement (aucun en-tête CORS). Tout est derrière SELLEREX_ENABLED, sauf /config.
+import crypto from 'node:crypto';
 import type { Express, Request, Response, NextFunction } from 'express';
 import {
-  sellerexEnabled, isSellerexHostname, validateWholesalerApplication, validateApiKeyFormat,
+  sellerexEnabled, isSellerexHostname, validateWholesalerApplication, validateApiKeyFormat, buildSellerexCsp,
   loadEncryptionKey, encryptSecret, secretHint, createRateLimiter, isAdminEmail, validateReview,
 } from './sellerexCore';
 import { getPodAdapter } from './pod/registry';
@@ -21,7 +22,15 @@ export function sellerexHostMiddleware(req: Request, res: Response, next: NextFu
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
+  if (process.env.NODE_ENV === 'production') {
+    // CSP stricte (production seulement : le serveur de développement Vite a besoin de scripts en ligne).
+    // Le nonce change à chaque réponse ; il est repris par sellerexHtml() pour les scripts de la page.
+    const nonce = crypto.randomBytes(16).toString('base64');
+    res.locals.cspNonce = nonce;
+    res.setHeader('Content-Security-Policy', buildSellerexCsp({ supabaseUrl: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '', nonce }));
+  } else {
+    res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
+  }
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   if (req.path === '/robots.txt') {

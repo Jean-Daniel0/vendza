@@ -9,7 +9,7 @@
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx tests/delivery.test.ts && tsx tests/chatText.test.ts && tsx tests/inboxPartner.test.ts && tsx tests/marketing.test.ts && tsx tests/campaigns.test.ts && tsx tests/pushPrompt.test.ts && tsx tests/messageDedupe.test.ts && tsx tests/seo.test.ts && tsx tests/cartSync.test.ts && tsx tests/cartAlerts.test.ts && tsx tests/pricing.test.ts && tsx tests/privateData.test.ts && tsx tests/contacts.test.ts && tsx tests/subscriptions.test.ts && tsx tests/escrowRelease.test.ts && tsx tests/sellerex.test.ts"
+    "test": "tsx tests/delivery.test.ts && tsx tests/chatText.test.ts && tsx tests/inboxPartner.test.ts && tsx tests/marketing.test.ts && tsx tests/campaigns.test.ts && tsx tests/pushPrompt.test.ts && tsx tests/messageDedupe.test.ts && tsx tests/seo.test.ts && tsx tests/cartSync.test.ts && tsx tests/cartAlerts.test.ts && tsx tests/pricing.test.ts && tsx tests/privateData.test.ts && tsx tests/contacts.test.ts && tsx tests/subscriptions.test.ts && tsx tests/escrowRelease.test.ts && tsx tests/sellerex.test.ts && tsx tests/cors.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
