@@ -45,6 +45,7 @@ export default function SellerexApp() {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const [tab, setTab] = useState<Tab>('pod');
   const [admin, setAdmin] = useState(false);
+  const [adminChecked, setAdminChecked] = useState(false);
 
   useEffect(() => {
     document.title = 'Sellerex | Vendza';
@@ -59,8 +60,12 @@ export default function SellerexApp() {
   }, []);
 
   useEffect(() => {
-    if (!enabled || !signedIn) { setAdmin(false); return; }
-    apiFetchAuthed('/api/sellerex/me').then(r => r.json()).then(j => setAdmin(j.isAdmin === true)).catch(() => setAdmin(false));
+    if (!enabled || !signedIn) { setAdmin(false); setAdminChecked(false); setTab('pod'); return; }
+    // Un compte administrateur arrive directement sur l'écran admin après sa connexion ; les autres sur les fournisseurs POD.
+    apiFetchAuthed('/api/sellerex/me').then(r => r.json())
+      .then(j => { const isAdmin = j.isAdmin === true; setAdmin(isAdmin); if (isAdmin) setTab('admin'); })
+      .catch(() => setAdmin(false))
+      .finally(() => setAdminChecked(true));
   }, [enabled, signedIn]);
 
   const tabBtn = (id: Tab, label: string) => (
@@ -83,7 +88,7 @@ export default function SellerexApp() {
       </header>
 
       <main className="mx-auto max-w-3xl px-4 py-6">
-        {enabled === null || signedIn === null ? (
+        {enabled === null || signedIn === null || (enabled && signedIn && !adminChecked) ? (
           <p className="py-16 text-center text-sm text-slate-500">Chargement…</p>
         ) : !enabled ? (
           <div className="mx-auto mt-10 max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-center">

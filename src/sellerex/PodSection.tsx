@@ -4,6 +4,9 @@ import { apiFetchAuthed } from '../lib/api';
 type Provider = { id: string; slug: string; name: string; description: string | null; auth_type: 'api_key' | 'oauth'; status: 'coming_soon' | 'active' };
 type Connection = { id: string; status: string; secret_hint: string | null; provider: { slug: string; name: string } | null };
 
+// Logos des fournisseurs (fichiers du dossier public/images)
+const LOGOS: Record<string, string> = { dprinting: '/images/dprinting-logo.jpg' };
+
 export default function PodSection() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
@@ -65,7 +68,10 @@ export default function PodSection() {
           <article key={p.id} className="rounded-2xl border border-slate-200 bg-white p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="font-bold">{p.name}</h2>
+                {LOGOS[p.slug]
+                  ? <img src={LOGOS[p.slug]} alt={`Logo ${p.name}`} loading="lazy" className="mb-2 h-14 w-auto rounded-lg" />
+                  : <h2 className="font-bold">{p.name}</h2>}
+                {LOGOS[p.slug] && <h2 className="sr-only">{p.name}</h2>}
                 {p.description && <p className="mt-0.5 text-sm text-slate-600">{p.description}</p>}
               </div>
               {conn ? <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800">Connecté</span>
