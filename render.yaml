@@ -61,5 +61,8 @@ services:
       - key: SELLEREX_ENCRYPTION_KEY
         sync: false
         description: "Clé AES-256 (32 octets en base64) pour chiffrer les clés API fournisseurs : openssl rand -base64 32"
+      - key: SELLEREX_ADMIN_EMAILS
+        sync: false
+        description: "E-mails admins Sellerex (virgules) : valident les demandes grossistes. Vide = aucun admin"
       - key: SYSTEM_VENDZA_ID
         value: 00000000-0000-0000-0000-000000000001

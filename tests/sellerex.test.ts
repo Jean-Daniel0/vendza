@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {
   sellerexEnabled, isSellerexHostname, cleanPhoneNumber, validateWholesalerApplication, validateApiKeyFormat,
-  loadEncryptionKey, encryptSecret, decryptSecret, secretHint, createRateLimiter,
+  loadEncryptionKey, encryptSecret, decryptSecret, secretHint, createRateLimiter, isAdminEmail, validateReview,
 } from '../server/sellerexCore';
 import { isSellerexHost } from '../src/lib/host';
 
@@ -87,5 +87,20 @@ assert.equal(limited('u', 20), false);
 assert.equal(limited('u', 30), true);   // 4e dans la fenêtre : bloqué
 assert.equal(limited('autre', 30), false); // un autre utilisateur n'est pas touché
 assert.equal(limited('u', 1500), false); // fenêtre écoulée
+
+// admin : liste d'e-mails dans l'environnement, aucun par défaut
+assert.equal(isAdminEmail('a@x.com', {}), false);
+assert.equal(isAdminEmail('a@x.com', { SELLEREX_ADMIN_EMAILS: ' A@x.com , b@y.com ' }), true);
+assert.equal(isAdminEmail('B@Y.COM', { SELLEREX_ADMIN_EMAILS: 'a@x.com,b@y.com' }), true);
+assert.equal(isAdminEmail('c@z.com', { SELLEREX_ADMIN_EMAILS: 'a@x.com,b@y.com' }), false);
+assert.equal(isAdminEmail('', { SELLEREX_ADMIN_EMAILS: ',' }), false);
+assert.equal(isAdminEmail(undefined, { SELLEREX_ADMIN_EMAILS: 'a@x.com' }), false);
+// décision de validation
+assert.deepEqual(validateReview({ decision: 'approved' }), { ok: true, value: { decision: 'approved', note: null } });
+assert.equal(validateReview({ decision: 'rejected' }).ok, false);               // refus sans motif
+assert.equal(validateReview({ decision: 'rejected', note: 'Pièces illisibles' }).ok, true);
+assert.equal(validateReview({ decision: 'delete' }).ok, false);
+assert.equal(validateReview({ decision: 'approved', note: 'x'.repeat(501) }).ok, false);
+assert.equal(validateReview(null).ok, false);
 
 console.log('  ✓ sellerex: indicateur, hôte, grossiste, clés chiffrées, débit OK');

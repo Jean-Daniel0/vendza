@@ -153,3 +153,22 @@ export function createRateLimiter(max: number, windowMs: number) {
     return false;
   };
 }
+
+// ---------- Administration : validation des demandes grossistes ----------
+// Les admins sont listés dans SELLEREX_ADMIN_EMAILS (séparés par des virgules). Aucun e-mail dans le code : vide = personne n'est admin.
+export function isAdminEmail(email: unknown, env: Record<string, string | undefined> = process.env): boolean {
+  const e = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  if (!e) return false;
+  return String(env.SELLEREX_ADMIN_EMAILS || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean).includes(e);
+}
+
+export type Review = { decision: 'approved' | 'rejected'; note: string | null };
+
+export function validateReview(body: any): Validation<Review> {
+  const b = body && typeof body === 'object' ? body : {};
+  if (b.decision !== 'approved' && b.decision !== 'rejected') return { ok: false, errors: ['Décision invalide (approved ou rejected).'] };
+  const note = str(b.note);
+  if (note.length > 500) return { ok: false, errors: ['Note : 500 caractères maximum.'] };
+  if (b.decision === 'rejected' && note.length < 5) return { ok: false, errors: ['Indiquez un motif de refus (5 caractères minimum).'] };
+  return { ok: true, value: { decision: b.decision, note: note || null } };
+}

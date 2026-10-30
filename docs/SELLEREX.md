@@ -21,7 +21,7 @@ Essai en local : `SELLEREX_ENABLED=true npm run dev`, puis `http://localhost:300
 1. Appliquer la migration sur Supabase.
 2. Définir `SELLEREX_ENCRYPTION_KEY` sur Render (`openssl rand -base64 32`) puis `SELLEREX_ENABLED=true`.
 3. Ajouter `https://sellerex.vendza.store/**` aux URLs de redirection autorisées de Supabase Auth.
-4. Valider les demandes grossistes : `update wholesaler_applications set status='approved', reviewed_at=now() where id=…` (écran admin à faire).
+4. Valider les demandes grossistes : définir `SELLEREX_ADMIN_EMAILS` (e-mails séparés par des virgules) ; ces comptes voient l'onglet « Admin : demandes » sur Sellerex pour approuver ou refuser (un refus doit être motivé).
 5. Pour Dprinting : implémenter `server/pod/dprinting.ts`, puis `update pod_providers set status='active' where slug='dprinting'`.
 
 ## Sécurité

@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import PodSection from './PodSection';
 import WholesalerSection from './WholesalerSection';
+import AdminSection from './AdminSection';
+import { apiFetchAuthed } from '../lib/api';
 
-type Tab = 'pod' | 'wholesaler';
+type Tab = 'pod' | 'wholesaler' | 'admin';
 const MAIN_SITE = 'https://www.vendza.store';
 
 function LoginForm() {
@@ -42,6 +44,7 @@ export default function SellerexApp() {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const [tab, setTab] = useState<Tab>('pod');
+  const [admin, setAdmin] = useState(false);
 
   useEffect(() => {
     document.title = 'Sellerex | Vendza';
@@ -54,6 +57,11 @@ export default function SellerexApp() {
     const { data: sub } = auth.onAuthStateChange((_e: string, session: any) => setSignedIn(!!session));
     return () => sub?.subscription?.unsubscribe?.();
   }, []);
+
+  useEffect(() => {
+    if (!enabled || !signedIn) { setAdmin(false); return; }
+    apiFetchAuthed('/api/sellerex/me').then(r => r.json()).then(j => setAdmin(j.isAdmin === true)).catch(() => setAdmin(false));
+  }, [enabled, signedIn]);
 
   const tabBtn = (id: Tab, label: string) => (
     <button onClick={() => setTab(id)} aria-pressed={tab === id}
@@ -89,8 +97,9 @@ export default function SellerexApp() {
             <div className="mb-5 flex flex-wrap gap-2" role="group" aria-label="Sections">
               {tabBtn('pod', 'Fournisseurs POD')}
               {tabBtn('wholesaler', 'Devenir grossiste')}
+              {admin && tabBtn('admin', 'Admin : demandes')}
             </div>
-            {tab === 'pod' ? <PodSection /> : <WholesalerSection />}
+            {tab === 'pod' ? <PodSection /> : tab === 'wholesaler' ? <WholesalerSection /> : admin ? <AdminSection /> : null}
           </>
         )}
       </main>

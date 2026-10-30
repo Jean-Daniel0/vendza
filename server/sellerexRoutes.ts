@@ -3,7 +3,7 @@
 import type { Express, Request, Response, NextFunction } from 'express';
 import {
   sellerexEnabled, isSellerexHostname, validateWholesalerApplication, validateApiKeyFormat,
-  loadEncryptionKey, encryptSecret, secretHint, createRateLimiter,
+  loadEncryptionKey, encryptSecret, secretHint, createRateLimiter, isAdminEmail, validateReview,
 } from './sellerexCore';
 import { getPodAdapter } from './pod/registry';
 import { PodNotImplementedError } from './pod/types';
@@ -125,6 +125,43 @@ export function registerSellerexRoutes(app: Express, { supabase, getAuthedUser }
     const { error } = await supabase.from('pod_connections').delete().eq('vendor_id', user.id).eq('provider_id', provider.id);
     if (error) return res.status(500).json({ error: 'Impossible de déconnecter le fournisseur.' });
     res.json({ ok: true });
+  });
+
+  // ---------- Administration (e-mails de SELLEREX_ADMIN_EMAILS uniquement) ----------
+  const needAdmin = async (req: Request, res: Response): Promise<AuthedUser | null> => {
+    const user = await needUser(req, res); if (!user) return null;
+    if (!isAdminEmail(user.email)) { res.status(403).json({ error: 'Accès réservé aux administrateurs.' }); return null; }
+    return user;
+  };
+
+  app.get(`${base}/me`, async (req, res) => {
+    const user = await needUser(req, res); if (!user) return;
+    res.json({ isAdmin: isAdminEmail(user.email) });
+  });
+
+  app.get(`${base}/admin/wholesalers`, async (req, res) => {
+    if (!(await needAdmin(req, res))) return;
+    const status = ['pending', 'approved', 'rejected'].includes(String(req.query.status)) ? String(req.query.status) : 'pending';
+    const { data, error } = await supabase.from('wholesaler_applications')
+      .select('id, user_id, business_name, contact_name, phone, whatsapp, nif, categories, description, min_order_qty, min_order_amount_htg, delivery_zones, status, review_note, created_at')
+      .eq('status', status).order('created_at', { ascending: true }).limit(100);
+    if (error) return res.status(500).json({ error: 'Impossible de charger les demandes.' });
+    res.json({ applications: data || [] });
+  });
+
+  app.post(`${base}/admin/wholesalers/:id/review`, async (req, res) => {
+    const admin = await needAdmin(req, res); if (!admin) return;
+    const id = String(req.params.id);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return res.status(400).json({ error: 'Identifiant invalide.' });
+    const v = validateReview(req.body);
+    if (v.ok === false) return res.status(400).json({ error: v.errors[0] });
+    // Seule une demande encore « pending » peut être tranchée (deux admins en même temps : un seul gagne).
+    const { data, error } = await supabase.from('wholesaler_applications')
+      .update({ status: v.value.decision, review_note: v.value.note, reviewed_by: admin.id, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('id', id).eq('status', 'pending').select('id');
+    if (error) return res.status(500).json({ error: "Impossible d'enregistrer la décision." });
+    if (!data || data.length === 0) return res.status(409).json({ error: 'Cette demande a déjà été traitée ou n\'existe plus.' });
+    res.json({ ok: true, status: v.value.decision });
   });
 
   // ---------- Inscription grossiste ----------
