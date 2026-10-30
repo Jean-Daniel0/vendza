@@ -102,6 +102,18 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     }
   };
 
+  // En-têtes avec le jeton de connexion Supabase (le serveur identifie le vendeur par ce jeton, jamais par le corps de la requête)
+  const getAuthHeaders = async (): Promise<Record<string, string>> => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    try {
+      if (supabase) {
+        const { data } = await supabase.auth.getSession();
+        if (data?.session?.access_token) headers['Authorization'] = `Bearer ${data.session.access_token}`;
+      }
+    } catch (_) {}
+    return headers;
+  };
+
   // Payer abonnement avec MonCash
   const payerAbonnementMonCash = async () => {
     if (!selectedPlanModal) return;
@@ -125,18 +137,23 @@ export const Subscription: React.FC<SubscriptionProps> = ({
 
     try {
       console.log(`[Subscription Client] Creating Bazik payment for sub: ${referenceId}`);
+      const authHeaders = await getAuthHeaders();
       const response = await fetch('/api/bazik/create-payment', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({
-          orderId: referenceId,
-          amount: Math.round(amount),
+          type: 'subscription',
+          planCode: selectedPlanModal === 'Pro National' ? 'pro_national' : 'pro_local',
+          billing: billingStr,
           buyerName: `${user.prenom || ''} ${user.nom || ''}`.trim() || 'Vendeur Vendza',
           buyerEmail: user.email || '',
           description: `Abonnement Vendza ${selectedPlanModal} — ${billingStr}`
         })
       });
 
+      if (response.status === 401) {
+        throw new Error("Votre session a expiré. Reconnectez-vous puis réessayez.");
+      }
       if (!response.ok) {
         throw new Error("Erreur de création de session MonCashConnect");
       }
@@ -177,25 +194,16 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     setLoadingPayment('stripe');
 
     try {
+      const authHeaders = await getAuthHeaders();
+      // Le serveur fixe le prix, l'utilisateur et les adresses de retour : on n'envoie que le choix du forfait
       const response = await fetch('/api/stripe/create-checkout-session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({
           type: 'subscription',
-          referenceId: referenceId,
           planCode: selectedPlanModal === 'Pro National' ? 'pro_national' : 'pro_local',
           billing: billingStr,
-          userId: user.id,
-          customerEmail: user.email,
-          items: [{
-            name: `Abonnement Vendza — ${selectedPlanModal} (${billingStr === 'annuel' ? 'Annuel' : 'Mensuel'})`,
-            description: `Accès vendeur privilège avec commission réduite et boost visibilité.`,
-            price: amount,
-            quantity: 1,
-            image_url: null
-          }],
-          successUrl: `${window.location.origin}/paiement/abonnement/succes?referenceId=${referenceId}&plan=${selectedPlanModal === 'Pro National' ? 'pro_national' : 'pro_local'}&billing=${billingStr}`,
-          cancelUrl: `${window.location.origin}`
+          customerEmail: user.email
         })
       });
 
