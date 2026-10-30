@@ -27,6 +27,13 @@ Variables d'environnement à définir sur Render : `BAZIK_SECRET_KEY`, `BAZIK_WE
 
 Tests : `npm test` (20 tests de la logique ci-dessus avec une base simulée en mémoire).
 
+## Libération automatique (7 jours)
+- Si l'acheteur ne confirme pas, les fonds sont libérés **7 jours après que le vendeur a affiché son code de livraison** (`order_delivery_codes.created_at`), jamais depuis le simple paiement : un vendeur qui ne livre pas n'est pas payé.
+- Conditions : commande encore `payee` (annulée, en litige ou terminée = exclue), paiement vérifié (`verified_payments`), pas déjà réglée. Même transition atomique et même virement sécurisé que la confirmation de l'acheteur ; la commande porte `auto_released_at`.
+- L'acheteur reçoit un rappel (notification + message) de J+5 à J+7, avec la date de libération. Le vendeur et l'acheteur sont prévenus à la libération.
+- Tâche `escrow-release` (pg_cron `vendza-escrow-release`, 1 fois par jour) ; délai réglable par `ESCROW_AUTO_RELEASE_DAYS` (3 à 30, défaut 7). Un virement resté en attente après une libération automatique est retenté à chaque passage (verrou `payouts.reference` : jamais de double virement).
+- Code : `server/escrowRelease.ts`, tests : `tests/escrowRelease.test.ts`.
+
 ## Annulation et remboursement
 - Un acheteur ne peut annuler qu'AVANT livraison (`attente` / `payee`). `completed`, `livree`, `annulee`, `disputed` sont des états finaux (la base refuse tout retour en arrière depuis le navigateur).
 - Frais d'annulation 7,5 % : la base refuse tout montant de remboursement qui ne respecte pas cette règle (`montant_rembourse`, `frais_annulation`).
