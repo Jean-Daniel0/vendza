@@ -11,6 +11,7 @@ import { runFlashSale, runRecommendations } from './server/campaigns';
 import { haitiClock } from './server/marketing';
 import { runCartReminders, runLowStockAlerts } from './server/cartAlerts';
 import { priceVendorOrder, promoPercent, isUnderpaid, usdCents, DbProduct } from './server/pricing';
+import { normalizePlan, normalizeBilling, planPriceHtg, decideActivation, stripePaidHtg, newSubscriptionRef, isUuid, isSubscriptionRef } from './server/subscriptions';
 import { resolveShippingFee } from './src/lib/shipping';
 import { registerSeoRoutes, runIndexNow } from './server/seoRoutes';
 import { productPath, cleanCategory } from './server/seo';
@@ -541,7 +542,8 @@ const activerAbonnement = async (
   planCode: string, 
   billing: string, 
   paymentMethod: string, 
-  montant: number
+  montant: number,
+  paymentReference?: string
 ) => {
   if (!isSupabaseConfigured || !supabase) {
     console.error('[Abonnement] Database not configured for activation.');
@@ -574,7 +576,7 @@ const activerAbonnement = async (
 
   try {
     // 2. Créer le nouvel abonnement
-    await supabase
+    const { error: subInsErr } = await supabase
       .from('vendor_subscriptions')
       .insert({
         user_id:        userId,
@@ -583,11 +585,13 @@ const activerAbonnement = async (
         billing:        billing,
         payment_method: paymentMethod,
         total_paid:     Number(montant) || 0,
+        payment_reference: paymentReference || null,
         started_at:     maintenant.toISOString(),
         expires_at:     expiresAt.toISOString(),
         created_at:     maintenant.toISOString(),
         updated_at:     maintenant.toISOString()
       });
+    if (subInsErr) console.error('[Abonnement] Insertion vendor_subscriptions refusée :', subInsErr.message);
   } catch (err: any) {
     console.error('Error inserting new subscription:', err.message);
   }
@@ -642,6 +646,53 @@ const activerAbonnement = async (
   }
 
   console.log('Abonnement activé avec succès:', planCodeLower, 'pour', userId);
+};
+
+
+// Taux courant USD -> HTG (même source que la création de session Stripe)
+const getUsdRate = async (): Promise<number> => {
+  let rate = 130;
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data } = await supabase.from('exchange_rates').select('usd_to_htg').maybeSingle();
+      if (data && Number(data.usd_to_htg) > 0) rate = Number(data.usd_to_htg);
+    } catch (_) {}
+  }
+  return rate;
+};
+
+// Active un abonnement APRÈS un paiement confirmé : le montant payé doit couvrir le prix du forfait,
+// l'utilisateur doit être un vrai identifiant, et un même paiement n'active qu'une seule fois.
+const activateSubscriptionFromPayment = async (a: {
+  userId: unknown; planCode: unknown; billing: unknown; method: 'moncash' | 'stripe';
+  paidHtg: number; tolerancePct: number; reference: string;
+}): Promise<{ activated: boolean; reason?: string }> => {
+  if (!isSupabaseConfigured || !supabase) return { activated: false, reason: 'db_unavailable' };
+  const userId = String(a.userId || '');
+
+  const setAside = async (reason: string, status: string, expected?: number) => {
+    console.error(`[SÉCURITÉ] Abonnement NON activé (${reason}) : réf ${a.reference}, payé ${a.paidHtg} HTG, forfait ${String(a.planCode)}/${String(a.billing)}, utilisateur ${userId || '?'}`);
+    const row = { id: `orph-sub-${crypto.randomBytes(3).toString('hex').toUpperCase()}`, order_id: a.reference, buyer_id: isUuid(userId) ? userId : null,
+      amount: Number(a.paidHtg) || 0, payment_method: a.method, transaction_id: a.reference, status,
+      payload_details: JSON.stringify({ subscription: true, reason, plan: a.planCode, billing: a.billing, expected: expected ?? null, paid: a.paidHtg }),
+      created_at: new Date().toISOString() };
+    try { await supabase!.from('orphaned_payments').insert([row]); } catch (_) { saveOrphanedPayment(row); }
+    return { activated: false, reason };
+  };
+
+  // Ce paiement a-t-il déjà activé l'abonnement (webhook + vérification de session) ?
+  let alreadyProcessed = false;
+  try {
+    const { data: already } = await supabase.from('vendor_subscriptions').select('id').eq('payment_reference', a.reference).limit(1);
+    alreadyProcessed = !!(already && already.length);
+  } catch (_) {}
+
+  const decision = decideActivation({ userId, planCode: a.planCode, billing: a.billing, paidHtg: a.paidHtg, tolerancePct: a.tolerancePct, alreadyProcessed });
+  if (decision.action === 'set_aside') return setAside(decision.reason, decision.status, decision.expected);
+  if (decision.action === 'skip_duplicate') { console.log(`[Abonnement] Paiement ${a.reference} déjà traité, ignoré.`); return { activated: true, reason: 'already_active' }; }
+
+  await activerAbonnement(userId, decision.plan, decision.billing, a.method, a.paidHtg, a.reference);
+  return { activated: true };
 };
 
 const verifierExpirationsAbonnements = async () => {
@@ -1416,45 +1467,43 @@ app.options('/api/bazik/create-payment', (req, res) => {
 // 1. Create Payment (Backend -> Bazik)
 app.post('/api/bazik/create-payment', async (req, res) => {
   res.header('Access-Control-Allow-Origin', '*');
-  const { 
-    orderId, 
-    amount,
-    buyerName,
-    buyerEmail,
-    description
-  } = req.body;
+  const { orderId: bodyOrderId, amount, buyerName, buyerEmail, description } = req.body;
+  let orderId: string = bodyOrderId;
 
-  if (!orderId || !amount) {
+  const metadata = req.body.metadata || {};
+  const isSubscription = req.body.type === 'subscription' || (typeof orderId === 'string' && orderId.startsWith('sub-')) || metadata.type === 'subscription';
+
+  if (!isSubscription && (!orderId || !amount)) {
     return res.status(400).json({ error: "orderId et amount sont requis." });
   }
 
   let numericAmount = Number(amount);
-  if (isNaN(numericAmount) || numericAmount < 1 || numericAmount > 1000000) {
-    return res.status(400).json({ error: 'Montant invalide (1 à 1 000 000 HTG)' });
-  }
+  let subPlan: string | null = null;
+  let subBilling: string | null = null;
 
-  // Pre-save subscription metadata resiliently if starting with 'sub-'
-  const metadata = req.body.metadata || {};
-  const isSubscription = (orderId && orderId.startsWith('sub-')) || (metadata && metadata.type === 'subscription');
-
-  // Commande : le montant est FIXÉ PAR LE SERVEUR (somme des commandes de tous les vendeurs, livraison comprise)
-  if (!isSubscription) {
+  if (isSubscription) {
+    // Abonnement : TOUT est fixé par le serveur (utilisateur = jeton de connexion, forfait et durée validés, prix = grille serveur)
+    const authed = await getAuthedUser(req);
+    if (!authed) return res.status(401).json({ error: "Connexion requise pour souscrire à un abonnement." });
+    const plan = normalizePlan(req.body.planCode ?? metadata.planCode);
+    const billing = normalizeBilling(req.body.billing ?? metadata.billing);
+    if (!plan || !billing) return res.status(400).json({ error: "Forfait ou durée d'abonnement invalide." });
+    numericAmount = planPriceHtg(plan, billing);
+    if (Number(amount) && Math.round(Number(amount)) !== numericAmount) console.warn(`[Bazik] Montant d'abonnement du navigateur ignoré : ${amount} → ${numericAmount} HTG`);
+    orderId = newSubscriptionRef(authed.id);
+    subPlan = plan; subBilling = billing;
+    await setPendingSubscriptionMeta(orderId, numericAmount, { type: 'subscription', planCode: plan, billing, userId: authed.id, expectedHtg: numericAmount });
+  } else {
+    if (isNaN(numericAmount) || numericAmount < 1 || numericAmount > 1000000) {
+      return res.status(400).json({ error: 'Montant invalide (1 à 1 000 000 HTG)' });
+    }
+    // Commande : le montant est FIXÉ PAR LE SERVEUR (somme des commandes de tous les vendeurs, livraison comprise)
     const group = await getGroupPendingOrders(String(orderId));
     if (!group.length) return res.status(404).json({ error: "Commande introuvable ou expirée. Retournez au panier et réessayez." });
     const serverTotal = Math.round(group.reduce((sum: number, po: any) => sum + (Number(po.total_price) || 0), 0));
     if (serverTotal < 1 || serverTotal > 1000000) return res.status(400).json({ error: 'Montant invalide (1 à 1 000 000 HTG)' });
     if (Math.abs(serverTotal - numericAmount) > 1) console.warn(`[Bazik] Montant du navigateur ignoré : ${numericAmount} → ${serverTotal} HTG (commande ${orderId})`);
     numericAmount = serverTotal;
-  }
-
-  if (isSubscription) {
-    const subMeta = metadata || {
-      type: 'subscription',
-      planCode: req.body.planCode || (orderId.includes('pro_national') ? 'pro_national' : 'pro_local'),
-      billing: req.body.billing || 'mensuel',
-      userId: req.body.userId || 'unknown_user_id'
-    };
-    await setPendingSubscriptionMeta(orderId, numericAmount, subMeta);
   }
 
   // Check if Bazik is configured
@@ -1470,7 +1519,9 @@ app.post('/api/bazik/create-payment', async (req, res) => {
 
   try {
     const baseUrl = getBaseUrl(req);
-    const successUrl = `${baseUrl}/paiement/succes?orderId=${orderId}`;
+    const successUrl = isSubscription
+      ? `${baseUrl}/paiement/abonnement/succes?referenceId=${encodeURIComponent(orderId)}&plan=${subPlan}&billing=${subBilling}`
+      : `${baseUrl}/paiement/succes?orderId=${orderId}`;
     const errorUrl = `${baseUrl}/paiement/erreur?orderId=${orderId}`;
     const webhookUrl = (baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1'))
       ? 'https://vendza.store/api/bazik/webhook/payment'
@@ -1548,7 +1599,8 @@ app.post('/api/bazik/create-payment', async (req, res) => {
 
     return res.json({
       payment_url: redirectUrl,
-      expires_at: data.expiresAt || data.expires_at || null
+      expires_at: data.expiresAt || data.expires_at || null,
+      reference_id: orderId
     });
 
   } catch (err: any) {
@@ -1620,31 +1672,23 @@ app.post('/api/bazik/webhook/payment', express.raw({ type: '*/*' }), async (req:
         }
       }
 
-      if (finalOrderId.startsWith('sub-')) {
+      if (isSubscriptionRef(finalOrderId)) {
         const pending = await getPendingOrderSubscriptionInfo(finalOrderId);
         if (pending) {
-          console.log(`[Bazik Webhook Subscription] Found subscription details: user=${pending.userId}, plan=${pending.planCode}`);
-          await activerAbonnement(
-            pending.userId,
-            pending.planCode,
-            pending.billing || 'mensuel',
-            'moncash',
-            Number(amount) || 0
-          );
-          try {
-            await supabase.from('pending_orders').delete().eq('reference_id', finalOrderId);
-          } catch (e) {}
+          console.log(`[Bazik Webhook Subscription] Métadonnées trouvées : plan=${pending.planCode}, billing=${pending.billing}`);
+          // Le montant payé (webhook signé) doit couvrir le prix du forfait ; sinon l'abonnement n'est PAS activé
+          await activateSubscriptionFromPayment({
+            userId: pending.userId, planCode: pending.planCode, billing: pending.billing,
+            method: 'moncash', paidHtg: Number(amount) || 0, tolerancePct: 0, reference: finalOrderId
+          });
+          try { await supabase!.from('pending_orders').delete().eq('reference_id', finalOrderId); } catch (e) {}
         } else {
-          console.warn('[Bazik Webhook Subscription] No pending meta found in DB for:', finalOrderId);
-          const parts = finalOrderId.split('-');
-          const userId = parts[1] || 'unknown';
-          await activerAbonnement(
-            userId,
-            finalOrderId.includes('pro_national') ? 'pro_national' : 'pro_local',
-            'mensuel',
-            'moncash',
-            Number(amount) || 0
-          );
+          // Plus de repli « deviner l'utilisateur dans la référence » : un paiement sans métadonnées est mis de côté pour traitement manuel
+          console.error('[Bazik Webhook Subscription] Aucune métadonnée pour', finalOrderId, '— abonnement non activé, paiement mis de côté.');
+          const row = { id: `orph-sub-${crypto.randomBytes(3).toString('hex').toUpperCase()}`, order_id: finalOrderId, buyer_id: null,
+            amount: Number(amount) || 0, payment_method: 'moncash', transaction_id: finalOrderId, status: 'pending_untraceable',
+            payload_details: JSON.stringify({ subscription: true, reason: 'no_pending_meta', paid: Number(amount) || 0 }), created_at: new Date().toISOString() };
+          try { await supabase!.from('orphaned_payments').insert([row]); } catch (_) { saveOrphanedPayment(row); }
         }
       } else {
         await creerCommandeApresPaiement(finalOrderId, 'moncash', orderId || finalOrderId, Number(amount) || null);
@@ -2506,11 +2550,24 @@ app.get('/stripe-simulation', (req, res) => {
 
 app.post('/api/stripe/create-checkout-session', async (req, res) => {
   const { orderId, items, customerEmail, type, referenceId, planCode, billing, userId, successUrl, cancelUrl } = req.body;
-  if (!items || !Array.isArray(items)) {
+  const isSubscriptionReq = type === 'subscription';
+  if (!isSubscriptionReq && (!items || !Array.isArray(items))) {
     return res.status(400).json({ error: "Missing required fields: items" });
   }
+  const itemsSafe: any[] = Array.isArray(items) ? items : [];
 
-  const cleanOrderId = orderId || referenceId || 'pending_payment';
+  // Abonnement : utilisateur = jeton de connexion, forfait/durée validés, prix = grille serveur (rien n'est repris du navigateur)
+  let subServer: { userId: string; email?: string; plan: string; billing: string; priceHtg: number; ref: string } | null = null;
+  if (isSubscriptionReq) {
+    const authed = await getAuthedUser(req);
+    if (!authed) return res.status(401).json({ error: "Connexion requise pour souscrire à un abonnement." });
+    const plan = normalizePlan(planCode);
+    const bill = normalizeBilling(billing);
+    if (!plan || !bill) return res.status(400).json({ error: "Forfait ou durée d'abonnement invalide." });
+    subServer = { userId: authed.id, email: authed.email, plan, billing: bill, priceHtg: planPriceHtg(plan, bill), ref: newSubscriptionRef(authed.id) };
+  }
+
+  const cleanOrderId = subServer ? subServer.ref : (orderId || referenceId || 'pending_payment');
   const stripeSecretKey = process.env.STRIPE_SECRET_KEY || '';
   const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
 
@@ -2532,7 +2589,9 @@ app.post('/api/stripe/create-checkout-session', async (req, res) => {
 
   // Commande : montants fixés par le serveur (une ligne par vendeur, livraison comprise)
   let serverLines: Array<{ name: string; cents: number }> | null = null;
-  if (type !== 'subscription') {
+  if (subServer) {
+    serverLines = [{ name: `Abonnement Vendza — ${subServer.plan === 'pro_national' ? 'Pro National' : 'Pro Local'} (${subServer.billing === 'annuel' ? 'annuel' : 'mensuel'})`, cents: usdCents(subServer.priceHtg, currentRate) }];
+  } else if (type !== 'subscription') {
     const group = await getGroupPendingOrders(String(cleanOrderId));
     if (!group.length) return res.status(404).json({ error: "Commande introuvable ou expirée. Retournez au panier et réessayez." });
     const names = new Map<string, string>();
@@ -2544,7 +2603,7 @@ app.post('/api/stripe/create-checkout-session', async (req, res) => {
   }
 
   // Calculate order total in USD
-  let totalUSD = items.reduce((acc, item) => {
+  let totalUSD = itemsSafe.reduce((acc, item) => {
     const price = item.product ? Number(item.product.prix) : Number(item.price);
     const qty = item.quantity || 1;
     return acc + (price / currentRate) * qty;
@@ -2569,14 +2628,17 @@ app.post('/api/stripe/create-checkout-session', async (req, res) => {
 
     console.log(`[Stripe Backend] Creating session, converting prices to USD basis... Type=${type || 'order'}`);
 
-    const isSub = type === 'subscription';
-    const actualSuccessUrl = isSub && successUrl ? successUrl : `${baseUrl}/paiement/succes?session_id={CHECKOUT_SESSION_ID}`;
-    const actualCancelUrl = isSub && cancelUrl ? cancelUrl : `${baseUrl}/paiement/annule`;
+    const isSub = !!subServer;
+    // Adresses de retour fixées par le serveur (plus d'adresse fournie par le navigateur)
+    const actualSuccessUrl = subServer
+      ? `${baseUrl}/paiement/abonnement/succes?referenceId=${encodeURIComponent(subServer.ref)}&plan=${subServer.plan}&billing=${subServer.billing}&session_id={CHECKOUT_SESSION_ID}`
+      : `${baseUrl}/paiement/succes?session_id={CHECKOUT_SESSION_ID}`;
+    const actualCancelUrl = subServer ? `${baseUrl}` : `${baseUrl}/paiement/annule`;
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
-      customer_email: customerEmail || undefined,
-      line_items: serverLines ? serverLines.map(l => ({ price_data: { currency: 'usd', product_data: { name: l.name }, unit_amount: l.cents }, quantity: 1 })) : items.map(item => {
+      customer_email: (subServer?.email || customerEmail) || undefined,
+      line_items: serverLines ? serverLines.map(l => ({ price_data: { currency: 'usd', product_data: { name: l.name }, unit_amount: l.cents }, quantity: 1 })) : itemsSafe.map(item => {
         // Handle cart item format: { product: { nom, prix, image_url }, quantity }
         if (item.product) {
           return {
@@ -2609,7 +2671,15 @@ app.post('/api/stripe/create-checkout-session', async (req, res) => {
         };
       }),
       mode: 'payment',
-      metadata: {
+      metadata: subServer ? {
+        orderId: subServer.ref,
+        source: 'vendza',
+        type: 'subscription',
+        planCode: subServer.plan,
+        billing: subServer.billing,
+        userId: subServer.userId,
+        expectedHtg: String(subServer.priceHtg)
+      } : {
         orderId: orderId || referenceId || 'pending_payment',
         source: 'vendza',
         type: type || 'order',
@@ -2671,14 +2741,13 @@ app.post('/api/stripe/verify-session', async (req, res) => {
       const type = session.metadata?.type;
       
       if (type === 'subscription') {
-        const userId = session.metadata?.userId;
-        const planCode = session.metadata?.planCode;
-        const billing = session.metadata?.billing;
-        const amount_total_htg = Math.round((session.amount_total || 0) / 100 * 130);
-        console.log(`[Stripe Verification Proxy Subscription] Session paid! Activating subscription for user: ${userId}, plan: ${planCode}`);
-        if (userId && planCode) {
-          await activerAbonnement(userId, planCode, billing || 'mensuel', 'stripe', amount_total_htg);
-        }
+        // Activation seulement si le montant réellement payé couvre le prix du forfait (taux de change : 10 % de tolérance)
+        const paidHtg = stripePaidHtg(session.amount_total, await getUsdRate());
+        console.log(`[Stripe Verification Proxy Subscription] Session payée, vérification du montant (${paidHtg} HTG)…`);
+        await activateSubscriptionFromPayment({
+          userId: session.metadata?.userId, planCode: session.metadata?.planCode, billing: session.metadata?.billing,
+          method: 'stripe', paidHtg, tolerancePct: 10, reference: session.id
+        });
       } else if (orderId) {
         console.log(`[Stripe Verification Proxy] Session paid! Finalizing order inside database securely: ${orderId}`);
         await creerCommandeApresPaiement(orderId, 'stripe', session.id);
@@ -2732,13 +2801,14 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
     const type = session.metadata?.type;
 
     if (type === 'subscription') {
-      const userId = session.metadata?.userId;
-      const planCode = session.metadata?.planCode;
-      const billing = session.metadata?.billing;
-      const amount_total_htg = Math.round((session.amount_total || 0) / 100 * 130);
-      console.log(`[Stripe Webhook Subscription] Webhook completed! Activating subscription for user: ${userId}, plan: ${planCode}`);
-      if (userId && planCode) {
-        await activerAbonnement(userId, planCode, billing || 'mensuel', 'stripe', amount_total_htg);
+      if (session.payment_status && session.payment_status !== 'paid') {
+        console.warn(`[Stripe Webhook Subscription] Session ${session.id} non payée (${session.payment_status}) : rien à activer.`);
+      } else {
+        const paidHtg = stripePaidHtg(session.amount_total, await getUsdRate());
+        await activateSubscriptionFromPayment({
+          userId: session.metadata?.userId, planCode: session.metadata?.planCode, billing: session.metadata?.billing,
+          method: 'stripe', paidHtg, tolerancePct: 10, reference: session.id
+        });
       }
     } else if (orderId) {
       console.log(`[Stripe Webhook] Verified success for order ${orderId}. Session ID: ${session.id}`);

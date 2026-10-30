@@ -23,7 +23,19 @@ export const SubscriptionSuccess: React.FC<SubscriptionSuccessProps> = ({
   const plan = searchParams.get('plan') || '';
   const billing = searchParams.get('billing') || 'mensuel';
 
+  const stripeSessionId = searchParams.get('session_id') || '';
+
   const verifierAbonnement = async () => {
+    // Retour de Stripe : le serveur vérifie la session auprès de Stripe puis active l'abonnement (aussi couvert par le webhook)
+    if (stripeSessionId && pollingCount === 0) {
+      try {
+        await fetch('/api/stripe/verify-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId: stripeSessionId })
+        });
+      } catch (_) {}
+    }
     if (!user || !isSupabaseConfigured || !supabase) {
       setStatus('success'); // Fail-open safely
       return;
