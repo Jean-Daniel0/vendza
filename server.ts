@@ -60,6 +60,20 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey;
 const isSupabaseConfigured = !!(supabaseUrl && supabaseKey);
 const supabase = isSupabaseConfigured ? createClient(supabaseUrl, supabaseKey) : null;
 
+// Route de santé pour la surveillance externe : 200 si le serveur et la base répondent, 503 sinon. Aucune donnée sensible.
+app.get('/healthz', async (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!supabase) return res.status(503).json({ ok: false, db: 'non configurée' });
+  try {
+    const timeout = new Promise<never>((_, rej) => setTimeout(() => rej(new Error('délai dépassé')), 4000));
+    const { error } = await Promise.race([supabase.from('profiles').select('id', { head: true, count: 'estimated' }).limit(1), timeout]) as any;
+    if (error) return res.status(503).json({ ok: false, db: 'erreur' });
+    res.json({ ok: true, db: 'ok', uptime: Math.round(process.uptime()) });
+  } catch {
+    res.status(503).json({ ok: false, db: 'injoignable' });
+  }
+});
+
 // Seed system profile if missing to prevent foreign key errors and support messaging UI
 if (isSupabaseConfigured && supabase) {
   (async () => {
