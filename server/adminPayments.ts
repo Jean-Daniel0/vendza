@@ -104,10 +104,14 @@ type Deps = {
   makeUserClient: (token: string) => any;
   /** Appel GET /balance de Bazik (lecture seule). */
   getBazikBalance?: () => Promise<{ ok: true; data: any } | { ok: false; status: number }>;
+  /** Vérifie chez Bazik les paiements MonCash récents sans commande (notification perdue) et crée les commandes manquantes. */
+  reconcilePayments?: () => Promise<Record<string, unknown> & { fulfilled: string[] }>;
+  /** GET /transfers/{id} de Bazik (lecture seule). */
+  getTransfer?: (transactionId: string) => Promise<{ ok: true; data: any } | { ok: false; status: number }>;
 };
 
 export function registerAdminPaymentsRoutes(app: Express, deps: Deps) {
-  const { supabase, getAuthedUser, makeUserClient, getBazikBalance } = deps;
+  const { supabase, getAuthedUser, makeUserClient, getBazikBalance, reconcilePayments, getTransfer } = deps;
   const base = '/api/admin/payments';
 
   // Une seule source de vérité pour « qui est admin » : la fonction public.is_admin() de la base (la même que pour les règles RLS).
@@ -171,6 +175,39 @@ export function registerAdminPaymentsRoutes(app: Express, deps: Deps) {
     const info = extractBalanceInfo(r.data);
     // Format inattendu : court extrait brut pour que l'admin voie ce que Bazik répond (lecture seule, aucune clé).
     res.json({ ...info, raw: info.balance === null ? JSON.stringify(r.data).slice(0, 300) : undefined });
+  });
+
+  app.post(`${base}/reconcile`, async (req, res) => {
+    const admin = await needAdmin(req, res); if (!admin) return;
+    if (!reconcilePayments) return res.status(501).json({ error: 'Rapprochement indisponible.' });
+    try {
+      const summary = await reconcilePayments();
+      await supabase.from('admin_payment_log').insert({
+        admin_id: admin.id, admin_email: admin.email || null, action: 'reconcile_payments',
+        note: JSON.stringify(summary).slice(0, 500),
+      });
+      res.json(summary);
+    } catch { res.status(500).json({ error: 'Vérification impossible (table bazik_payment_refs créée ?).' }); }
+  });
+
+  // Statut d'un virement vendeur chez Bazik (lecture seule) : dit si l'argent est vraiment parti quand la notification n'est pas arrivée.
+  app.get(`${base}/payouts/:orderId/transfer-status`, async (req, res) => {
+    const admin = await needAdmin(req, res); if (!admin) return;
+    const orderId = String(req.params.orderId);
+    if (!isUuid(orderId)) return res.status(400).json({ error: 'Identifiant invalide.' });
+    if (!getTransfer) return res.status(501).json({ error: 'Vérification indisponible.' });
+    const { data: row, error } = await supabase.from('payouts').select('bazik_transaction_id').eq('reference', `PAY_VENDOR_${orderId}`).maybeSingle();
+    if (error) return res.status(500).json({ error: 'Lecture impossible (migration appliquée ?).' });
+    if (!row?.bazik_transaction_id) return res.status(404).json({ error: "Aucun identifiant de virement Bazik enregistré pour cette commande." });
+    const r = await getTransfer(String(row.bazik_transaction_id));
+    if (r.ok === false) return res.status(r.status === 404 ? 404 : 502).json({ error: r.status === 404 ? 'Bazik ne connaît pas ce virement.' : 'Bazik ne répond pas.' });
+    const d = r.data || {};
+    res.json({
+      transaction_id: row.bazik_transaction_id, status: typeof d.status === 'string' ? d.status : null,
+      failure_reason: typeof d.failureReason === 'string' ? d.failureReason : null,
+      amount: Number(d.amount) || null, fees: Number(d.fees) || null, total: Number(d.total) || null,
+      provider: typeof d.provider === 'string' ? d.provider : null, environment: typeof d.environment === 'string' ? d.environment : null,
+    });
   });
 
   app.get(`${base}/log`, async (req, res) => {

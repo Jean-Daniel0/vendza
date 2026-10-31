@@ -17,6 +17,7 @@ import { registerSeoRoutes, runIndexNow } from './server/seoRoutes';
 import { registerSellerexRoutes, sellerexHostMiddleware } from './server/sellerexRoutes';
 import { registerAdminPaymentsRoutes } from './server/adminPayments';
 import { normalizeMoncashNumber } from './server/moncash';
+import { reconcileMoncashPayments } from './server/bazikReconcile';
 import { isSellerexHostname, sellerexHtml } from './server/sellerexCore';
 import { corsOriginFor } from './server/cors';
 import { runEscrowAutoRelease } from './server/escrowRelease';
@@ -1632,6 +1633,16 @@ app.post('/api/bazik/create-payment', async (req, res) => {
       });
     }
 
+    // On garde l'orderId de Bazik : il permet de vérifier ce paiement directement chez Bazik si la notification n'arrive jamais.
+    try {
+      if (supabase && data.orderId) {
+        const { error: refErr } = await supabase.from('bazik_payment_refs').upsert(
+          { reference_id: uniqueReferenceId, order_ref: String(orderId), bazik_order_id: String(data.orderId), amount: numericAmount },
+          { onConflict: 'reference_id' });
+        if (refErr) console.warn('[Bazik] référence de paiement non enregistrée (non bloquant):', refErr.message);
+      }
+    } catch (e: any) { console.warn('[Bazik] référence de paiement non enregistrée (non bloquant):', e?.message); }
+
     return res.json({
       payment_url: redirectUrl,
       expires_at: data.expiresAt || data.expires_at || null,
@@ -1901,9 +1912,13 @@ app.post('/api/bazik/webhook/transfer', express.raw({ type: '*/*' }), async (req
       if (isSupabaseConfigured && supabase) {
         const { data: order } = await supabase
           .from('orders')
-          .select('vendor_id')
+          .select('vendor_id, vendor_credited')
           .eq('id', orderId)
           .maybeSingle();
+
+        // Le virement a échoué chez Bazik (aucun argent envoyé) : on libère le verrou anti double-virement, sinon la relance
+        // serait refusée pour toujours. Jamais si la commande est déjà créditée (notification périmée ou rejouée).
+        if (order && order.vendor_credited !== true) await releasePayoutLock(`PAY_VENDOR_${orderId}`);
 
         if (order && order.vendor_id) {
           await supabase
@@ -2132,6 +2147,10 @@ async function executeVendorPayout(
 
     const data: any = await response.json();
     console.log('[Bazik API] Withdraw successfully initiated:', data);
+
+    try {
+      if (data.transaction_id) await supabase.from('payouts').update({ bazik_transaction_id: String(data.transaction_id) }).eq('reference', `PAY_VENDOR_${orderId}`);
+    } catch (e: any) { console.warn('[Bazik Pay Vendor] identifiant du virement non enregistré (non bloquant):', e?.message); }
 
     return { status: 200, body: {
       success: true,
@@ -2870,6 +2889,34 @@ if (supabase) registerAdminPaymentsRoutes(app, {
   makeUserClient: (token: string) => createClient(supabaseUrl, supabaseAnonKey, {
     global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false },
   }),
+  reconcilePayments: async () => reconcileMoncashPayments({
+    listRefs: async () => {
+      const since = new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString();
+      const { data } = await supabase!.from('bazik_payment_refs').select('*').gte('created_at', since).order('created_at', { ascending: false }).limit(100);
+      return (data || []) as any;
+    },
+    isSubscription: (ref: string) => isSubscriptionRef(ref),
+    isProcessed: async (ref: string) => {
+      const { data } = await supabase!.from('orders').select('id').or(`qr_token.eq.${ref},qr_token.like.${ref}_sub_%,payment_reference.eq.${ref}`).limit(1);
+      return !!(data && data.length);
+    },
+    fetchOrder: async (bazikOrderId: string) => {
+      try {
+        const token = await getBazikToken();
+        const r = await fetch(`https://api.bazik.io/order/${encodeURIComponent(bazikOrderId)}`, { headers: { Authorization: `Bearer ${token}` } });
+        return r.ok ? await r.json() : 'error';
+      } catch { return 'error'; }
+    },
+    fulfill: async (ref: string, bazikOrderId: string, paid: number | null) => { await creerCommandeApresPaiement(ref, 'moncash', bazikOrderId, paid); },
+  }),
+  getTransfer: async (transactionId: string) => {
+    try {
+      const token = await getBazikToken();
+      const r = await fetch(`https://api.bazik.io/transfers/${encodeURIComponent(transactionId)}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!r.ok) return { ok: false as const, status: r.status };
+      return { ok: true as const, data: await r.json() };
+    } catch { return { ok: false as const, status: 0 }; }
+  },
   getBazikBalance: async () => {
     try {
       const token = await getBazikToken();

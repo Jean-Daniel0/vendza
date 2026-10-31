@@ -25,6 +25,7 @@ export default function AdminPaymentsPage() {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [bazik, setBazik] = useState<{ balance: number | null; reserved?: number | null; environment?: string | null; raw?: string; error?: string } | null>(null);
+  const [transfer, setTransfer] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -57,6 +58,32 @@ export default function AdminPaymentsPage() {
       if (!r.ok) setError(j.error || 'Opération impossible.');
       else { setNotice(j.logged === false ? 'Enregistré, mais le journal n’a pas pu être écrit : prévenez le développeur.' : kind === 'paid' ? 'Remboursement marqué payé.' : 'Remboursement refusé.'); await load(); }
     } catch { setError('Erreur réseau. Réessayez.'); }
+    setBusy(null);
+  };
+
+  const reconcile = async () => {
+    setBusy('reconcile'); setError(''); setNotice('');
+    try {
+      const r = await apiFetchAuthed('/api/admin/payments/reconcile', { method: 'POST' });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) setError(j.error || 'Vérification impossible.');
+      else setNotice(j.fulfilled?.length
+        ? `${j.fulfilled.length} paiement(s) MonCash retrouvé(s) chez Bazik : commande(s) créée(s).`
+        : `Aucun paiement manquant (${j.checked} vérifié(s), ${j.already} déjà traité(s), ${j.waiting} en attente chez MonCash).`);
+    } catch { setError('Erreur réseau. Réessayez.'); }
+    setBusy(null);
+  };
+
+  const checkTransfer = async (orderId: string) => {
+    setBusy(`t-${orderId}`); setError('');
+    try {
+      const r = await apiFetchAuthed(`/api/admin/payments/payouts/${orderId}/transfer-status`);
+      const j = await r.json().catch(() => ({}));
+      const txt = r.ok
+        ? `Bazik : ${j.status || 'inconnu'}${j.failure_reason ? ` (${j.failure_reason})` : ''}${j.total ? ` · ${htg(j.total)} frais compris` : ''}${j.provider ? ` · ${j.provider}` : ''}`
+        : (j.error || 'Vérification impossible.');
+      setTransfer(t => ({ ...t, [orderId]: txt }));
+    } catch { setTransfer(t => ({ ...t, [orderId]: 'Erreur réseau.' })); }
     setBusy(null);
   };
 
@@ -98,11 +125,12 @@ export default function AdminPaymentsPage() {
       })()}
       {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {notice && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
-      <nav className="flex gap-2 text-sm" aria-label="Sections">
+      <nav className="flex flex-wrap gap-2 text-sm" aria-label="Sections">
         {([['refunds', 'Remboursements'], ['payouts', 'Virements vendeurs'], ['log', 'Journal']] as const).map(([k, label]) => (
           <button key={k} onClick={() => setTab(k)} aria-pressed={tab === k}
             className={`rounded-full px-3 py-1.5 font-medium ${tab === k ? 'bg-slate-900 text-white' : 'bg-slate-100'}`}>{label}</button>
         ))}
+        <button disabled={busy === 'reconcile'} onClick={reconcile} className="rounded-full border border-slate-300 px-3 py-1.5 disabled:opacity-50">Vérifier les paiements MonCash</button>
         <button onClick={() => download(tab)} className="ml-auto rounded-full border border-slate-300 px-3 py-1.5">Exporter CSV</button>
       </nav>
 
@@ -148,6 +176,12 @@ export default function AdminPaymentsPage() {
               </div>
               <p>MonCash {p.moncash || '—'}{p.moncash_name ? ` (${p.moncash_name})` : ''}</p>
               <p className="text-slate-500">Commande {htg(p.total_price)}{p.payout_amount != null ? ` · virement ${htg(p.payout_amount)}` : ''} · {day(p.created_at)}</p>
+              {p.state === 'en cours' && (
+                <div className="mt-2 space-y-1">
+                  <button disabled={busy === `t-${p.order_id}`} onClick={() => checkTransfer(p.order_id)} className="rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-semibold disabled:opacity-50">Vérifier chez Bazik</button>
+                  {transfer[p.order_id] && <p className="text-xs text-slate-700">{transfer[p.order_id]}</p>}
+                </div>
+              )}
             </article>
           ))}
         </section>
@@ -158,7 +192,7 @@ export default function AdminPaymentsPage() {
           {log.length === 0 && <p className="text-sm text-slate-500">Journal vide.</p>}
           {log.map(l => (
             <p key={l.id} className="rounded-xl bg-slate-50 p-3 text-xs text-slate-700">
-              {day(l.created_at)} · {l.admin_email || 'admin'} · <b>{l.action === 'refund_paid' ? 'remboursement payé' : 'remboursement refusé'}</b>
+              {day(l.created_at)} · {l.admin_email || 'admin'} · <b>{l.action === 'refund_paid' ? 'remboursement payé' : l.action === 'refund_rejected' ? 'remboursement refusé' : 'vérification des paiements MonCash'}</b>
               {l.amount != null ? ` · ${htg(l.amount)}` : ''}{l.reference ? ` · réf. ${l.reference}` : ''}{l.note ? ` · ${l.note}` : ''}
             </p>
           ))}
