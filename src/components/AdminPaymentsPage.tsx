@@ -24,7 +24,7 @@ export default function AdminPaymentsPage() {
   const [refs, setRefs] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
-  const [bazik, setBazik] = useState<{ balance: number | null; raw?: string; env?: string | null; error?: string } | null>(null);
+  const [bazik, setBazik] = useState<{ balance: number | null; reserved?: number | null; environment?: string | null; raw?: string; error?: string } | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -88,9 +88,11 @@ export default function AdminPaymentsPage() {
         const low = bazik.balance !== null && owed > bazik.balance;
         return (
           <p className={`rounded-xl p-3 text-sm ${low ? 'bg-amber-50 text-amber-900' : 'bg-slate-50 text-slate-700'}`}>
-            Solde Bazik : <b>{bazik.balance !== null ? htg(bazik.balance) : 'non lu'}</b>{bazik.env ? ` (${bazik.env})` : ''}
+            Solde Bazik disponible : <b>{bazik.balance !== null ? htg(bazik.balance) : 'non lu'}</b>
+            {bazik.reserved ? ` · réservé ${htg(bazik.reserved)}` : ''}
+            {bazik.environment ? ` · compte ${bazik.environment === 'production' ? 'RÉEL (production)' : 'TEST (sandbox)'}` : ''}
             {bazik.error ? ` · ${bazik.error}` : ''}{bazik.raw ? ` · réponse : ${bazik.raw}` : ''}
-            {low ? ` · Attention : les virements en attente peuvent atteindre ${htg(owed)}, le solde pourrait ne pas suffire.` : ''}
+            {low ? ` · Attention : les virements en attente peuvent atteindre ${htg(owed)}, le solde pourrait ne pas suffire (les frais Bazik s’ajoutent à chaque virement).` : ''}
           </p>
         );
       })()}

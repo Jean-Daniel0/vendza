@@ -35,14 +35,17 @@ export function parseDecision(kind: 'paid' | 'reject', body: any): { ok: true; v
   return { ok: true, value: { note, reference } };
 }
 
-/** Cherche le solde dans la réponse de Bazik (format non documenté : on accepte les noms courants, sinon null). */
+/** Réponse documentée de Bazik GET /balance : { available, reserved, currency, environment, last_updated }. On tolère aussi quelques noms voisins. */
+const num = (c: any): number | null => { const n = typeof c === 'string' ? Number(c.replace(/[\s,]/g, '')) : c; return typeof n === 'number' && Number.isFinite(n) ? n : null; };
 export function extractBalance(data: any): number | null {
-  const cands = [data?.balance, data?.available_balance, data?.availableBalance, data?.available, data?.amount, data?.gdes, data?.data?.balance, data?.data?.available, data?.data?.amount];
-  for (const c of cands) {
-    const n = typeof c === 'string' ? Number(c.replace(/[\s,]/g, '')) : c;
-    if (typeof n === 'number' && Number.isFinite(n)) return n;
+  for (const c of [data?.available, data?.balance, data?.available_balance, data?.availableBalance, data?.data?.available, data?.data?.balance]) {
+    const n = num(c); if (n !== null) return n;
   }
   return null;
+}
+export function extractBalanceInfo(data: any) {
+  const env = typeof data?.environment === 'string' && /^(sandbox|production)$/i.test(data.environment) ? data.environment.toLowerCase() : null;
+  return { balance: extractBalance(data), reserved: num(data?.reserved), environment: env, last_updated: typeof data?.last_updated === 'string' ? data.last_updated : null };
 }
 
 export type QueueInput = { refunds: any[]; orders: any[]; profiles: any[]; vendorPrivate: any[]; payouts: any[] };
@@ -165,9 +168,9 @@ export function registerAdminPaymentsRoutes(app: Express, deps: Deps) {
     if (!getBazikBalance) return res.status(501).json({ error: 'Solde Bazik non disponible.' });
     const r = await getBazikBalance();
     if (r.ok === false) return res.status(502).json({ error: 'Bazik ne répond pas (clés ou service).' });
-    const balance = extractBalance(r.data);
-    // Format inconnu : on renvoie un court extrait brut pour que l'admin voie ce que Bazik répond, jamais de clé (réponse de lecture seule).
-    res.json({ balance, raw: balance === null ? JSON.stringify(r.data).slice(0, 300) : undefined, env: process.env.BAZIK_ENV || null });
+    const info = extractBalanceInfo(r.data);
+    // Format inattendu : court extrait brut pour que l'admin voie ce que Bazik répond (lecture seule, aucune clé).
+    res.json({ ...info, raw: info.balance === null ? JSON.stringify(r.data).slice(0, 300) : undefined });
   });
 
   app.get(`${base}/log`, async (req, res) => {

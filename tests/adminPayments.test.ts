@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { csvCell, toCsv, parseDecision, buildQueue, isUuid, extractBalance } from '../server/adminPayments';
+import { csvCell, toCsv, parseDecision, buildQueue, isUuid, extractBalance, extractBalanceInfo } from '../server/adminPayments';
 import { normalizeMoncashNumber as nm } from '../server/moncash';
 
 // CSV : guillemets doublés, séparateurs protégés, formules Excel neutralisées
@@ -73,3 +73,10 @@ const q2 = buildQueue({ refunds: [], orders: [
 assert.equal(q2.payouts.find(p => p.order_id === 'a')!.state, 'à relancer');
 assert.equal(q2.payouts.find(p => p.order_id === 'b')!.state, 'n° MonCash invalide');
 console.log('  ✓ adminPayments: solde Bazik et état « n° invalide »');
+
+// Format documenté de GET /balance
+const info = extractBalanceInfo({ available: 440, reserved: 60, currency: 'HTG', environment: 'production', last_updated: '2025-11-01T23:24:14.729658+00:00' });
+assert.deepEqual(info, { balance: 440, reserved: 60, environment: 'production', last_updated: '2025-11-01T23:24:14.729658+00:00' });
+assert.equal(extractBalanceInfo({ available: 1, environment: 'n importe quoi' }).environment, null);
+assert.equal(extractBalanceInfo({}).balance, null);
+console.log('  ✓ adminPayments: solde Bazik au format documenté (available / reserved / environment)');

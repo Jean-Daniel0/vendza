@@ -1536,6 +1536,11 @@ app.post('/api/bazik/create-payment', async (req, res) => {
     numericAmount = serverTotal;
   }
 
+  // MonCash (Bazik) refuse les paiements de plus de 75 000 HTG (erreur 422) : on le dit clairement avant l'appel.
+  if (numericAmount > 75000) {
+    return res.status(400).json({ error: "MonCash est limité à 75 000 HTG par paiement. Payez par carte bancaire, ou répartissez votre panier en plusieurs commandes." });
+  }
+
   // Check if Bazik is configured
   const secretKey = process.env.BAZIK_SECRET_KEY || '';
   const isPlaceholderKey = !secretKey || secretKey === "sk_proj_..." || secretKey.trim() === "";
@@ -2119,6 +2124,9 @@ async function executeVendorPayout(
       const errorText = await response.text();
       console.error('[Bazik API Error] Withdraw call failed:', response.status, errorText);
       await releasePayoutLock(payoutLockRef);
+      if (response.status === 402) {
+        return { status: 402, body: { error: "Solde Bazik insuffisant pour ce virement (montant + frais). Rechargez le compte Bazik, puis relancez : le virement n'a pas été envoyé." } };
+      }
       return { status: response.status, body: { error: `Le virement via Bazik a échoué: ${errorText}` } };
     }
 
@@ -2128,7 +2136,7 @@ async function executeVendorPayout(
     return { status: 200, body: {
       success: true,
       status: data.status || 'pending',
-      transactionId: data.transactionId || null,
+      transactionId: data.transaction_id || data.transactionId || null,
       referenceId: `PAY_VENDOR_${orderId}`
     } };
   } catch (err: any) {
