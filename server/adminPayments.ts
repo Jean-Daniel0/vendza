@@ -1,6 +1,7 @@
 // Page admin « Paiements » : remboursements à traiter, virements vendeurs en attente, export CSV, journal.
 // Le virement MonCash d'un remboursement reste manuel : l'admin le fait, puis le marque « payé » avec la référence MonCash.
 import type { Express, Request, Response } from 'express';
+import { normalizeMoncashNumber } from './moncash';
 
 export type AuthedUser = { id: string; email?: string };
 
@@ -32,6 +33,16 @@ export function parseDecision(kind: 'paid' | 'reject', body: any): { ok: true; v
   if (kind === 'paid' && reference.length < 3) return { ok: false, error: 'Indiquez la référence de la transaction MonCash du remboursement.' };
   if (kind === 'reject' && note.length < 3) return { ok: false, error: 'Indiquez le motif du refus.' };
   return { ok: true, value: { note, reference } };
+}
+
+/** Cherche le solde dans la réponse de Bazik (format non documenté : on accepte les noms courants, sinon null). */
+export function extractBalance(data: any): number | null {
+  const cands = [data?.balance, data?.available_balance, data?.availableBalance, data?.available, data?.amount, data?.gdes, data?.data?.balance, data?.data?.available, data?.data?.amount];
+  for (const c of cands) {
+    const n = typeof c === 'string' ? Number(c.replace(/[\s,]/g, '')) : c;
+    if (typeof n === 'number' && Number.isFinite(n)) return n;
+  }
+  return null;
 }
 
 export type QueueInput = { refunds: any[]; orders: any[]; profiles: any[]; vendorPrivate: any[]; payouts: any[] };
@@ -67,7 +78,7 @@ export function buildQueue(input: QueueInput) {
         order_id: o.id, vendor_id: vid || null, shop: v.boutique_nom || fullName(v) || o.vendor_name || '',
         moncash, moncash_name: pv.moncash_nom || v.moncash_nom || '',
         total_price: Number(o.total_price) || 0, payout_amount: lock ? Number(lock.amount) || 0 : null,
-        state: lock ? 'en cours' : (moncash ? 'à relancer' : 'n° MonCash manquant'),
+        state: lock ? 'en cours' : (!moncash ? 'n° MonCash manquant' : !normalizeMoncashNumber(moncash) ? 'n° MonCash invalide' : 'à relancer'),
         created_at: o.created_at || o.ceated_at || null, payment_method: o.payment_method || '',
       };
     });
@@ -88,10 +99,12 @@ type Deps = {
   getAuthedUser: (req: Request) => Promise<AuthedUser | null>;
   /** Client Supabase portant le jeton de l'appelant : permet de poser la question à la base elle-même (public.is_admin()). */
   makeUserClient: (token: string) => any;
+  /** Appel GET /balance de Bazik (lecture seule). */
+  getBazikBalance?: () => Promise<{ ok: true; data: any } | { ok: false; status: number }>;
 };
 
 export function registerAdminPaymentsRoutes(app: Express, deps: Deps) {
-  const { supabase, getAuthedUser, makeUserClient } = deps;
+  const { supabase, getAuthedUser, makeUserClient, getBazikBalance } = deps;
   const base = '/api/admin/payments';
 
   // Une seule source de vérité pour « qui est admin » : la fonction public.is_admin() de la base (la même que pour les règles RLS).
@@ -145,6 +158,16 @@ export function registerAdminPaymentsRoutes(app: Express, deps: Deps) {
     const user = await needAdmin(req, res); if (!user) return;
     try { res.json(await loadQueue()); }
     catch { res.status(500).json({ error: 'Impossible de charger les paiements.' }); }
+  });
+
+  app.get(`${base}/bazik-balance`, async (req, res) => {
+    const user = await needAdmin(req, res); if (!user) return;
+    if (!getBazikBalance) return res.status(501).json({ error: 'Solde Bazik non disponible.' });
+    const r = await getBazikBalance();
+    if (r.ok === false) return res.status(502).json({ error: 'Bazik ne répond pas (clés ou service).' });
+    const balance = extractBalance(r.data);
+    // Format inconnu : on renvoie un court extrait brut pour que l'admin voie ce que Bazik répond, jamais de clé (réponse de lecture seule).
+    res.json({ balance, raw: balance === null ? JSON.stringify(r.data).slice(0, 300) : undefined, env: process.env.BAZIK_ENV || null });
   });
 
   app.get(`${base}/log`, async (req, res) => {

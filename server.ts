@@ -16,6 +16,7 @@ import { resolveShippingFee } from './src/lib/shipping';
 import { registerSeoRoutes, runIndexNow } from './server/seoRoutes';
 import { registerSellerexRoutes, sellerexHostMiddleware } from './server/sellerexRoutes';
 import { registerAdminPaymentsRoutes } from './server/adminPayments';
+import { normalizeMoncashNumber } from './server/moncash';
 import { isSellerexHostname, sellerexHtml } from './server/sellerexCore';
 import { corsOriginFor } from './server/cors';
 import { runEscrowAutoRelease } from './server/escrowRelease';
@@ -1976,6 +1977,11 @@ async function executeVendorPayout(
     if (!vendorWallet) {
       return { status: 400, body: { error: "Le vendeur n'a pas configuré son numéro MonCash." } };
     }
+    // Bazik attend 8 ou 11 chiffres : « +509 37 12 34 56 » devient « 37123456 » ; un numéro inexploitable est refusé AVANT tout verrou ou appel.
+    const bazikWallet = normalizeMoncashNumber(vendorWallet);
+    if (!bazikWallet) {
+      return { status: 400, body: { error: "Le numéro MonCash du vendeur est invalide (8 chiffres attendus). Le vendeur doit le corriger dans les paramètres de sa boutique." } };
+    }
     const nameParts = moncashName ? moncashName.split(/\s+/) : [];
     const vendorFirstName = nameParts[0] || clientFirstName || 'Vendeur';
     const vendorLastName = nameParts.slice(1).join(' ') || clientLastName || 'Vendza';
@@ -2099,7 +2105,7 @@ async function executeVendorPayout(
       },
       body: JSON.stringify({
         gdes: Math.round(Number(amount)),
-        wallet: vendorWallet,
+        wallet: bazikWallet,
         description: `Transfert de fonds Vendza - Commande ${orderId}`,
         referenceId: `PAY_VENDOR_${orderId}`,
         customerFirstName: vendorFirstName || 'Vendeur',
@@ -2856,6 +2862,14 @@ if (supabase) registerAdminPaymentsRoutes(app, {
   makeUserClient: (token: string) => createClient(supabaseUrl, supabaseAnonKey, {
     global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false },
   }),
+  getBazikBalance: async () => {
+    try {
+      const token = await getBazikToken();
+      const r = await fetch('https://api.bazik.io/balance', { headers: { Authorization: `Bearer ${token}` } });
+      if (!r.ok) return { ok: false as const, status: r.status };
+      return { ok: true as const, data: await r.json() };
+    } catch { return { ok: false as const, status: 0 }; }
+  },
 });
 if (supabase) {
   // Pages SEO de Vendza (accueil avec catalogue, produits, sitemap…) : jamais servies sur sellerex.*,

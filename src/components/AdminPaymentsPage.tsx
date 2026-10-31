@@ -24,6 +24,7 @@ export default function AdminPaymentsPage() {
   const [refs, setRefs] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const [bazik, setBazik] = useState<{ balance: number | null; raw?: string; env?: string | null; error?: string } | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -36,6 +37,10 @@ export default function AdminPaymentsPage() {
       if (!q.ok) throw new Error();
       setQueue(await q.json());
       setLog(l.ok ? (await l.json()).log || [] : []);
+      try {
+        const b = await apiFetchAuthed('/api/admin/payments/bazik-balance');
+        setBazik(b.ok ? await b.json() : { balance: null, error: 'Solde Bazik indisponible.' });
+      } catch { setBazik({ balance: null, error: 'Solde Bazik indisponible.' }); }
       setState('ok');
     } catch { setError('Impossible de charger les paiements.'); setState('ok'); }
   }, []);
@@ -78,6 +83,17 @@ export default function AdminPaymentsPage() {
       <p className="text-sm text-slate-500">
         À rembourser : <b>{queue?.totals.refunds_pending_count ?? 0}</b> ({htg(queue?.totals.refunds_pending_amount ?? 0)}) · Virements vendeurs à suivre : <b>{queue?.totals.payouts_open_count ?? 0}</b>
       </p>
+      {bazik && (() => {
+        const owed = (queue?.payouts || []).reduce((s, p) => s + (p.payout_amount ?? p.total_price), 0);
+        const low = bazik.balance !== null && owed > bazik.balance;
+        return (
+          <p className={`rounded-xl p-3 text-sm ${low ? 'bg-amber-50 text-amber-900' : 'bg-slate-50 text-slate-700'}`}>
+            Solde Bazik : <b>{bazik.balance !== null ? htg(bazik.balance) : 'non lu'}</b>{bazik.env ? ` (${bazik.env})` : ''}
+            {bazik.error ? ` · ${bazik.error}` : ''}{bazik.raw ? ` · réponse : ${bazik.raw}` : ''}
+            {low ? ` · Attention : les virements en attente peuvent atteindre ${htg(owed)}, le solde pourrait ne pas suffire.` : ''}
+          </p>
+        );
+      })()}
       {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {notice && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
       <nav className="flex gap-2 text-sm" aria-label="Sections">
@@ -126,7 +142,7 @@ export default function AdminPaymentsPage() {
             <article key={p.order_id} className="rounded-2xl border border-slate-200 bg-white p-4 text-sm">
               <div className="flex items-start justify-between gap-2">
                 <h2 className="font-bold">{p.shop || 'Vendeur'}</h2>
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${p.state === 'n° MonCash manquant' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'}`}>{p.state}</span>
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${p.state.startsWith('n° MonCash') ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'}`}>{p.state}</span>
               </div>
               <p>MonCash {p.moncash || '—'}{p.moncash_name ? ` (${p.moncash_name})` : ''}</p>
               <p className="text-slate-500">Commande {htg(p.total_price)}{p.payout_amount != null ? ` · virement ${htg(p.payout_amount)}` : ''} · {day(p.created_at)}</p>

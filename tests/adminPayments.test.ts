@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { csvCell, toCsv, parseDecision, buildQueue, isUuid } from '../server/adminPayments';
+import { csvCell, toCsv, parseDecision, buildQueue, isUuid, extractBalance } from '../server/adminPayments';
+import { normalizeMoncashNumber as nm } from '../server/moncash';
 
 // CSV : guillemets doublés, séparateurs protégés, formules Excel neutralisées
 assert.equal(csvCell('simple'), 'simple');
@@ -53,3 +54,22 @@ assert.equal(q.payouts.find(p => p.order_id === 'o3')!.state, 'en cours');
 assert.equal(q.payouts.find(p => p.order_id === 'o3')!.payout_amount, 1800);
 assert.equal(q.payouts.find(p => p.order_id === 'o4')!.state, 'n° MonCash manquant');
 console.log('  ✓ adminPayments: files remboursements / virements');
+
+// Numéros MonCash : toujours 8 chiffres vers Bazik
+for (const ok of ['37123456', '3712 3456', '37-12-34-56', '+50937123456', '+509 3712 3456', '(509) 37123456', '50937123456', '0050937123456', ' 37123456 ']) assert.equal(nm(ok), '37123456', ok);
+for (const bad of ['', '   ', '3712345', '371234567', '+1 305 555 1234', 'abcdefgh', '3712-34x6', '509371234567', null, undefined, {}]) assert.equal(nm(bad as any), null, String(bad));
+console.log('  ✓ moncash: normalisation des numéros (+509, espaces, tirets) et refus des numéros invalides');
+
+// Solde Bazik : formats courants, sinon null (jamais de valeur inventée)
+assert.equal(extractBalance({ balance: 1500.5 }), 1500.5);
+assert.equal(extractBalance({ data: { balance: '12 345' } }), 12345);
+assert.equal(extractBalance({ available_balance: 0 }), 0);
+assert.equal(extractBalance({ foo: 'bar' }), null);
+assert.equal(extractBalance(null), null);
+assert.equal(extractBalance({ balance: 'abc' }), null);
+const q2 = buildQueue({ refunds: [], orders: [
+  { id: 'a', status: 'completed', vendor_id: 'v1', total_price: 1 }, { id: 'b', status: 'completed', vendor_id: 'v2', total_price: 1 } ],
+  profiles: [], vendorPrivate: [{ user_id: 'v1', moncash: '+50937123456' }, { user_id: 'v2', moncash: '12' }], payouts: [] });
+assert.equal(q2.payouts.find(p => p.order_id === 'a')!.state, 'à relancer');
+assert.equal(q2.payouts.find(p => p.order_id === 'b')!.state, 'n° MonCash invalide');
+console.log('  ✓ adminPayments: solde Bazik et état « n° invalide »');
