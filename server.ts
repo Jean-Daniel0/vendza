@@ -1553,7 +1553,7 @@ app.post('/api/bazik/create-payment', async (req, res) => {
       : `${baseUrl}/paiement/succes?orderId=${orderId}`;
     const errorUrl = `${baseUrl}/paiement/erreur?orderId=${orderId}`;
     const webhookUrl = (baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1'))
-      ? 'https://vendza.store/api/bazik/webhook/payment'
+      ? 'https://www.vendza.store/api/bazik/webhook/payment'
       : `${baseUrl}/api/bazik/webhook/payment`;
 
     const nameParts = (buyerName || '').trim().split(/\s+/);
@@ -2105,7 +2105,7 @@ async function executeVendorPayout(
         customerFirstName: vendorFirstName || 'Vendeur',
         customerLastName: vendorLastName || 'Vendza',
         customerEmail: 'info@vendza.store',
-        webhookUrl: 'https://vendza.store/api/bazik/webhook/transfer'
+        webhookUrl: 'https://www.vendza.store/api/bazik/webhook/transfer'
       })
     });
 
