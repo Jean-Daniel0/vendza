@@ -8,6 +8,7 @@ services:
     plan: starter # Render's starter tier
     buildCommand: npm install && npm run build
     startCommand: npm run start
+    healthCheckPath: /healthz
     envVars:
       - key: NODE_ENV
         value: production

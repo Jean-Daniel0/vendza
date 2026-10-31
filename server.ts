@@ -15,6 +15,7 @@ import { normalizePlan, normalizeBilling, planPriceHtg, decideActivation, stripe
 import { resolveShippingFee } from './src/lib/shipping';
 import { registerSeoRoutes, runIndexNow } from './server/seoRoutes';
 import { registerSellerexRoutes, sellerexHostMiddleware } from './server/sellerexRoutes';
+import { registerAdminPaymentsRoutes } from './server/adminPayments';
 import { isSellerexHostname, sellerexHtml } from './server/sellerexCore';
 import { corsOriginFor } from './server/cors';
 import { runEscrowAutoRelease } from './server/escrowRelease';
@@ -2849,6 +2850,13 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
 
 const SITE_ORIGIN = (process.env.SITE_URL || 'https://www.vendza.store').replace(/\/$/, '');
 if (supabase) registerSellerexRoutes(app, { supabase, getAuthedUser });
+// Page admin « Paiements » (remboursements, virements en attente, export, journal) : réservée à public.is_admin().
+if (supabase) registerAdminPaymentsRoutes(app, {
+  supabase, getAuthedUser,
+  makeUserClient: (token: string) => createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false },
+  }),
+});
 if (supabase) {
   // Pages SEO de Vendza (accueil avec catalogue, produits, sitemap…) : jamais servies sur sellerex.*,
   // sinon le catalogue Vendza s'y afficherait (et serait lu par les robots) à la place de l'application Sellerex.
