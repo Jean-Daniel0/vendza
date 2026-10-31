@@ -2971,6 +2971,33 @@ export default function App() {
   };
 
   // Helper helper to upload base64 images to Supabase storage to avoid huge database payload limits
+  // Pièce d'identité : envoyée dans le bucket PRIVÉ « identity » sous <uid>/…, on garde seulement le chemin
+  // (« identity:<uid>/… »). Jamais d'URL publique. En cas d'échec, on renvoie une chaîne vide plutôt que de
+  // retomber sur le bucket public ; la valeur « data: » d'origine n'est jamais conservée dans le profil public.
+  const uploadIdentityToPrivate = async (dataUrl: string): Promise<string | null> => {
+    if (!supabase || !isSupabaseConfigured || !dataUrl.startsWith('data:')) return null;
+    try {
+      const parts = dataUrl.split(';base64,');
+      if (parts.length !== 2) return null;
+      const contentType = parts[0].split(':')[1];
+      if (!['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].includes(contentType)) return null;
+      const raw = window.atob(parts[1]);
+      const bytes = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+      const { data: sessionData } = await (supabase as any).auth.getSession();
+      const ownerId = sessionData?.session?.user?.id;
+      if (!ownerId) return null;
+      const ext = contentType === 'application/pdf' ? 'pdf' : contentType.split('/')[1];
+      const path = `${ownerId}/id-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${ext}`;
+      const { error } = await supabase.storage.from('identity').upload(path, new Blob([bytes], { type: contentType }), { contentType, cacheControl: '0', upsert: false });
+      if (error) { console.error('Envoi de la pièce d\'identité impossible:', error.message); return null; }
+      return `identity:${path}`;
+    } catch (e) {
+      console.error('Envoi de la pièce d\'identité impossible:', e);
+      return null;
+    }
+  };
+
   const uploadBase64ToStorage = async (base64Str: string, bucketName: string = 'images'): Promise<string> => {
     if (!supabase || !isSupabaseConfigured) return base64Str;
     if (!base64Str || !base64Str.startsWith('data:')) {
@@ -3550,7 +3577,12 @@ export default function App() {
         finalBanner = await uploadBase64ToStorage(updates.banner);
       }
       if (updates.idFile && updates.idFile.startsWith('data:')) {
-        finalIdFile = await uploadBase64ToStorage(updates.idFile);
+        const privatePath = await uploadIdentityToPrivate(updates.idFile);
+        // Échec : on n'enregistre rien plutôt que d'exposer la pièce ; l'utilisateur la renverra.
+        if (!privatePath) {
+          window.alert("Impossible d'envoyer votre pièce d'identité pour le moment. Réessayez dans un instant.");
+        }
+        finalIdFile = privatePath ?? (currentUser.idFile && !currentUser.idFile.startsWith('data:') ? currentUser.idFile : '');
       }
     }
 
