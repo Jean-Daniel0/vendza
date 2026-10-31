@@ -27,6 +27,8 @@ export default defineConfig(() => {
           navigateFallback: '/index.html',
           navigateFallbackDenylist: [
             /^\/api/,
+            // route de surveillance : toujours servie par le serveur (sinon l'application installée affiche sa page « introuvable »)
+            /^\/healthz$/,
             /supabase\.co/,
             /supabase/,
             // pages SEO rendues par le serveur (jamais remplacées par le shell de l'application)
