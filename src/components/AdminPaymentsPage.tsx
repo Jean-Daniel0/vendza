@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { LogoLoader } from './LogoLoader';
 import { apiFetchAuthed } from '../lib/api';
 
 type Refund = {
@@ -98,7 +99,7 @@ export default function AdminPaymentsPage() {
     } catch { setError('Export impossible.'); }
   };
 
-  if (state === 'loading') return <p className="py-10 text-center text-sm text-slate-500">Chargement…</p>;
+  if (state === 'loading') return <div className="py-10 flex justify-center"><LogoLoader size={72} /></div>;
   if (state === 'denied') return <p className="mx-auto max-w-md py-16 text-center text-sm text-slate-600">Accès réservé à l’administrateur. Connectez-vous sur vendza.store avec le compte admin, puis revenez sur cette page.</p>;
 
   const pending = (queue?.refunds || []).filter(r => r.status === 'pending');

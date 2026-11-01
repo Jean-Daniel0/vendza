@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { LogoLoader } from '../components/LogoLoader';
 import { apiFetchAuthed } from '../lib/api';
 
 type App = {
@@ -39,7 +40,7 @@ export default function AdminSection() {
     setBusyId(null);
   };
 
-  if (loading) return <p className="py-10 text-center text-sm text-slate-500">Chargement…</p>;
+  if (loading) return <div className="py-10 flex justify-center"><LogoLoader size={72} /></div>;
 
   return (
     <section aria-labelledby="adm-title" className="space-y-4">

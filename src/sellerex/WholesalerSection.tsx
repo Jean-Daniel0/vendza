@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { LogoLoader } from '../components/LogoLoader';
 import { apiFetchAuthed } from '../lib/api';
 
 type Application = { id: string; business_name: string; status: 'pending' | 'approved' | 'rejected'; review_note: string | null; created_at: string };
@@ -49,7 +50,7 @@ export default function WholesalerSection() {
     setBusy(false);
   };
 
-  if (loading) return <p className="py-10 text-center text-sm text-slate-500">Chargement…</p>;
+  if (loading) return <div className="py-10 flex justify-center"><LogoLoader size={72} /></div>;
 
   if (app && !showForm) {
     const s = STATUS_LABEL[app.status];

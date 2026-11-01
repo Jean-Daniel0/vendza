@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { LogoLoader } from '../components/LogoLoader';
 import { apiFetchAuthed } from '../lib/api';
 
 type Provider = { id: string; slug: string; name: string; description: string | null; auth_type: 'api_key' | 'oauth'; status: 'coming_soon' | 'active' };
@@ -49,7 +50,7 @@ export default function PodSection() {
     if (r.ok) { setNotice('Fournisseur déconnecté.'); load(); } else setError('Déconnexion impossible.');
   };
 
-  if (loading) return <p className="py-10 text-center text-sm text-slate-500">Chargement…</p>;
+  if (loading) return <div className="py-10 flex justify-center"><LogoLoader size={72} /></div>;
 
   return (
     <section aria-labelledby="pod-title" className="space-y-4">

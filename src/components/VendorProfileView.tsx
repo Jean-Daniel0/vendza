@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { LogoLoader } from './LogoLoader';
 import { 
   ArrowLeft, MapPin, Store, MessageSquare, Star, 
   ShieldCheck, AlertTriangle, Calendar, Clock, ShoppingBag, Send
@@ -281,8 +282,8 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
   if (isLoading || !vendorProfile) {
     return (
       <div className="flex flex-col items-center justify-center py-24 bg-white rounded-3xl border border-slate-100 p-8 shadow-xs">
-        <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-slate-500 font-medium text-xs uppercase tracking-widest animate-pulse">Chargement de la boutique…</p>
+        <LogoLoader size={96} label="Chargement de la boutique" />
+        <p className="mt-4 text-slate-500 font-medium text-xs uppercase tracking-widest">Chargement de la boutique…</p>
       </div>
     );
   }

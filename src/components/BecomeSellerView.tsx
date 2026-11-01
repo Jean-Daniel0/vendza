@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { LogoLoader } from './LogoLoader';
 import { Store, CheckCircle, Smartphone, Award, ShieldAlert, Sparkles, MapPin, UploadCloud, ChevronRight, ChevronLeft, Building, FileText, Check, AlertTriangle } from 'lucide-react';
 import { UserProfile } from '../types';
 import { supabase } from '../lib/supabaseClient';
@@ -294,8 +295,8 @@ export const BecomeSellerView: React.FC<BecomeSellerViewProps> = ({
 
   if (realtimeChecking && !user.shopName) {
     return (
-      <div className="max-w-md mx-auto py-24 px-4 text-center font-sans animate-pulse">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mx-auto mb-4"></div>
+      <div className="max-w-md mx-auto py-24 px-4 text-center font-sans">
+        <LogoLoader size={88} className="mx-auto mb-4" label="Vérification du compte" />
         <p className="text-xs text-slate-400 font-bold tracking-wide uppercase">Vérification en direct de votre compte...</p>
       </div>
     );
