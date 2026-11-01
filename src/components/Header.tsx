@@ -38,12 +38,12 @@ export const Header: React.FC<HeaderProps> = ({
           
           <div 
             onClick={() => onNavigate('home')} 
-            className="flex items-center gap-2 cursor-pointer select-none ml-2"
+            className="flex items-center gap-0.5 cursor-pointer select-none ml-2"
           >
             <img 
               src={logoUrl} 
               alt="Vendza" 
-              className="h-10 w-10 md:h-[48px] md:w-[48px] object-contain"
+              className="h-8 w-8 md:h-10 md:w-10 object-contain"
               referrerPolicy="no-referrer"
               onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
             />
