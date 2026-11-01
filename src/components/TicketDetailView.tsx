@@ -47,6 +47,7 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
   const [clientProfil, setClientProfil] = useState<any>(null);
   const [vendeurProfil, setVendeurProfil] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
 
   const isBuyer = user?.id === order.clientId;
   const isVendor = !isBuyer;
@@ -157,6 +158,27 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 print:hidden">
+          <div className="relative">
+            <button
+              type="button"
+              aria-label="Informations sur le séquestre"
+              aria-expanded={showInfo}
+              onClick={() => setShowInfo(v => !v)}
+              className="w-9 h-9 rounded-full bg-white hover:bg-slate-50 text-slate-700 text-base font-black transition cursor-pointer border border-slate-200 shadow-3xs flex items-center justify-center"
+            >
+              !
+            </button>
+            {showInfo && (
+              <div role="dialog" className="absolute right-0 top-11 z-50 w-[300px] max-w-[85vw] bg-white border border-slate-200 rounded-2xl shadow-xl p-4 space-y-1.5 text-left">
+                <h5 className="font-bold text-xs text-slate-800">Fonctionnement du séquestre</h5>
+                <p className="text-[11px] leading-relaxed text-slate-600">
+                  {isBuyer
+                    ? "Vos Gourdes restent en sécurité chez Vendza. Une fois que vous avez examiné et accepté les marchandises remises en mains propres, cliquez sur « Confirmer la réception » pour libérer le paiement au vendeur."
+                    : "Les fonds ont été déposés par l'acheteur et sont garantis. Ils vous seront versés dès que l'acheteur confirme la réception du colis."}
+                </p>
+              </div>
+            )}
+          </div>
           <button
             onClick={handlePrint}
             className="inline-flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition cursor-pointer border border-slate-200 shadow-3xs"
@@ -173,10 +195,8 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
         </div>
       </div>
 
-      {/* Main Page Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-7 items-start">
-        {/* LEFT COLUMN: The Physical Style Ticket Receipt */}
-        <div className="lg:col-span-7 space-y-4 print:col-span-12">
+      {/* Ticket centré (une seule colonne) */}
+      <div className="max-w-[480px] mx-auto space-y-4">
           <div className="bg-slate-100 rounded-3xl p-4 sm:p-8 print:p-0 print:bg-white">
           <div id="printable-ticket">
             <div className="mx-auto w-full max-w-[380px] text-slate-900 drop-shadow-md print:drop-shadow-none" style={{ fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif" }}>
@@ -281,7 +301,7 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
                   <div className="mt-4 flex flex-col items-center text-center gap-1.5">
                     <QRCodeRenderer value={`https://www.vendza.store/?order=${order.id}`} size={120} />
                     <p className="text-[11px] leading-snug max-w-[260px]">
-                      À faire scanner par le client à la réception pour libérer le paiement.
+                      Code de validation de la commande.
                     </p>
                   </div>
                 )}
@@ -305,90 +325,27 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
             </div>
           </div>
           </div>
-        </div>
 
-        {/* RIGHT COLUMN: Action and Security Dashboard */}
-        <div className="lg:col-span-5 space-y-5 print:hidden">
-          
-          {/* Status Tracker */}
-          <div className="bg-white rounded-3xl border border-slate-150 p-5 shadow-xs space-y-4">
-            <h4 className="text-[10px] font-black tracking-widest text-[#0c1445] bg-[#eff6ff] border border-[#bfdbfe] px-3.5 py-1.5 rounded-full uppercase text-center w-full block">
-              <EIcon name="ShieldCheck" /> FEUILLE DE ROUTE DE SECURITÉ
-            </h4>
-
-            {/* QR Code Presentation or Camera Scanner Button accessible to all users */}
-            <div className="flex flex-col items-center justify-center p-6 bg-slate-50/70 border border-slate-150 rounded-2xl gap-4">
-              <div className="p-4 bg-blue-50 text-blue-600 rounded-full">
-                <span className="text-3xl"><EIcon name="Camera" /></span>
-              </div>
-              <div className="text-center space-y-1">
-                <h4 className="font-bold text-slate-800 text-sm">Scanner le code QR de livraison</h4>
-                <p className="text-xs text-slate-500 leading-normal">
-                  Scannez le QR Code de confirmation présenté par le livreur ou le vendeur pour valider la réception du colis.
-                </p>
-              </div>
-              <button
-                type="button"
-                id="btn-open-camera-scanner"
-                onClick={() => onNavigate && onNavigate('scanner')}
-                className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl shadow-md cursor-pointer flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02]"
-              >
-                <span><EIcon name="Camera" /> OUVRIR LA CAMÉRA / SCANNER</span>
-              </button>
+          {/* Statut + action de l'acheteur sous le ticket */}
+          <div className="print:hidden space-y-3">
+            <div className="flex justify-center">
+              <span className={`text-[10px] font-black uppercase tracking-wider px-4 py-1.5 rounded-full border shadow-3xs ${
+                order.status === 'livree'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                  : 'bg-amber-50 border-amber-200 text-amber-700'
+              }`}>
+                {order.status === 'livree' ? <><EIcon name="CheckCircle2" /> LIVRAISON VALIDÉE</> : <><EIcon name="Hourglass" /> FONDS EN SÉQUESTRE</>}
+              </span>
             </div>
 
-            {!isBuyer && (
-              <div className="flex flex-col items-center justify-center p-5 bg-slate-50/50 border border-slate-150 rounded-2xl gap-3">
-                <p className="text-[11px] text-slate-500 font-bold text-center leading-relaxed">
-                  <EIcon name="Lock" /> Colis Sécurisé Vendza.<br />Le QR Code officiel imprimable de déblocage est affiché directement dans le ticket de consignation ci-contre.
-                </p>
-                
-                <p className="text-[10.5px] text-slate-450 font-semibold text-center italic">
-                  Réf: {order.id.toUpperCase()}
-                </p>
-              </div>
-            )}
-
-            {/* Dynamic Status message depending on role */}
-            <div className="space-y-4 pt-1">
-              <div className="flex justify-center">
-                <span className={`text-[10px] font-black uppercase tracking-wider px-4 py-1.5 rounded-full border shadow-3xs ${
-                  order.status === 'livree' 
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
-                    : 'bg-amber-50 border-amber-200 text-amber-700'
-                }`}>
-                  {order.status === 'livree' ? <><EIcon name="CheckCircle2" /> LIVRAISON VALIDÉE</> : <><EIcon name="Hourglass" /> FUNDS BLOCKED (SÉQUESTRE)</>}
-                </span>
-              </div>
-
-              <div className="bg-slate-50 p-4 border border-slate-150 rounded-2xl flex gap-3 text-slate-600">
-                <Info size={18} className="text-blue-500 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <h5 className="font-bold text-xs text-slate-800">Fonctionnement du Séquestre</h5>
-                  <p className="text-[11px] leading-relaxed">
-                    {isBuyer ? (
-                      "Vos Gourdes restent en sécurité chez Vendza. Une fois que vous aurez examiné et accepté les marchandises livrées en mains propres, montrez ce code QR au marchand ou cliquez sur le bouton de déblocage pour solder la transaction immédiatement."
-                    ) : (
-                      "Les fonds ont été déposés avec succès par l'acheteur et sont garantis. Pour les libérer sur votre portefeuille, demandez à l'acheteur de scanner votre badge ou présentez ce code QR afin de notifier la plateforme de la conformité du colis."
-                    )}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Buyer Specific Interactive Actions */}
             {isBuyer && order.status !== 'livree' && onConfirmDelivery && (
-              <div className="pt-2 border-t border-slate-100 space-y-2">
+              <div className="space-y-2">
                 <button
                   disabled={isConfirming}
                   onClick={handleReleaseFunds}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 disabled:opacity-50 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl shadow-md cursor-pointer flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02]"
+                  className="w-full py-3 px-4 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 disabled:opacity-50 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl shadow-md cursor-pointer flex items-center justify-center gap-2 transition-all"
                 >
-                  {isConfirming ? (
-                    <RefreshCw size={13} className="animate-spin" />
-                  ) : (
-                    <Check size={13} strokeWidth={3} />
-                  )}
+                  {isConfirming ? <RefreshCw size={13} className="animate-spin" /> : <Check size={13} strokeWidth={3} />}
                   <span>Confirmer la réception (Débloquer fonds)</span>
                 </button>
                 <div className="flex items-center gap-1.5 text-[9px] text-red-500 font-bold bg-red-50 border border-red-150 p-2 rounded-xl">
@@ -397,35 +354,7 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
                 </div>
               </div>
             )}
-            
-            {/* Vendor Specific Actions */}
-            {isVendor && order.status !== 'livree' && (
-              <div className="pt-2 border-t border-slate-100 flex flex-col gap-1.5">
-                <div className="flex items-center gap-2 text-[10.5px] text-slate-400 font-bold justify-center bg-slate-50 p-2.5 rounded-xl border">
-                  <span>Réf commande:</span>
-                  <span className="font-mono text-slate-800 bg-white border px-2 py-0.5 rounded text-[11px]">
-                    {order.id}
-                  </span>
-                </div>
-                <p className="text-[9.5px] text-slate-400 text-center font-bold uppercase tracking-wider">
-                  Attente scanner de l'acheteur pour versement immédiat
-                </p>
-              </div>
-            )}
-
-            {/* Standard page foot controls */}
-            <div className="pt-2 border-t border-slate-100 flex gap-2">
-              <button
-                onClick={onBack}
-                className="w-full py-2.5 px-3 rounded-xl bg-[#0c1445] hover:bg-[#1a255c] text-white text-xs font-bold tracking-wide transition cursor-pointer text-center"
-              >
-                Retour au Tableau de Bord
-              </button>
-            </div>
-
           </div>
-          
-        </div>
       </div>
     </div>
   );
