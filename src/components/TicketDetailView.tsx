@@ -272,7 +272,7 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
                   )}
                   <div className="flex justify-between font-semibold">
                     <span>Statut :</span>
-                    <span>{order.status === 'livree' ? 'LIVRÉ ✓' : 'FONDS EN SÉQUESTRE'}</span>
+                    <span>{order.status === 'livree' ? 'LIVRÉ' : 'FONDS EN SÉQUESTRE'}</span>
                   </div>
                 </div>
 
