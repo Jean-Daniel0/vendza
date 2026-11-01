@@ -17,6 +17,24 @@ interface TicketDetailViewProps {
   onNavigate?: (view: string) => void;
 }
 
+
+// Bande de barres décorative dérivée de la référence (aspect ticket de caisse ; le vrai contrôle se fait par le QR code)
+const BarcodeStrip: React.FC<{ value: string }> = ({ value }) => {
+  const bars: { x: number; w: number }[] = [];
+  let x = 0;
+  for (let i = 0; i < 56; i++) {
+    const c = value.charCodeAt(i % value.length) + i * 7;
+    const w = 1 + (c % 3);
+    if (i % 2 === 0) bars.push({ x, w });
+    x += w + (i % 2 === 1 ? 0 : 0);
+  }
+  return (
+    <svg viewBox={`0 0 ${x} 40`} preserveAspectRatio="none" className="mx-auto mt-2 h-10 w-full max-w-[260px]" aria-hidden="true">
+      {bars.map((b, i) => <rect key={i} x={b.x} y={0} width={b.w} height={40} fill="#111" />)}
+    </svg>
+  );
+};
+
 export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
   order,
   user,
@@ -159,176 +177,133 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-7 items-start">
         {/* LEFT COLUMN: The Physical Style Ticket Receipt */}
         <div className="lg:col-span-7 space-y-4 print:col-span-12">
-          <div 
-            id="printable-ticket" 
-            className="bg-white rounded-3xl border border-slate-200 shadow-md overflow-hidden relative"
-          >
-            {/* Elegant Header and Stamp */}
-            <div className="p-6 bg-gradient-to-br from-[#0c1445] to-[#122370] text-white flex justify-between items-start rounded-t-3xl relative">
-              <div className="space-y-1">
-                <div className="font-serif text-xl font-extrabold text-white flex items-center gap-1.5 tracking-tight">
-                  <span>Vendza</span>
-                  <span className="text-[9px] bg-teal-500/10 text-teal-400 font-sans tracking-widest uppercase px-2 py-0.5 rounded font-black border border-teal-500/20 shadow-3xs">
-                    SÉQUESTRE SECURISÉ
-                  </span>
-                </div>
-                <p className="text-[10px] text-slate-300 font-medium">Billet dématérialisé de consignation</p>
-              </div>
-              
-              <div className="text-right flex flex-col items-end">
-                <span className="font-mono font-extrabold text-xs text-emerald-400 bg-white/10 border border-white/5 px-2.5 py-1 rounded-lg shadow-inner">
-                  #{order.id.toUpperCase()}
-                </span>
-                <p className="text-[10px] text-slate-300 mt-2 font-bold font-mono">
-                  {order.date} à {order.heure}
-                </p>
-              </div>
-            </div>
+          <div className="bg-slate-100 rounded-3xl p-4 sm:p-8 print:p-0 print:bg-white">
+          <div id="printable-ticket">
+            <div className="mx-auto w-full max-w-[380px] text-slate-900 drop-shadow-md print:drop-shadow-none" style={{ fontFamily: "'Segoe UI', Roboto, Helvetica, Arial, sans-serif" }}>
+              {/* Bord dentelé du haut */}
+              <svg className="block w-full h-2" preserveAspectRatio="none" aria-hidden="true">
+                <defs>
+                  <pattern id="zig-top" width="10" height="8" patternUnits="userSpaceOnUse">
+                    <polygon points="0,8 5,0 10,8" fill="#fff" />
+                  </pattern>
+                </defs>
+                <rect width="100%" height="8" fill="url(#zig-top)" />
+              </svg>
 
-            {/* Receipt Body content */}
-            <div className="p-6 space-y-6 text-slate-700 text-xs">
-              
-              {/* Delivery Parameters Info */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs border-b border-dashed border-slate-200 pb-4">
-                <div className="bg-slate-50/50 p-2.5 rounded-2xl border border-slate-100 shadow-3xs">
-                  <span className="text-[9px] uppercase tracking-widest text-slate-400 font-bold block mb-1">
-                    Destination Colis
-                  </span>
-                  <div className="flex items-start gap-1 font-semibold text-slate-800">
-                    <MapPin size={12} className="text-blue-600 mt-0.5 shrink-0" />
-                    <span>{order.departement}, {order.commune}</span>
+              <div className="bg-white px-7 py-6 text-[13px] leading-snug">
+                {/* En-tête */}
+                <div className="text-center">
+                  <div className="text-lg tracking-wide">REÇU DE COMMANDE</div>
+                  <div className="text-[11px] tracking-widest">*****</div>
+                  <div className="text-2xl mt-1 font-medium">Vendza</div>
+                  <div className="text-[12px]">Paiement sécurisé · Séquestre</div>
+                  <div className="text-[11px] tracking-widest">*****</div>
+                </div>
+
+                {/* Infos */}
+                <dl className="mt-4 space-y-0.5">
+                  <div className="flex gap-2"><dt className="w-20 shrink-0">Date :</dt><dd>{order.date} {order.heure}</dd></div>
+                  <div className="flex gap-2"><dt className="w-20 shrink-0">Commande :</dt><dd className="font-mono">#{order.id.slice(0, 8).toUpperCase()}</dd></div>
+                  <div className="flex gap-2"><dt className="w-20 shrink-0">Client :</dt><dd className="min-w-0 break-words">{nomClient}</dd></div>
+                  <div className="flex gap-2"><dt className="w-20 shrink-0">Vendeur :</dt><dd className="min-w-0 break-words">{nomVendeur}</dd></div>
+                  <div className="flex gap-2"><dt className="w-20 shrink-0">Livraison :</dt><dd className="min-w-0 break-words">{[order.commune, order.departement].filter(Boolean).join(', ') || '—'}</dd></div>
+                  {isVendor && telClient !== 'Non renseigné' && (
+                    <div className="flex gap-2"><dt className="w-20 shrink-0">Tél client :</dt><dd className="font-mono">{telClient}</dd></div>
+                  )}
+                  {isBuyer && vendeurProfil?.telephone && (
+                    <div className="flex gap-2"><dt className="w-20 shrink-0">Tél vendeur :</dt><dd className="font-mono">{vendeurProfil.telephone}</dd></div>
+                  )}
+                </dl>
+
+                <div className="my-3 border-t-[3px] border-double border-slate-800" />
+
+                {/* Produits : le ticket s'allonge avec le nombre de produits */}
+                <ul className="space-y-1.5">
+                  {order.items.map((item, idx) => {
+                    const variant = [item.couleur, item.taille].filter(Boolean).join(' · ');
+                    return (
+                      <li key={idx}>
+                        <div className="flex justify-between gap-3">
+                          <span className="min-w-0 break-words"># {item.productNom}</span>
+                          <span className="shrink-0 tabular-nums">{((item.prix || 0) * item.qte).toLocaleString('fr-FR')}</span>
+                        </div>
+                        {(item.qte > 1 || variant) && (
+                          <div className="pl-3 text-[11px] text-slate-500">
+                            {item.qte > 1 && <span>{item.qte} × {(item.prix || 0).toLocaleString('fr-FR')}</span>}
+                            {item.qte > 1 && variant && <span> · </span>}
+                            {variant && <span>{variant}</span>}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+
+                <div className="my-3 border-t-2 border-dashed border-slate-800" />
+
+                {/* Totaux */}
+                <div className="space-y-0.5">
+                  <div className="flex justify-between text-slate-600">
+                    <span>Sous-total</span>
+                    <span className="tabular-nums">{order.items.reduce((s, i) => s + (i.prix || 0) * i.qte, 0).toLocaleString('fr-FR')}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>Livraison</span>
+                    <span className="tabular-nums">{order.fraisLivraison ? Number(order.fraisLivraison).toLocaleString('fr-FR') : 'Gratuit'}</span>
+                  </div>
+                  {order.discount > 0 && (
+                    <div className="flex justify-between text-slate-600">
+                      <span>Réduction</span>
+                      <span className="tabular-nums">-{Number(order.discount).toLocaleString('fr-FR')}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-baseline font-bold text-base pt-1">
+                    <span>Total (Gdes)</span>
+                    <span className="tabular-nums">{order.total.toLocaleString('fr-FR')}</span>
                   </div>
                 </div>
-                
-                <div className="bg-blue-50/50 p-2.5 rounded-2xl border border-blue-100/60 shadow-3xs">
-                  <span className="text-[9px] uppercase tracking-widest text-blue-600 font-extrabold block mb-1">
-                    Client (Acheteur)
-                  </span>
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-1.5 font-black text-slate-900 text-xs sm:text-sm">
-                      {clientProfil?.avatar_url ? (
-                        <img src={clientProfil.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
-                      ) : (
-                        <User size={13} className="text-blue-600 shrink-0" />
-                      )}
-                      <span>{nomClient}</span>
-                    </div>
-                    <span className="font-mono block text-slate-500 text-[11px] font-bold">
-                      Tél: {telClient}
-                    </span>
+
+                <div className="my-3 border-t-2 border-dashed border-slate-800" />
+
+                {/* Paiement et statut */}
+                <div className="space-y-0.5">
+                  {order.paymentMethod && (
+                    <div className="flex justify-between"><span>Paiement :</span><span>{order.paymentMethod}</span></div>
+                  )}
+                  <div className="flex justify-between font-semibold">
+                    <span>Statut :</span>
+                    <span>{order.status === 'livree' ? 'LIVRÉ ✓' : 'FONDS EN SÉQUESTRE'}</span>
                   </div>
                 </div>
 
-                <div className="bg-teal-50/50 p-2.5 rounded-2xl border border-teal-100/60 shadow-3xs">
-                  <span className="text-[9px] uppercase tracking-widest text-teal-600 font-extrabold block mb-1">
-                    Boutique (Vendeur)
-                  </span>
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-1.5 font-black text-slate-900 text-xs sm:text-sm">
-                      <ShieldCheck size={13} className="text-teal-600 shrink-0" />
-                      <span>{nomVendeur}</span>
-                    </div>
-                    <span className="font-mono block text-slate-500 text-[11px] font-bold">
-                      Tél: {vendeurProfil?.telephone || 'Non renseigné'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Order Items Table */}
-              <div className="space-y-2.5">
-                <span className="text-[9px] font-black tracking-wider text-[#9aa3bf] uppercase block">
-                  Détail de la Provision Consignée
-                </span>
-                <div className="divide-y divide-slate-100 border border-slate-150 rounded-2xl px-4 bg-slate-50/30 max-h-[220px] overflow-y-auto">
-                  {order.items.map((item, idx) => (
-                    <div key={idx} className="py-3 flex flex-col gap-1 leading-normal text-xs text-slate-700">
-                      <div className="flex justify-between items-start gap-1 font-semibold">
-                        <span className="text-slate-800">{item.productNom}</span>
-                        <span className="font-mono font-bold text-slate-900 shrink-0">
-                          {((item.prix || 0) * item.qte).toLocaleString('fr-FR')} Gdes
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-[10px] text-slate-400 font-bold pl-0.5">
-                        <span>Prix unitaire : {(item.prix || 0).toLocaleString('fr-FR')} Gdes</span>
-                        <span>Quantité consignée : x{item.qte}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Fee Accounting Card */}
-              <div className="bg-slate-50 p-4 border border-slate-150 rounded-2xl space-y-2">
-                <div className="flex justify-between text-[11px] text-slate-500 font-semibold">
-                  <span>Provision Marchandises</span>
-                  <span className="font-mono text-slate-800">
-                    {order.items.reduce((s, i) => s + (i.prix * i.qte), 0).toLocaleString('fr-FR')} Gdes
-                  </span>
-                </div>
-                
-                <div className="flex justify-between text-[11px] text-slate-500 font-semibold">
-                  <span>Frais Logistiques (Livraison)</span>
-                  <span className="font-mono text-slate-800">
-                    {order.fraisLivraison ? `${order.fraisLivraison} Gdes` : 'Gratuit'}
-                  </span>
-                </div>
-
-                {order.discount > 0 && (
-                  <div className="flex justify-between text-[11px] text-emerald-600 font-extrabold">
-                    <span>Code Promotionnel Appliqué</span>
-                    <span className="font-mono">-{order.discount} Gdes</span>
+                {/* QR de validation : vendeur seulement */}
+                {isVendor && (
+                  <div className="mt-4 flex flex-col items-center text-center gap-1.5">
+                    <QRCodeRenderer value={`https://www.vendza.store/?order=${order.id}`} size={120} />
+                    <p className="text-[11px] leading-snug max-w-[260px]">
+                      À faire scanner par le client à la réception pour libérer le paiement.
+                    </p>
                   </div>
                 )}
 
-                <div className="h-px bg-slate-200 my-2" />
-                
-                <div className="flex justify-between items-center font-black">
-                  <span className="text-slate-800 font-black text-xs uppercase tracking-tight">
-                    Fonds Totaux en Séquestre Garanti
-                  </span>
-                  <span className="font-mono text-blue-600 text-lg sm:text-xl font-black">
-                    {order.total.toLocaleString('fr-FR')} Gdes
-                  </span>
+                <div className="mt-5 text-center">
+                  <div className="font-bold tracking-wide">MERCI !</div>
+                  <BarcodeStrip value={order.id} />
+                  <div className="font-mono text-[10px] tracking-widest mt-1 break-all">{order.id.toUpperCase()}</div>
                 </div>
               </div>
 
-              {/* QR Code Validation Section inside Printable Ticket - Only for Vendor */}
-              {isVendor && (
-                <div className="bg-slate-50 border border-teal-150 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-2.5 my-3">
-                  <div className="bg-white p-2.5 border border-slate-200 rounded-xl shadow-3xs">
-                    <QRCodeRenderer value={`https://www.vendza.store/?order=${order.id}`} size={110} />
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="text-[10px] uppercase font-black text-[#0d9488] tracking-widest font-sans block">
-                      Code QR de Validation (Vendeur)
-                    </span>
-                    <p className="text-[9.5px] text-slate-450 font-bold max-w-[280px] mx-auto leading-relaxed italic">
-                      À faire scanner par le client à la livraison pour libérer la provision fiduciaire.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Disclaimer and Trust Seal */}
-              <div className="text-center pt-2 border-t border-dashed border-slate-200">
-                <div className="inline-flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-3 py-1 rounded-full border border-slate-150 shadow-3xs mb-2">
-                  <ShieldCheck size={11} className="text-emerald-500" />
-                  <span>TRANSACTION MULTI-SIGIL SECURISÉE VENDZA</span>
-                </div>
-                <p className="text-[10px] text-slate-400 font-medium max-w-md mx-auto leading-normal">
-                  Ce document certifie le blocage de la provision fiduciaire correspondante. Elle sera liquidée au profit du vendeur dès que la réception physique sera notifiée par code de sécurité.
-                </p>
-              </div>
-              
+              {/* Bord dentelé du bas */}
+              <svg className="block w-full h-2" preserveAspectRatio="none" aria-hidden="true">
+                <defs>
+                  <pattern id="zig-bottom" width="10" height="8" patternUnits="userSpaceOnUse">
+                    <polygon points="0,0 5,8 10,0" fill="#fff" />
+                  </pattern>
+                </defs>
+                <rect width="100%" height="8" fill="url(#zig-bottom)" />
+              </svg>
             </div>
-            
-            {/* Cute printable receipt bottom cut graphics */}
-            <div className="bg-slate-100 h-2 flex justify-between overflow-hidden opacity-80" aria-hidden="true">
-              {Array.from({ length: 30 }).map((_, i) => (
-                <div key={i} className="w-2.5 h-2.5 bg-white transform rotate-45 shrink-0 -translate-y-1.5 shadow-3xs" />
-              ))}
-            </div>
+          </div>
           </div>
         </div>
 
