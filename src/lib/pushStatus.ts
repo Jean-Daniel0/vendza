@@ -44,6 +44,12 @@ export function usePushStatus(ready: boolean, initError?: string) {
     return d.join(' · ');
   }, []);
 
+  // Échec technique : le détail va dans la console (pour nous), l'utilisateur ne voit qu'une phrase simple
+  const soft = useCallback(async (where: string, e?: any): Promise<EnableResult> => {
+    console.warn('[push]', where, e?.message || e || '', await diagnose());
+    return { ok: false, message: 'Les notifications ne sont pas disponibles pour le moment. Vous pourrez réessayer plus tard.' };
+  }, [diagnose]);
+
   // Doit être appelée directement depuis un clic (le navigateur exige un geste de l'utilisateur pour afficher la demande)
   const enable = useCallback(async (): Promise<EnableResult> => {
     try {
@@ -60,9 +66,9 @@ export function usePushStatus(ready: boolean, initError?: string) {
 
       // 2) Abonnement OneSignal : on attend que le SDK soit prêt (jusqu'à 10 s)
       for (let i = 0; i < 40 && !readyRef.current && !errRef.current; i++) await sleep(250);
-      if (!readyRef.current) return { ok: false, message: 'Le service de notifications ne s\'est pas initialisé. Rechargez la page et réessayez.', detail: await diagnose() };
+      if (!readyRef.current) return await soft('init');
 
-      try { await (OneSignal as any).User.PushSubscription.optIn(); } catch (e: any) { return { ok: false, message: `Abonnement impossible : ${String(e?.message || e).slice(0, 140)}`, detail: await diagnose() }; }
+      try { await (OneSignal as any).User.PushSubscription.optIn(); } catch (e: any) { return await soft('optin', e); }
 
       // 3) On vérifie vraiment que l'abonnement existe (id attribué par OneSignal)
       for (let i = 0; i < 24; i++) {
@@ -71,11 +77,11 @@ export function usePushStatus(ready: boolean, initError?: string) {
         await sleep(250);
       }
       refresh();
-      return { ok: false, message: 'Autorisation accordée, mais l\'abonnement n\'a pas pu être confirmé.', detail: await diagnose() };
+      return await soft('confirm');
     } catch (e: any) {
-      return { ok: false, message: `Erreur : ${String(e?.message || e).slice(0, 140)}`, detail: await diagnose() };
+      return await soft('error', e);
     }
-  }, [refresh, diagnose]);
+  }, [refresh, diagnose, soft]);
 
   return { status, enable, refresh };
 }

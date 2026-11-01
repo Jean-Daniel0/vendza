@@ -359,6 +359,9 @@ export default function App() {
       }
     };
     initOneSignal();
+    // Navigateur qui bloque OneSignal (ex. Brave) : l'initialisation ne répond jamais → on masque la proposition
+    const giveUp = window.setTimeout(() => setOneSignalInitError(prev => prev || 'délai dépassé'), 20000);
+    return () => window.clearTimeout(giveUp);
   }, []);
 
   const { status: pushStatus, enable: enablePush } = usePushStatus(oneSignalInitDone, oneSignalInitError);
@@ -1448,7 +1451,7 @@ export default function App() {
           setCurrentView('ticket');
         } catch (err: any) {
           console.error("Error confirming payment callback:", err);
-          alert("Erreur lors de la confirmation de votre commande: " + err.message);
+          console.error(err); alert("Impossible de confirmer votre commande pour le moment. Réessayez dans un instant.");
           setCurrentView('cart');
         } finally {
           setIsVerifyingPayment(false);
@@ -2225,7 +2228,7 @@ export default function App() {
       } catch (err: any) {
         setIsRedirectingToMonCash(false);
         console.error("[Stripe Checkout Error]", err.message);
-        alert(`Impossible de se connecter à Stripe: ${err.message}.\n\nVotre achat est enregistré en local.`);
+        console.error('[Stripe]', err); alert("Le paiement par carte est momentanément indisponible. Réessayez dans un instant.");
       }
     } else if (paymentMethod === 'moncash') {
       setIsRedirectingToMonCash(true);
@@ -2262,7 +2265,7 @@ export default function App() {
       } catch (err: any) {
         setIsRedirectingToMonCash(false);
         console.error("[MonCash Instant Checkout Error]", err.message);
-        alert(`Impossible de se connecter à MonCash (via Bazik): ${err.message}.\n\nVotre commande instantanée a été sauvegardée en local.`);
+        console.error('[MonCash]', err); alert("Le paiement MonCash est momentanément indisponible. Réessayez dans un instant.");
       }
     }
   };
@@ -2616,7 +2619,7 @@ export default function App() {
       } catch (err: any) {
         setIsRedirectingToMonCash(false);
         console.error("[Stripe Checkout Error]", err.message);
-        alert(`Impossible de se connecter à Stripe: ${err.message}.\n\nVotre achat est enregistré en local.`);
+        console.error('[Stripe]', err); alert("Le paiement par carte est momentanément indisponible. Réessayez dans un instant.");
       }
     } else if (paymentMethod === 'moncash') {
       setIsRedirectingToMonCash(true);
@@ -2651,7 +2654,7 @@ export default function App() {
       } catch (err: any) {
         setIsRedirectingToMonCash(false);
         console.error("[MonCash Connect Error]", err.message);
-        alert(`Impossible de se connecter à MonCash (via Bazik): ${err.message}.\n\nVotre achat est enregistré en local.`);
+        console.error('[MonCash]', err); alert("Le paiement MonCash est momentanément indisponible. Réessayez dans un instant.");
       }
     }
   };
@@ -3200,7 +3203,7 @@ export default function App() {
             alert(`Problème de connexion internet (Échec du réseau).\n\nVotre produit "${fullProd.nom}" a été enregistré correctement localement sur votre appareil.\n\nIl s'affiche dans votre mode Boutique et sera synchronisé dès le rétablissement de la liaison en ligne.`);
           } else {
             console.error("Unrecoverable error creating product in Supabase:", error.message);
-            alert(`Erreur lors de la création du produit: ${error.message}`);
+            console.error(error); alert("Impossible de créer le produit pour le moment. Vérifiez les champs puis réessayez.");
           }
         } else if (data && data[0]) {
           console.log("Successfully created product in Supabase database!");
@@ -3215,7 +3218,7 @@ export default function App() {
           alert(`Problème de connexion internet (Échec du réseau).\n\nVotre produit "${fullProd.nom}" a été enregistré correctement localement sur votre appareil.\n\nIl s'affiche dans votre mode Boutique et sera synchronisé dès le rétablissement de la liaison en ligne.`);
         } else {
           console.error("Exception in product insert:", err.message);
-          alert(`Une erreur inattendue est survenue: ${err.message}`);
+          console.error(err); alert("Une erreur est survenue. Réessayez dans un instant.");
         }
       }
     }
@@ -4228,7 +4231,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
 
       {/* App Header layout block */}
       <CartReminderToast count={cart.reduce((n, i) => n + i.quantity, 0)} enabled={!!currentUser && cartLoadedFor.current === cartOwner} hidden={currentView === 'cart' || currentView === 'auth' || currentView === 'checkout-return'} onOpen={() => navigateTo('cart')} />
-      <PushPermissionPrompt userId={currentUser?.id} status={pushStatus} onEnable={enablePush} />
+      <PushPermissionPrompt userId={currentUser?.id} status={pushStatus} onEnable={enablePush} unavailable={!!oneSignalInitError && !oneSignalInitDone} />
       {pushStatus.subscribed && <PromoOptIn userId={currentUser?.id} newsletter={(currentUser as any)?.newsletter} onEnabled={() => setCurrentUser(u => (u ? ({ ...u, newsletter: true } as any) : u))} />}
       <Header
         user={currentUser}

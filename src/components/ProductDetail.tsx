@@ -222,7 +222,7 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({
       }
     } catch (err: any) {
       console.error("Follow toggle exception handled:", err.message);
-      alert(`Erreur lors de la mise à jour de l'abonnement: ${err.message}`);
+      console.error('[abonnement]', err); alert("Impossible de mettre à jour l'abonnement pour le moment. Réessayez dans un instant.");
     } finally {
       setIsFollowActionLoading(false);
     }

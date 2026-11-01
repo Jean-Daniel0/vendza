@@ -913,7 +913,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                                                 alert("Service de litige indisponible.");
                                               }
                                             } catch (e: any) {
-                                              alert(`Erreur: ${e.message}`);
+                                              console.error(e); alert("Une erreur est survenue. Réessayez dans un instant.");
                                             } finally {
                                               setDisputeSubmitting(false);
                                             }

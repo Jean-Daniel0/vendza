@@ -6,12 +6,13 @@ import { EIcon } from './EIcon';
 const KEY = 'vendza_push_prompt_dismissed_at';
 
 // Petit pop-up pour les comptes connectés qui ne sont pas abonnés aux notifications
-export const PushPermissionPrompt: React.FC<{ userId?: string; status: PushStatus; onEnable: () => Promise<EnableResult> }> = ({ userId, status, onEnable }) => {
+export const PushPermissionPrompt: React.FC<{ userId?: string; status: PushStatus; onEnable: () => Promise<EnableResult>; unavailable?: boolean }> = ({ userId, status, onEnable, unavailable }) => {
   const [dismissedAt, setDismissedAt] = useState<number>(() => { try { return Number(localStorage.getItem(KEY) || 0); } catch { return 0; } });
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<EnableResult | null>(null);
   const mode = pushPromptMode(userId, status, dismissedAt);
-  if (mode === 'hidden') return null;
+  // Service de notifications inutilisable sur ce navigateur : on ne propose rien plutôt que d'afficher une erreur
+  if (mode === 'hidden' || unavailable) return null;
 
   const dismiss = () => { const t = Date.now(); try { localStorage.setItem(KEY, String(t)); } catch {} setDismissedAt(t); };
   const enable = async () => { setBusy(true); setResult(null); try { setResult(await onEnable()); } finally { setBusy(false); } };
@@ -23,9 +24,8 @@ export const PushPermissionPrompt: React.FC<{ userId?: string; status: PushStatu
         <>
           <p className="mt-0.5 text-[11px] text-slate-500">Soyez alerté pour vos commandes, vos messages et les livraisons, même quand l'application est fermée.</p>
           {result && !result.ok && (
-            <div className="mt-2 rounded-lg bg-rose-50 p-2 text-[11px] text-rose-700">
-              <p className="font-semibold">{result.message}</p>
-              {result.detail && <p className="mt-1 break-words font-mono text-[10px] text-rose-500">{result.detail}</p>}
+            <div className="mt-2 rounded-lg bg-slate-50 p-2 text-[11px] text-slate-600">
+              <p>{result.message}</p>
             </div>
           )}
           <div className="mt-2 flex gap-2">

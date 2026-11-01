@@ -170,7 +170,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
       window.location.href = actualUrl;
     } catch (err: any) {
       setLoadingPayment(null);
-      alert(`Erreur MonCash: ${err.message || 'Impossible de se connecter au service.'}`);
+      console.error('[MonCash]', err); alert("Le paiement MonCash est momentanément indisponible. Réessayez dans un instant.");
     }
   };
 
@@ -221,7 +221,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
       window.location.href = url;
     } catch (err: any) {
       setLoadingPayment(null);
-      alert(`Erreur Stripe: ${err.message || 'Impossible d\'initialiser Stripe.'}`);
+      console.error('[Stripe]', err); alert("Le paiement par carte est momentanément indisponible. Réessayez dans un instant.");
     }
   };
 
