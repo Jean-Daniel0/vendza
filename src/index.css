@@ -189,6 +189,9 @@
 
 
 /* Indicateur de chargement Vendza : le logo se dessine (boucle de 3,4 s : tracé, roues, pause, fondu) */
+.vz-ring { transform-origin: 256px 258px; animation: vz-spin 1.1s linear infinite; }
+.vz-ring-slow { animation-duration: 2.2s; animation-direction: reverse; }
+@keyframes vz-spin { to { transform: rotate(360deg); } }
 .vz-loader-img { animation: vz-fade 3.4s linear infinite; }
 .vz-pen { stroke-dasharray: 1 2; stroke-dashoffset: 1; }
 .vz-pen-a { animation: vz-draw-a 3.4s linear infinite; }
@@ -207,6 +210,8 @@
 @keyframes vz-fade { 0%, 90% { opacity: 1; } 98%, 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .vz-loader-img, .vz-pen, .vz-wheel { animation: none; }
+  .vz-ring { animation-duration: 3s; }
+  .vz-ring-slow { animation: none; }
   .vz-pen { stroke-dashoffset: 0; }
   .vz-wheel { transform: scale(1); }
 }

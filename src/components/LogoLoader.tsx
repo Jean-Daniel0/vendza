@@ -14,8 +14,12 @@ export const LogoLoader: React.FC<{ size?: number; label?: string; className?: s
   const id = 'vz' + useId().replace(/[^a-zA-Z0-9]/g, '');
   return (
     <div role="status" aria-label={label} className={`flex items-center justify-center ${className}`} style={{ width: size, height: size }}>
-      <svg viewBox="42 52 430 430" width={size} height={size} aria-hidden="true" className="vz-loader">
+      <svg viewBox="-40 -38 592 592" width={size} height={size} aria-hidden="true" className="vz-loader">
         <defs>
+          <linearGradient id={`${id}g`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#22c55e" />
+            <stop offset="100%" stopColor="#0d9488" />
+          </linearGradient>
           <mask id={id} maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
             <g fill="none" stroke="#fff" strokeLinejoin="round">
               {PENS.map(p => <path key={p.cls} className={`vz-pen ${p.cls}`} d={p.d} pathLength={1} strokeWidth={p.w} />)}
@@ -24,6 +28,14 @@ export const LogoLoader: React.FC<{ size?: number; label?: string; className?: s
             <circle className="vz-wheel vz-wheel-2" cx="361" cy="403" r="36" fill="#fff" />
           </mask>
         </defs>
+        {/* Anneau qui accompagne le tracé : une piste claire et deux arcs qui tournent */}
+        <circle cx="256" cy="258" r="280" fill="none" stroke="#e2e8f0" strokeWidth="14" />
+        <g className="vz-ring">
+          <circle cx="256" cy="258" r="280" fill="none" stroke={`url(#${id}g)`} strokeWidth="14" strokeLinecap="round" strokeDasharray="520 1240" />
+        </g>
+        <g className="vz-ring vz-ring-slow">
+          <circle cx="256" cy="258" r="280" fill="none" stroke="#2dd4bf" strokeOpacity="0.55" strokeWidth="14" strokeLinecap="round" strokeDasharray="150 1610" strokeDashoffset="-880" />
+        </g>
         <image href="/images/logo-vendza-loader.png" x="0" y="0" width="512" height="512" mask={`url(#${id})`} className="vz-loader-img" />
       </svg>
       <span className="sr-only">{label}</span>
