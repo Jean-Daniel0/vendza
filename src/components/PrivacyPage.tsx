@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowLeft, Shield, Eye, Lock, Mail, Phone, Globe, Database, UserCheck, AlertTriangle } from 'lucide-react';
 
+import { EIcon } from './EIcon';
 interface PrivacyPageProps {
   onBack?: () => void;
 }
@@ -137,27 +138,27 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onBack }) => {
                 <tbody className="divide-y divide-slate-100 text-slate-600">
                   <tr>
                     <td className="p-3 font-bold text-slate-800">Prénom & Nom</td>
-                    <td className="p-3 text-emerald-600 font-bold">✓ Oui</td>
+                    <td className="p-3 text-emerald-600 font-bold"><EIcon name="Check" /> Oui</td>
                     <td className="p-3">Votre prénom et nom tel que vous les déclarez.</td>
                   </tr>
                   <tr>
                     <td className="p-3 font-bold text-slate-800">Adresse email</td>
-                    <td className="p-3 text-emerald-600 font-bold">✓ Oui</td>
+                    <td className="p-3 text-emerald-600 font-bold"><EIcon name="Check" /> Oui</td>
                     <td className="p-3">Utilisée pour la connexion sécurisée et les notifications importantes.</td>
                   </tr>
                   <tr>
                     <td className="p-3 font-bold text-slate-800">Numéro de téléphone</td>
-                    <td className="p-3 text-emerald-600 font-bold">✓ Oui</td>
+                    <td className="p-3 text-emerald-600 font-bold"><EIcon name="Check" /> Oui</td>
                     <td className="p-3">Indispensable pour vous contacter ou coordonner les livraisons.</td>
                   </tr>
                   <tr>
                     <td className="p-3 font-bold text-slate-800">Département & Commune</td>
-                    <td className="p-3 text-emerald-600 font-bold">✓ Oui</td>
+                    <td className="p-3 text-emerald-600 font-bold"><EIcon name="Check" /> Oui</td>
                     <td className="p-3">Votre lieu de résidence en Haïti pour configurer la logistique locale.</td>
                   </tr>
                   <tr>
                     <td className="p-3 font-bold text-slate-800">Mot de passe</td>
-                    <td className="p-3 text-emerald-600 font-bold">✓ Oui</td>
+                    <td className="p-3 text-emerald-600 font-bold"><EIcon name="Check" /> Oui</td>
                     <td className="p-3">Stocké sous forme chiffrée de sécurité unidirectionnelle — jamais lisible.</td>
                   </tr>
                   <tr>
@@ -200,7 +201,7 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onBack }) => {
             </ul>
 
             <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl mt-3 flex gap-2.5">
-              <span className="text-emerald-600 shrink-0 font-bold">✅</span>
+              <span className="text-emerald-600 shrink-0 font-bold"><EIcon name="CheckCircle2" /></span>
               <p className="text-[11px] sm:text-xs text-emerald-800 leading-normal">
                 <strong>Données exclues.</strong> Vendza ne collecte jamais les données suivantes : numéros de carte bancaire, codes PIN MonCash, mots de passe en clair, données biométriques, ou toute information non nécessaire au fonctionnement de la plateforme.
               </p>
@@ -257,7 +258,7 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onBack }) => {
             </ul>
 
             <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl mt-3 flex gap-2.5">
-              <span className="text-rose-600 shrink-0 font-bold">🚫</span>
+              <span className="text-rose-600 shrink-0 font-bold"><EIcon name="Ban" /></span>
               <p className="text-[11px] sm:text-xs text-rose-800 leading-normal font-medium">
                 <strong>Aucune revente commerciale.</strong> Vendza ne partage jamais vos données avec des annonceurs, des agences marketing, des courtiers en données ou tout autre tiers commercial. Vos données ne sont pas vendues, louées ou échangées à des fins publicitaires.
               </p>
@@ -368,7 +369,7 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onBack }) => {
 
           <div className="space-y-2.5">
             <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex gap-2.5">
-              <span className="text-rose-600 shrink-0 font-bold">🔞</span>
+              <span className="text-rose-600 shrink-0 font-bold"><EIcon name="ShieldAlert" /></span>
               <p className="text-[11px] sm:text-xs text-rose-800 leading-normal font-medium">
                 <strong>Accès réservé.</strong> L'accès à la marketplace et aux modules de paiement est strictement interdit aux personnes de moins de 18 ans. Vendza ne collecte pas intentionnellement de profils nominatifs de mineurs.
               </p>
@@ -412,7 +413,7 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onBack }) => {
           </p>
 
           <div className="bg-slate-50 border border-slate-150 rounded-xl p-4 sm:p-5 text-center space-y-4 mt-4">
-            <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">📬 Équipe de Protection des Données Personnelles</p>
+            <p className="text-xs font-bold text-slate-700 uppercase tracking-wide"><EIcon name="Mailbox" /> Équipe de Protection des Données Personnelles</p>
             
             <div className="flex flex-wrap justify-center gap-3">
               <a 

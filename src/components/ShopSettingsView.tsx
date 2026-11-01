@@ -5,6 +5,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { ShippingFeesCard } from './ShippingFeesCard';
 import { loadPrivate } from '../lib/privateData';
 
+import { EIcon, RichText } from './EIcon';
 interface ShopSettingsViewProps {
   user: UserProfile;
   onUpdateProfile: (updates: Partial<UserProfile>) => void;
@@ -143,7 +144,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
     const fileName = `${userId}/avatar.${ext}`;
 
     if (!isSupabaseConfigured || !supabase) {
-      showToast("⚠️ Supabase non configuré pour l'upload d'avatar.");
+      showToast("[[AlertTriangle]] Supabase non configuré pour l'upload d'avatar.");
       return null;
     }
 
@@ -173,7 +174,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
 
     if (uploadError) {
       console.error('Upload error:', uploadError);
-      showToast(`❌ Erreur d'upload : ${uploadError.message}`);
+      showToast(`[[XCircle]] Erreur d'upload : ${uploadError.message}`);
       return null;
     }
 
@@ -193,7 +194,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
 
     if (updateError) {
       console.error('Profile update error:', updateError);
-      showToast(`❌ Erreur de mise à jour profil : ${updateError.message}`);
+      showToast(`[[XCircle]] Erreur de mise à jour profil : ${updateError.message}`);
       return null;
     }
 
@@ -202,13 +203,13 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
     onUpdateProfile({
       avatar: data.publicUrl
     });
-    showToast("📸 Photo de profil mise à jour avec succès !");
+    showToast("[[Camera]] Photo de profil mise à jour avec succès !");
     return data.publicUrl;
   };
 
   const handleSaveProfile = async () => {
     if (!formPrenom.trim() || !formNom.trim() || !formEmail.trim() || !formShopName.trim()) {
-      showToast("⚠️ Les champs Prénom, Nom, Email et Nom de Boutique sont obligatoires (*)");
+      showToast("[[AlertTriangle]] Les champs Prénom, Nom, Email et Nom de Boutique sont obligatoires (*)");
       return;
     }
 
@@ -241,7 +242,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
           .eq('id', user.id);
 
         if (error) {
-          showToast(`❌ Erreur lors de l'enregistrement : ${error.message}`);
+          showToast(`[[XCircle]] Erreur lors de l'enregistrement : ${error.message}`);
           return;
         }
 
@@ -274,10 +275,10 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
           newsletter: prefNewsletter
         });
 
-        alert("✅ Vos modifications ont été enregistrées avec succès dans la base de données sécurisée !");
+        alert("Vos modifications ont été enregistrées avec succès dans la base de données sécurisée !");
         setFormStatutVerification(nextStatut);
         setEditMode(false);
-        showToast("💾 Tous les champs de votre profil et boutique ont été sauvegardés !");
+        showToast("[[Save]] Tous les champs de votre profil et boutique ont été sauvegardés !");
       } else {
         // Fallback local update
         onUpdateProfile({
@@ -303,10 +304,10 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
         });
         setFormStatutVerification(nextStatut);
         setEditMode(false);
-        showToast("💾 Tous les champs de votre profil et boutique ont été sauvegardés localement !");
+        showToast("[[Save]] Tous les champs de votre profil et boutique ont été sauvegardés localement !");
       }
     } catch (err: any) {
-      showToast(`❌ Erreur : ${err.message}`);
+      showToast(`[[XCircle]] Erreur : ${err.message}`);
     }
   };
 
@@ -322,14 +323,14 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
-        showToast("❌ Fichier trop lourd (max 10 Mo)");
+        showToast("[[XCircle]] Fichier trop lourd (max 10 Mo)");
         return;
       }
       const reader = new FileReader();
       reader.onloadend = () => {
         if (typeof reader.result === 'string') {
           setFormIdFile(reader.result);
-          showToast("✓ Photo de pièce d'identité chargée localement !");
+          showToast("[[Check]] Photo de pièce d'identité chargée localement !");
         }
       };
       reader.readAsDataURL(file);
@@ -351,7 +352,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
       return;
     }
 
-    setPwdStatus({ type: 'success', text: '✓ Mot de passe réinitialisé !' });
+    setPwdStatus({ type: 'success', text: 'Mot de passe réinitialisé !' });
     setPwdCurrent('');
     setPwdNew('');
     setPwdConf('');
@@ -376,7 +377,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
       {toastMessage && (
         <div className="fixed bottom-5 right-5 z-60 bg-teal-900 border border-teal-400 text-teal-100 text-xs font-bold px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-bounce">
           <Sparkles size={14} className="text-teal-400" />
-          <span>{toastMessage}</span>
+          <span><RichText text={toastMessage} /></span>
         </div>
       )}
 
@@ -384,7 +385,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
       {!formMoncash && (
         <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-2xl shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-start gap-3">
-            <span className="text-lg">⚠️</span>
+            <span className="text-lg"><EIcon name="AlertTriangle" /></span>
             <div>
               <p className="text-sm font-bold text-amber-800">
                 Votre numéro MonCash n'est pas configuré.
@@ -407,7 +408,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-4">
         <div>
           <h1 className="font-serif text-lg font-black text-[#0c1445]">
-            🏪 Page Boutique, Profil &amp; Identité
+            <EIcon name="Store" /> Page Boutique, Profil &amp; Identité
           </h1>
           <p className="text-xs text-slate-400 font-semibold">
             Gérez votre identité commerciale, vos comptes de paiements et vos pièces d'authentification.
@@ -451,7 +452,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
           </div>
         )}
         <div className="absolute top-4 right-4 bg-amber-500/20 text-amber-300 font-mono text-[9px] font-extrabold uppercase tracking-widest border border-amber-400/20 px-3 py-1 rounded-full backdrop-blur-xs">
-          ✓ Membre Certifié {user.plan}
+          <EIcon name="Check" /> Membre Certifié {user.plan}
         </div>
 
         {/* Cover photo upload button - visible only in editMode */}
@@ -469,7 +470,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
                   reader.onloadend = () => {
                     if (typeof reader.result === 'string') {
                       setFormBanner(reader.result);
-                      showToast("📸 Photo de couverture ajoutée ! N'oubliez pas de cliquer sur Enregistrer.");
+                      showToast("[[Camera]] Photo de couverture ajoutée ! N'oubliez pas de cliquer sur Enregistrer.");
                     }
                   };
                   reader.readAsDataURL(file);
@@ -516,7 +517,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
                       reader.onloadend = () => {
                         if (typeof reader.result === 'string') {
                           setFormAvatar(reader.result);
-                          showToast("📸 Photo de profil ajoutée ! Traitement de l'envoi...");
+                          showToast("[[Camera]] Photo de profil ajoutée ! Traitement de l'envoi...");
                         }
                       };
                       reader.readAsDataURL(file);
@@ -557,13 +558,13 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
 
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 pt-1.5">
               <span className="text-[9px] font-black tracking-wider uppercase bg-teal-50 text-teal-800 border border-teal-100 px-2.5 py-0.5 rounded-full">
-                🏪 Compte vendeur
+                <EIcon name="Store" /> Compte vendeur
               </span>
               <span className="text-[9px] font-black tracking-wider uppercase bg-[#dff0e2] text-emerald-800 border border-emerald-100 px-2.5 py-0.5 rounded-full">
-                📍 {formCommune}, {formDept}
+                <EIcon name="MapPin" /> {formCommune}, {formDept}
               </span>
               <span className="text-[9px] font-black tracking-wider uppercase bg-blue-50 text-blue-800 border border-blue-100 px-2.5 py-0.5 rounded-full">
-                ★ Plan {user.plan}
+                <EIcon name="Star" /> Plan {user.plan}
               </span>
             </div>
           </div>
@@ -575,13 +576,13 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
             <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-2xl p-4 text-xs font-semibold flex items-center gap-3">
               <ShieldCheck className="text-emerald-600 shrink-0" size={24} />
               <div>
-                <strong className="text-emerald-950 font-bold block mb-0.5">Identité Vérifiée avec succès ✓</strong>
+                <strong className="text-emerald-950 font-bold block mb-0.5">Identité Vérifiée avec succès <EIcon name="Check" /></strong>
                 Toutes les pièces d'identité et coordonnées de paiement ont été validées par l'équipe Vendza. Votre boutique possède le badge de confiance maximale.
               </div>
             </div>
           ) : formStatutVerification === 'en_verification' ? (
             <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4 text-xs font-semibold flex items-center gap-3">
-              <span className="text-xl">⏳</span>
+              <span className="text-xl"><EIcon name="Hourglass" /></span>
               <div>
                 <strong className="text-amber-950 font-bold block mb-0.5">Dossier en cours d'examen</strong>
                 Vos pièces justificatives ont été déposées et sont en cours d'analyse par notre équipe de conformité. Ce processus prend en moyenne 24h à 48h.
@@ -591,7 +592,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
             <div className="bg-red-50 border border-red-200 text-red-900 rounded-2xl p-4 text-xs font-semibold flex items-center gap-3">
               <AlertCircle className="text-red-500 shrink-0" size={24} />
               <div>
-                <strong className="text-red-950 font-bold block mb-0.5">Statut : Non vérifié (Revenus bloqués) ⚠️</strong>
+                <strong className="text-red-950 font-bold block mb-0.5">Statut : Non vérifié (Revenus bloqués) <EIcon name="AlertTriangle" /></strong>
                 Vos gains de ventes restent séquestrés tant que vous n'avez pas renseigné un numéro MonCash de dépôt de fonds et versé une pièce d'identité (CIN ou Passeport au verso) valide. Cliquez sur "Modifier mon Profil" pour compléter vos informations.
               </div>
             </div>
@@ -599,7 +600,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
             <div className="bg-emerald-50 border border-emerald-100/80 text-slate-700 rounded-2xl p-4 text-xs font-semibold flex items-center gap-3">
               <ShieldCheck className="text-emerald-600 shrink-0" size={24} />
               <div>
-                <strong className="text-slate-800 font-bold block mb-0.5">Plan Actuel : Gratuit (Sécurisé) ✅</strong>
+                <strong className="text-slate-800 font-bold block mb-0.5">Plan Actuel : Gratuit (Sécurisé) <EIcon name="CheckCircle2" /></strong>
                 Votre boutique opère en toute sérénité sous le plan de base gratuit. Vos revenus sont transférables en direct sans nécessité de déposer une pièce d'identité de gérant.
               </div>
             </div>
@@ -625,7 +626,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
               {!editMode ? (
                 <div className="space-y-3">
                   <div className="flex items-start gap-4 p-2.5 rounded-xl hover:bg-slate-50 transition">
-                    <span className="text-base text-slate-400 mt-0.5">👤</span>
+                    <span className="text-base text-slate-400 mt-0.5"><EIcon name="User" /></span>
                     <div>
                       <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Nom complet</span>
                       <span className="text-xs font-black text-slate-700">{formPrenom} {formNom || '—'}</span>
@@ -633,7 +634,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
                   </div>
 
                   <div className="flex items-start gap-4 p-2.5 rounded-xl hover:bg-slate-50 transition">
-                    <span className="text-base text-slate-400 mt-0.5">📧</span>
+                    <span className="text-base text-slate-400 mt-0.5"><EIcon name="Mail" /></span>
                     <div>
                       <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Adresse mail</span>
                       <span className="text-xs font-mono font-bold text-slate-700">{formEmail}</span>
@@ -641,7 +642,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
                   </div>
 
                   <div className="flex items-start gap-4 p-2.5 rounded-xl hover:bg-slate-50 transition">
-                    <span className="text-base text-slate-400 mt-0.5">📞</span>
+                    <span className="text-base text-slate-400 mt-0.5"><EIcon name="Phone" /></span>
                     <div>
                       <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Téléphone</span>
                       <span className="text-xs font-mono font-bold text-slate-700">{formTel || 'Non renseigné'}</span>
@@ -650,7 +651,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
 
                   <div className="grid grid-cols-2 gap-3 pb-1">
                     <div className="flex items-start gap-4 p-2.5 rounded-xl hover:bg-slate-50 transition">
-                      <span className="text-base text-slate-400 mt-0.5">📍</span>
+                      <span className="text-base text-slate-400 mt-0.5"><EIcon name="MapPin" /></span>
                       <div>
                         <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Département</span>
                         <span className="text-xs font-black text-slate-700">{formDept}</span>
@@ -658,7 +659,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
                     </div>
 
                     <div className="flex items-start gap-4 p-2.5 rounded-xl hover:bg-slate-50 transition">
-                      <span className="text-base text-slate-400 mt-0.5">🏙️</span>
+                      <span className="text-base text-slate-400 mt-0.5"><EIcon name="Building2" /></span>
                       <div>
                         <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Commune</span>
                         <span className="text-xs font-black text-slate-700">{formCommune}</span>
@@ -680,11 +681,11 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
                     </div>
                     {formIdFile ? (
                       <div className="p-2 border rounded-lg bg-emerald-50 text-emerald-800 text-[10px] font-bold flex items-center justify-between">
-                        <span>📄 Image de pièce d'identité validée localement</span>
+                        <span><EIcon name="FileText" /> Image de pièce d'identité validée localement</span>
                         <button onClick={() => setFormIdFile('')} disabled className="text-red-500 opacity-30 cursor-not-allowed">Supprimer</button>
                       </div>
                     ) : (
-                      <p className="text-[10px] text-amber-600 font-semibold italic">⚠️ Aucune copie de pièce justificative importée.</p>
+                      <p className="text-[10px] text-amber-600 font-semibold italic"><EIcon name="AlertTriangle" /> Aucune copie de pièce justificative importée.</p>
                     )}
                   </div>
                 </div>
@@ -814,7 +815,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
                           <Upload size={12} className="inline mr-1 text-slate-600" /> Charger photo
                         </button>
                         {formIdFile ? (
-                          <span className="text-[10px] text-emerald-600 font-bold truncate max-w-xs">✓ Pièce chargée</span>
+                          <span className="text-[10px] text-emerald-600 font-bold truncate max-w-xs"><EIcon name="Check" /> Pièce chargée</span>
                         ) : (
                           <span className="text-[10px] text-slate-400">Aucun fichier joint</span>
                         )}
@@ -904,7 +905,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
                                 : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
                             }`}
                           >
-                            {hasCat ? `✓ ${c}` : c}
+                            {hasCat ? <><EIcon name="Check" /> {c}</> : c}
                           </button>
                         );
                       })}
@@ -956,7 +957,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
                       <div>
                         <span className="text-[8.5px] text-slate-400 font-bold block">Numéro</span>
-                        <span className="font-mono font-black text-slate-800">{formMoncash || 'Non spécifié ⚠️'}</span>
+                        <span className="font-mono font-black text-slate-800">{formMoncash || <>Non spécifié <EIcon name="AlertTriangle" /></>}</span>
                       </div>
                       <div>
                         <span className="text-[8.5px] text-slate-400 font-bold block">Titulaire de compte</span>
@@ -1108,7 +1109,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
             {/* Securised Escrow Guarantee Notification info panel */}
             <div className="bg-gradient-to-br from-[#0c1445] to-[#1e3a8a] text-white rounded-3xl p-5 shadow-xs space-y-3 text-left">
               <div className="flex items-center gap-2">
-                <span className="text-lg">🛡️</span>
+                <span className="text-lg"><EIcon name="ShieldCheck" /></span>
                 <h4 className="text-xs font-black uppercase tracking-wider text-teal-300">Séquestre National</h4>
               </div>
               <p className="text-[10.5px] leading-relaxed text-slate-200 font-medium">

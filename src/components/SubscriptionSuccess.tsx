@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ShieldCheck, ArrowRight, Loader2, PartyPopper, Check, Activity } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
+import { EIcon } from './EIcon';
 interface SubscriptionSuccessProps {
   onBackToDashboard: () => void;
   user: any;
@@ -156,7 +157,7 @@ export const SubscriptionSuccess: React.FC<SubscriptionSuccessProps> = ({
 
             <div className="space-y-1">
               <span className="text-[10px] bg-teal-100 text-teal-800 font-extrabold px-3 py-1 rounded-full uppercase tracking-widest leading-none">
-                Abonnement Activé ⭐
+                Abonnement Activé <EIcon name="Star" />
               </span>
               <h2 className="font-serif text-2xl font-black text-slate-800 pt-2">
                 Merci pour votre soutien !
@@ -169,7 +170,7 @@ export const SubscriptionSuccess: React.FC<SubscriptionSuccessProps> = ({
             <div className="bg-slate-50 p-4 border border-slate-100 rounded-2xl max-w-sm mx-auto space-y-1.5 text-left text-xs font-medium text-slate-600">
               <p className="flex justify-between">
                 <span>Plan actif :</span>
-                <span className="font-bold text-slate-800 uppercase text-[11px]">{plan === 'pro_national' ? '🏆 Pro National' : '⭐ Pro Local'}</span>
+                <span className="font-bold text-slate-800 uppercase text-[11px]">{plan === 'pro_national' ? <><EIcon name="Trophy" /> Pro National</> : <><EIcon name="Star" /> Pro Local</>}</span>
               </p>
               <p className="flex justify-between">
                 <span>Facturation :</span>
@@ -177,7 +178,7 @@ export const SubscriptionSuccess: React.FC<SubscriptionSuccessProps> = ({
               </p>
               <p className="flex justify-between">
                 <span>Statut Badge :</span>
-                <span className="text-[10px] font-extrabold text-teal-600 bg-teal-50 border border-teal-100 px-2 py-0.5 rounded">✓ VERIFIE VENDZA</span>
+                <span className="text-[10px] font-extrabold text-teal-600 bg-teal-50 border border-teal-100 px-2 py-0.5 rounded"><EIcon name="Check" /> VERIFIE VENDZA</span>
               </p>
             </div>
 

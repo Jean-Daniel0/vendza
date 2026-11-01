@@ -8,6 +8,7 @@ import { Product, Review, UserProfile } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { trackProductInterest } from '../lib/tracking';
 
+import { EIcon } from './EIcon';
 interface ProductDetailProps {
   product: Product;
   products?: Product[];
@@ -44,7 +45,7 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({
   if (!product) {
     return (
       <div className="text-center py-20 bg-white rounded-3xl border border-slate-100 p-8 shadow-xs">
-        <span className="text-4xl text-slate-300">📦</span>
+        <span className="text-4xl text-slate-300"><EIcon name="Package" /></span>
         <h3 className="font-serif text-sm font-bold text-slate-700 mt-3">Produit introuvable</h3>
         <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">Ce produit n'est plus disponible ou a été retiré de la boutique.</p>
         <button
@@ -409,7 +410,7 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({
                 <span className="text-[11px] font-bold text-[#0c1445]">Vendu par {product.vendeur}</span>
                 {(vendeur?.statutVerification === 'verifie' || product.vendeurPlan === 'Pro Local' || product.vendeurPlan === 'Pro National') && (
                   <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[9px] font-extrabold border border-emerald-200 shrink-0">
-                    ✓ Vérifié
+                    <EIcon name="Check" /> Vérifié
                   </span>
                 )}
                 {(product.vendeurPlan === 'Pro Local' || String(product.vendeurPlan || '').toLowerCase().replace(/_/g, ' ') === 'pro local') && (
@@ -461,7 +462,7 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({
                         : 'text-indigo-600 hover:text-indigo-800'
                     }`}
                   >
-                    <span>{isFollowing ? '✓ Abonné' : '🔔 Suivre'}</span>
+                    <span>{isFollowing ? <><EIcon name="Check" /> Abonné</> : <><EIcon name="Bell" /> Suivre</>}</span>
                   </button>
                 ) : null}
               </div>
@@ -575,7 +576,7 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({
             {user && (product.vendeurId === user.id || (product.vendeurId === 'v-tph' && user.id === 'v-tph')) ? (
               <div className="bg-amber-50 border border-amber-200 text-amber-800 text-[11px] p-3.5 rounded-xl leading-relaxed">
                 <span className="font-extrabold text-amber-900 flex items-center gap-1.5 mb-1">
-                  🏪 Votre propre article en ligne
+                  <EIcon name="Store" /> Votre propre article en ligne
                 </span>
                 Vous ne pouvez pas acheter vos propres produits. En tant que vendeur propriétaire, vous pouvez gérer le stock et les prix depuis votre table de bord commerçant.
               </div>
@@ -906,15 +907,15 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({
               {/* Verified Sub Badges */}
               <div className="flex flex-wrap gap-1.5 mt-4">
                 <span className="text-[9px] font-black tracking-wider uppercase bg-white/15 px-2.5 py-0.5 rounded-full border border-white/10 text-white flex items-center gap-1 shadow-sm">
-                  🏪 Boutique Partenaire
+                  <EIcon name="Store" /> Boutique Partenaire
                 </span>
                 
                 <span className="text-[9px] font-black tracking-wider uppercase bg-teal-500 text-[#0c1445] px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-sm font-extrabold">
-                  ★ {product.vendeurPlan}
+                  <EIcon name="Star" /> {product.vendeurPlan}
                 </span>
 
                 <span className="text-[9px] font-black tracking-wider uppercase bg-emerald-500/25 border border-emerald-400/20 text-emerald-300 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                  ✓ Tiers de confiance
+                  <EIcon name="Check" /> Tiers de confiance
                 </span>
               </div>
             </div>
@@ -941,7 +942,7 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({
 
               {/* Security guarantee banner informational */}
               <div className="bg-blue-50/40 border border-blue-100 p-4 rounded-2xl flex items-start gap-3">
-                <span className="text-xl shrink-0">🛡️</span>
+                <span className="text-xl shrink-0"><EIcon name="ShieldCheck" /></span>
                 <div className="space-y-0.5">
                   <h4 className="text-[11px] font-black text-[#0c1445] uppercase tracking-wide">Paiement Garanti de Confiance</h4>
                   <p className="text-[10.5px] text-slate-500 leading-normal">
@@ -1024,7 +1025,7 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 space-y-4 animate-scale-up">
             <div className="text-center space-y-1">
               <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-2 text-xl shadow-xs">
-                🔔
+                <EIcon name="Bell" />
               </div>
               <h4 className="font-serif text-base font-extrabold text-[#0c1445] tracking-tight">Préférences d'abonnements</h4>
               <p className="text-xs text-slate-500">Personnalisez vos notifications pour la boutique <b>{product.vendeur}</b>.</p>

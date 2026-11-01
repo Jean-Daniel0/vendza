@@ -3,6 +3,7 @@ import { CreditCard, Check, ShieldCheck, Ticket, DollarSign, Sparkles, Loader2, 
 import { UserProfile } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
+import { EIcon } from './EIcon';
 interface SubscriptionProps {
   user: UserProfile | null;
   onUpgradePlan: (
@@ -275,7 +276,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
             <span className="text-[10px] font-bold text-teal-400 tracking-widest uppercase">Abonnement Actuellement Actif</span>
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-bold font-serif">
-                {user.plan === 'Pro National' || user.plan === 'pro_national' ? '🏆 Pro National' : user.plan === 'Pro Local' || user.plan === 'pro_local' ? '⭐ Pro Local' : '📦 Plan de base (Gratuit)'}
+                {user.plan === 'Pro National' || user.plan === 'pro_national' ? <><EIcon name="Trophy" /> Pro National</> : user.plan === 'Pro Local' || user.plan === 'pro_local' ? <><EIcon name="Star" /> Pro Local</> : <><EIcon name="Package" /> Plan de base (Gratuit)</>}
               </h2>
               <span className="text-[9px] bg-white/10 text-white border border-white/20 px-2.5 py-0.5 rounded-full font-bold">
                 Actif
@@ -284,7 +285,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
             
             <p className="text-xs text-slate-300 leading-relaxed max-w-xl">
               {user.plan === 'Pro National' || user.plan === 'pro_national'
-                ? "Vous bénéficiez d'une couverture nationale intégrale en Haïti. Votre badge ⭐ Vedette est affiché partout." 
+                ? <>Vous bénéficiez d'une couverture nationale intégrale en Haïti. Votre badge <EIcon name="Star" /> Vedette est affiché partout.</> 
                 : user.plan === 'Pro Local' || user.plan === 'pro_local'
                   ? "Vous livrez régionalement dans vos départements sélectionnés. Votre commission est réduite à 15% !" 
                   : "Votre visibilité et vos zones de livraison sont limitées. Mettez à niveau pour réduire vos commissions."}
@@ -292,7 +293,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
 
             {formattedExpiresAt() && (
               <p className="text-[10px] text-teal-300 font-mono">
-                📅 Date d'expiration ou renouvellement : <strong>{formattedExpiresAt()}</strong>
+                <EIcon name="Calendar" /> Date d'expiration ou renouvellement : <strong>{formattedExpiresAt()}</strong>
               </p>
             )}
           </div>
@@ -312,24 +313,24 @@ export const Subscription: React.FC<SubscriptionProps> = ({
             {user.plan === 'Pro National' || user.plan === 'pro_national' ? (
               haitianDepts.map(dept => (
                 <span key={dept} className="text-[10px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30 px-2.5 py-1 rounded-md shadow-2xs">
-                  ✓ {dept}
+                  <EIcon name="Check" /> {dept}
                 </span>
               ))
             ) : user.plan === 'Pro Local' || user.plan === 'pro_local' ? (
               user.premiumDepts && user.premiumDepts.length > 0 ? (
                 user.premiumDepts.map(dept => (
                   <span key={dept} className="text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2.5 py-1 rounded-md shadow-2xs">
-                    ✓ {dept}
+                    <EIcon name="Check" /> {dept}
                   </span>
                 ))
               ) : (
                 <span className="text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-md shadow-2xs">
-                  ✓ {user.departement || 'Ouest'} (Département d'origine)
+                  <EIcon name="Check" /> {user.departement || 'Ouest'} (Département d'origine)
                 </span>
               )
             ) : (
               <span className="text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700 px-2.5 py-1 rounded-md">
-                ✓ {user.departement || 'Ouest'} (Limite plan gratuit)
+                <EIcon name="Check" /> {user.departement || 'Ouest'} (Limite plan gratuit)
               </span>
             )}
           </div>
@@ -353,7 +354,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
             <div className="space-y-2 text-xs text-slate-500 font-medium">
               <p className="flex items-center gap-2"><Check size={13} className="text-emerald-500" /> 1 département de livraison ({user.departement || 'Ouest'})</p>
               <p className="flex items-center gap-2 animate-pulse"><Check size={13} className="text-emerald-500" /> Commission standard : <strong>20%</strong></p>
-              <p className="flex items-center gap-2 text-slate-300">✕ Badge Vérifié non disponible</p>
+              <p className="flex items-center gap-2 text-slate-300"><EIcon name="X" /> Badge Vérifié non disponible</p>
             </div>
           </div>
           <button
@@ -447,7 +448,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                 onClick={() => setSelectedPlanModal(null)}
                 className="text-slate-400 hover:text-slate-600 text-lg font-bold cursor-pointer transition p-1"
               >
-                ✕
+                <EIcon name="X" />
               </button>
             </div>
 
@@ -501,7 +502,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                     Abonnement {selectedPlanModal} ({isAnnual ? 'Facturation Annuelle' : 'Facturation Mensuelle'})
                   </p>
                   <p className="text-[11px] text-emerald-600 font-bold">
-                    ✓ Commission réduite à {selectedPlanModal === 'Pro National' ? '10%' : '15%'}
+                    <EIcon name="Check" /> Commission réduite à {selectedPlanModal === 'Pro National' ? '10%' : '15%'}
                   </p>
                 </div>
 
@@ -548,7 +549,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                 </div>
 
                 <p className="text-[10px] text-slate-400 text-center flex items-center justify-center gap-1.5 pt-1">
-                  🔒 Paiement crypté 100% sécurisé direct ou via séquestre SSL.
+                  <EIcon name="Lock" /> Paiement crypté 100% sécurisé direct ou via séquestre SSL.
                 </p>
 
                 <div className="flex gap-2 pt-2">

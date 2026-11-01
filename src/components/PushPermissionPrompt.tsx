@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { PushStatus, pushPromptMode } from '../lib/pushPrompt';
 import type { EnableResult } from '../lib/pushStatus';
 
+import { EIcon } from './EIcon';
 const KEY = 'vendza_push_prompt_dismissed_at';
 
 // Petit pop-up pour les comptes connectés qui ne sont pas abonnés aux notifications
@@ -17,7 +18,7 @@ export const PushPermissionPrompt: React.FC<{ userId?: string; status: PushStatu
 
   return (
     <div role="dialog" aria-label="Activer les notifications" className="fixed bottom-20 left-3 right-3 z-[60] mx-auto max-w-md rounded-2xl border border-emerald-200 bg-white p-3 shadow-xl">
-      <p className="text-xs font-bold text-slate-800">🔔 Activez les notifications</p>
+      <p className="text-xs font-bold text-slate-800"><EIcon name="Bell" /> Activez les notifications</p>
       {mode === 'ask' ? (
         <>
           <p className="mt-0.5 text-[11px] text-slate-500">Soyez alerté pour vos commandes, vos messages et les livraisons, même quand l'application est fermée.</p>

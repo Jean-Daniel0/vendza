@@ -33,7 +33,7 @@ export function flashSummary(products: ProductLite[]): { count: number; maxPct: 
 
 export function buildFlashMessage(s: { count: number; maxPct: number }): { title: string; message: string } {
   return {
-    title: `🔥 Ventes Flash — jusqu'à -${s.maxPct}%`,
+    title: `Ventes Flash — jusqu'à -${s.maxPct}%`,
     message: `${s.count} produit${s.count > 1 ? 's' : ''} en promotion jusqu'à 20h00. Ne les laissez pas filer !`
   };
 }
@@ -68,6 +68,6 @@ export function pickRecommendation(
 export function buildRecommendationMessage(r: Recommendation): { title: string; message: string } {
   const name = String(r.product.name || 'ce produit').trim();
   return r.discount > 0
-    ? { title: `🔥 Pour vous : -${r.discount}% sur ${name}`, message: `Vous aimez la catégorie ${r.category}. Profitez de cette promo avant qu'elle disparaisse !` }
-    : { title: `✨ Nouveau en ${r.category}`, message: `${name} vous attend. Jetez-y un œil !` };
+    ? { title: `Pour vous : -${r.discount}% sur ${name}`, message: `Vous aimez la catégorie ${r.category}. Profitez de cette promo avant qu'elle disparaisse !` }
+    : { title: `Nouveau en ${r.category}`, message: `${name} vous attend. Jetez-y un œil !` };
 }

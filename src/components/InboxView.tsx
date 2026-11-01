@@ -6,6 +6,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { derivePartner } from '../lib/inboxPartner';
 import { productRefTag } from '../lib/chatText';
 
+import { EIcon } from './EIcon';
 interface InboxViewProps {
   messages: Message[];
   user: UserProfile | null;
@@ -388,7 +389,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
       <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
         <div>
           <h1 className="font-serif text-lg font-bold text-slate-800 flex items-center gap-1.5">
-            💬 Messagerie Sécurisée
+            <EIcon name="MessageCircle" /> Messagerie Sécurisée
           </h1>
           <p className="text-[10px] text-slate-500 font-medium font-sans">
             Échanges directs sous séquestre d'État garantis par Vendza
@@ -422,7 +423,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
                   : 'bg-amber-50/50 hover:bg-amber-50 border border-amber-200 text-amber-800'
               }`}
             >
-              <ShieldCheck size={12} /> 📢 Alertes Vendza (System)
+              <ShieldCheck size={12} /> <EIcon name="Megaphone" /> Alertes Vendza (System)
             </button>
             <button
               onClick={() => setActiveTab('chats')}
@@ -432,7 +433,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
                   : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200'
               }`}
             >
-              <MessageSquare size={12} /> 💬 Messages Privés
+              <MessageSquare size={12} /> <EIcon name="MessageCircle" /> Messages Privés
             </button>
           </div>
 
@@ -530,7 +531,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
               })
             ) : (
               <div className="p-12 text-center text-slate-400 space-y-2">
-                <p className="text-2xl">📭</p>
+                <p className="text-2xl"><EIcon name="Inbox" /></p>
                 <p className="text-xs font-bold text-slate-500">Aucune discussion trouvée dans cet onglet</p>
                 <p className="text-[10px] text-slate-400">Vos messages de commandes et de chat s'afficheront ici.</p>
               </div>
@@ -601,7 +602,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
                   >
                     {isSystem && (
                       <span className="text-[8px] font-black tracking-widest uppercase text-amber-800 block mb-1.5 border-b border-amber-200 pb-0.5">
-                        🛡️ Notification Vendza
+                        <EIcon name="ShieldCheck" /> Notification Vendza
                       </span>
                     )}
                     <p className="font-medium whitespace-pre-wrap">{m.text}</p>
@@ -622,7 +623,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
               })
             ) : (
               <div className="my-auto text-center space-y-2 py-12 px-6">
-                <span className="text-3xl block">💬</span>
+                <span className="text-3xl block"><EIcon name="MessageCircle" /></span>
                 <p className="text-slate-500 text-xs font-bold">Aucun message pour le moment</p>
                 <p className="text-[10px] text-slate-400 tracking-tight leading-relaxed max-w-sm mx-auto">
                   Utilisez la messagerie pour poser des questions, négocier des prix ou synchroniser la logistique de livraison en mains propres.
@@ -635,7 +636,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
           {selectedRecipientId === '99999999-9999-4999-9999-999999999999' ? (
             <div className="p-3 bg-amber-50/30 border-t border-amber-100 text-center shrink-0">
               <p className="text-[10px] text-amber-800/80 leading-normal flex items-center justify-center gap-1 font-bold">
-                ⚠️ Canal non répondeur : Vous ne pouvez pas envoyer de messages directs à ce robot système.
+                <EIcon name="AlertTriangle" /> Canal non répondeur : Vous ne pouvez pas envoyer de messages directs à ce robot système.
               </p>
             </div>
           ) : (
@@ -646,7 +647,7 @@ export const InboxView: React.FC<InboxViewProps> = ({
                     <p className="text-[9px] font-black uppercase tracking-wide text-emerald-700">Vous écrivez à propos de</p>
                     <p className="truncate text-xs font-bold text-slate-800">{productRefTag({ id: pendingProduct.id, nom: pendingProduct.nom })}</p>
                   </div>
-                  <button type="button" onClick={() => setPendingMentionId(null)} className="shrink-0 rounded-lg px-2 py-1 text-xs font-bold text-slate-400 hover:bg-white" title="Ne pas mentionner ce produit">✕</button>
+                  <button type="button" onClick={() => setPendingMentionId(null)} className="shrink-0 rounded-lg px-2 py-1 text-xs font-bold text-slate-400 hover:bg-white" title="Ne pas mentionner ce produit"><EIcon name="X" /></button>
                 </div>
               )}
               {/* Quick shortcuts widgets */}

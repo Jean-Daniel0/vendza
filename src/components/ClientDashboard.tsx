@@ -10,6 +10,7 @@ import { HAITIAN_ZONES } from '../data';
 import { QRCodeRenderer } from './QRCodeRenderer';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
+import { EIcon, RichText } from './EIcon';
 interface ClientDashboardProps {
   orders: Order[];
   user: UserProfile | null;
@@ -162,7 +163,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
     const fileName = `${userId}/avatar.${ext}`;
 
     if (!isSupabaseConfigured || !supabase) {
-      showToast("⚠️ Supabase non configuré pour l'upload d'avatar.");
+      showToast("[[AlertTriangle]] Supabase non configuré pour l'upload d'avatar.");
       return null;
     }
 
@@ -192,7 +193,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
 
     if (uploadError) {
       console.error('Upload error:', uploadError);
-      showToast(`❌ Erreur d'upload : ${uploadError.message}`);
+      showToast(`[[XCircle]] Erreur d'upload : ${uploadError.message}`);
       return null;
     }
 
@@ -212,7 +213,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
 
     if (updateError) {
       console.error('Profile update error:', updateError);
-      showToast(`❌ Erreur de mise à jour profil : ${updateError.message}`);
+      showToast(`[[XCircle]] Erreur de mise à jour profil : ${updateError.message}`);
       return null;
     }
 
@@ -221,13 +222,13 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
     onUpdateProfile({
       avatar: data.publicUrl
     });
-    showToast("📸 Photo de profil mise à jour avec succès !");
+    showToast("[[Camera]] Photo de profil mise à jour avec succès !");
     return data.publicUrl;
   };
 
   const handleSaveProfile = async () => {
     if (!formPrenom.trim() || !formNom.trim() || !formEmail.trim()) {
-      showToast("⚠️ Veuillez remplir tous les champs obligatoires (*)");
+      showToast("[[AlertTriangle]] Veuillez remplir tous les champs obligatoires (*)");
       return;
     }
 
@@ -252,7 +253,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
           .eq('id', user.id);
 
         if (error) {
-          showToast(`❌ Erreur lors de l'enregistrement : ${error.message}`);
+          showToast(`[[XCircle]] Erreur lors de l'enregistrement : ${error.message}`);
           return;
         }
 
@@ -274,9 +275,9 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
           newsletter: prefNewsletter
         });
 
-        alert("✅ Vos modifications ont été enregistrées avec succès dans la base de données sécurisée !");
+        alert("Vos modifications ont été enregistrées avec succès dans la base de données sécurisée !");
         setEditMode(false);
-        showToast("💾 Modifications enregistrées avec succès !");
+        showToast("[[Save]] Modifications enregistrées avec succès !");
       } else {
         // Fallback local update
         onUpdateProfile({
@@ -290,10 +291,10 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
           banner: formBanner
         });
         setEditMode(false);
-        showToast("💾 Modifications enregistrées localement !");
+        showToast("[[Save]] Modifications enregistrées localement !");
       }
     } catch (err: any) {
-      showToast(`❌ Erreur : ${err.message}`);
+      showToast(`[[XCircle]] Erreur : ${err.message}`);
     }
   };
 
@@ -312,7 +313,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
       return;
     }
 
-    setPwdStatus({ type: 'success', text: '✓ Mot de passe synchronisé avec succès !' });
+    setPwdStatus({ type: 'success', text: 'Mot de passe synchronisé avec succès !' });
     setPwdCurrent('');
     setPwdNew('');
     setPwdConf('');
@@ -335,7 +336,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
             <div className="h-4 w-px bg-slate-200" />
             <div>
               <h1 className="font-serif text-base sm:text-lg font-black text-slate-800 flex items-center gap-1.5 leading-tight">
-                🎫 Reçu de Consignation
+                <EIcon name="Ticket" /> Reçu de Consignation
               </h1>
               <p className="text-[10px] text-slate-400 font-bold font-sans">
                 Fonds garantis par séquestre Vendza
@@ -433,7 +434,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
           {/* Séquence QR & Escrow verification details panel */}
           <div className="md:col-span-5 bg-white rounded-3xl border border-slate-150 p-5 shadow-xs space-y-4 print:hidden">
             <h4 className="text-[10px] font-black tracking-widest text-[#0c1445] bg-[#eff6ff] border border-[#bfdbfe] px-3.5 py-1.5 rounded-full uppercase text-center w-full block font-sans">
-              🛡️ FEUILLE DE ROUTE DE LIVRAISON
+              <EIcon name="ShieldCheck" /> FEUILLE DE ROUTE DE LIVRAISON
             </h4>
             
             {/* Direct QR scan helper for the Client */}
@@ -456,7 +457,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
 
             <div className="space-y-3 pt-1">
               <span className="text-[9px] font-black text-[#0c1445] bg-slate-50 border px-3 py-1 rounded-full uppercase tracking-wider block w-fit mx-auto shadow-3xs font-sans">
-                {viewingTicketOrder.status === 'livree' ? '✅ Livraison Validée' : '⏳ Commission de Confiance'}
+                {viewingTicketOrder.status === 'livree' ? <><EIcon name="CheckCircle2" /> Livraison Validée</> : <><EIcon name="Hourglass" /> Commission de Confiance</>}
               </span>
               <p className="text-[10.5px] text-slate-500 leading-normal font-sans text-center px-1 font-medium">
                 {viewingTicketOrder.status === 'livree' 
@@ -492,7 +493,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
       {toastMessage && (
         <div className="fixed bottom-5 right-5 z-60 bg-[#0c1445] text-white text-xs font-bold px-4 py-3 rounded-xl shadow-lg border border-teal-500 flex items-center gap-2 animate-bounce">
           <Sparkles size={14} className="text-teal-400" />
-          <span>{toastMessage}</span>
+          <span><RichText text={toastMessage} /></span>
         </div>
       )}
 
@@ -507,7 +508,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            📊 Tableau de bord
+            <EIcon name="BarChart3" /> Tableau de bord
           </button>
           <button
             onClick={() => setActiveTab('profile')}
@@ -517,7 +518,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            👤 Mon Profil Client
+            <EIcon name="User" /> Mon Profil Client
           </button>
         </div>
 
@@ -526,7 +527,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
             onClick={() => onNavigate('scanner')}
             className="inline-flex items-center justify-center gap-1.5 py-2 px-4 rounded-xl bg-[#0d9488] hover:bg-[#0c8277] text-white text-xs font-bold transition shadow-xs cursor-pointer"
           >
-            📱 Scanner un QR de livraison
+            <EIcon name="Smartphone" /> Scanner un QR de livraison
           </button>
         ) : (
           <button
@@ -727,7 +728,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                                 {/* Real-time Visual Order Tracker */}
                                 {subOrder.status === 'annulee' ? (
                                   <div className="p-2.5 bg-rose-50 border border-rose-100 rounded-xl text-[10.5px] text-rose-700 font-bold flex items-center gap-1.5 font-sans my-2">
-                                    <span className="text-xs">⚠️</span>
+                                    <span className="text-xs"><EIcon name="AlertTriangle" /></span>
                                     <span>Cette commande a été annulée. Aucun versement n'a été effectué.</span>
                                   </div>
                                 ) : (
@@ -737,7 +738,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                                       <span className="text-[10px] font-extrabold text-[#2563eb]">
                                         {subOrder.status === 'attente' && 'Attente de règlement'}
                                         {subOrder.status === 'payee' && 'Confirmé - En cours d\'expédition'}
-                                        {subOrder.status === 'livree' && 'Colis reçu & Validé ✓'}
+                                        {subOrder.status === 'livree' && <>{"Colis reçu & Validé "}<EIcon name="Check" /></>}
                                       </span>
                                     </div>
 
@@ -766,7 +767,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                                             ? 'bg-blue-50 border-blue-500 text-blue-600 ring-4 ring-blue-100'
                                             : 'bg-blue-500 border-blue-500 text-white'
                                         }`}>
-                                          {subOrder.status === 'attente' ? '1' : '✓'}
+                                          {subOrder.status === 'attente' ? '1' : <><EIcon name="Check" /></>}
                                         </div>
                                         <span className="text-[8.5px] font-extrabold text-slate-700 mt-1.5">Commandé</span>
                                       </div>
@@ -780,7 +781,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                                               ? 'bg-blue-50 border-blue-500 text-blue-600 ring-4 ring-blue-100'
                                               : 'bg-blue-500 border-blue-500 text-white'
                                         }`}>
-                                          {subOrder.status === 'livree' ? '✓' : '2'}
+                                          {subOrder.status === 'livree' ? <><EIcon name="Check" /></> : '2'}
                                         </div>
                                         <span className={`text-[8.5px] font-extrabold mt-1.5 ${
                                           subOrder.status === 'attente' ? 'text-slate-400' : 'text-slate-700'
@@ -796,7 +797,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                                               ? 'bg-blue-50 border-blue-500 text-blue-600 ring-4 ring-blue-100 animate-pulse'
                                               : 'bg-blue-500 border-blue-500 text-white'
                                         }`}>
-                                          {subOrder.status === 'livree' ? '✓' : '3'}
+                                          {subOrder.status === 'livree' ? <><EIcon name="Check" /></> : '3'}
                                         </div>
                                         <span className={`text-[8.5px] font-extrabold mt-1.5 ${
                                           subOrder.status === 'attente' ? 'text-slate-400' : 'text-slate-700'
@@ -865,7 +866,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                                         }}
                                         className="p-1 px-3 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 rounded-lg text-[10px] font-extrabold uppercase tracking-wider cursor-pointer font-sans"
                                       >
-                                        ⚠️ Ouvrir un Litige
+                                        <EIcon name="AlertTriangle" /> Ouvrir un Litige
                                       </button>
                                     )}
                                   </div>
@@ -934,7 +935,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                   </div>
                 ) : (
                   <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
-                    <span className="text-3xl">🛍️</span>
+                    <span className="text-3xl"><EIcon name="ShoppingBag" /></span>
                     <h3 className="font-serif text-xs font-bold text-slate-700 mt-2">Aucun achat historique</h3>
                     <p className="text-xs text-slate-400 mt-1">Vous n'avez pas encore passé de commande avec ces critères.</p>
                   </div>
@@ -989,7 +990,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
               </div>
             )}
             <div className="absolute top-4 right-4 bg-teal-500/20 text-teal-300 font-mono text-[9px] font-extrabold uppercase tracking-widest border border-teal-400/20 px-3 py-1 rounded-full backdrop-blur-xs">
-              ✓ Profil Actif
+              <EIcon name="Check" /> Profil Actif
             </div>
 
             {/* Cover photo upload - visible only in editMode */}
@@ -1007,7 +1008,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                       reader.onloadend = () => {
                         if (typeof reader.result === 'string') {
                           setFormBanner(reader.result);
-                          showToast("📸 Photo de couverture ajoutée ! Enregistrez pour sauvegarder.");
+                          showToast("[[Camera]] Photo de couverture ajoutée ! Enregistrez pour sauvegarder.");
                         }
                       };
                       reader.readAsDataURL(file);
@@ -1054,7 +1055,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                           reader.onloadend = () => {
                             if (typeof reader.result === 'string') {
                               setFormAvatar(reader.result);
-                              showToast("📸 Photo de profil ajoutée ! Traitement de l'envoi...");
+                              showToast("[[Camera]] Photo de profil ajoutée ! Traitement de l'envoi...");
                             }
                           };
                           reader.readAsDataURL(file);
@@ -1078,13 +1079,13 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                 {/* Badges strip */}
                 <div className="flex flex-wrap gap-1.5 pt-1.5">
                   <span className="text-[9px] font-black tracking-wider uppercase bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full">
-                    👤 Compte client
+                    <EIcon name="User" /> Compte client
                   </span>
                   <span className="text-[9px] font-black tracking-wider uppercase bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-0.5">
-                    📍 {formCommune}, {formDept}
+                    <EIcon name="MapPin" /> {formCommune}, {formDept}
                   </span>
                   <span className="text-[9px] font-black tracking-wider uppercase bg-indigo-50 text-indigo-700 border border-indigo-100 px-2 py-0.5 rounded-full">
-                    ✓ Membre actif
+                    <EIcon name="Check" /> Membre actif
                   </span>
                 </div>
               </div>
@@ -1113,7 +1114,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
               onClick={() => setActiveTab('dashboard')}
               className="p-3 bg-white border border-slate-100 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 hover:border-blue-300 transition-all cursor-pointer group shadow-2xs"
             >
-              <span className="text-xl group-hover:scale-110 transition duration-150">🕐</span>
+              <span className="text-xl group-hover:scale-110 transition duration-150"><EIcon name="Clock" /></span>
               <div>
                 <h4 className="text-[11px] font-black text-slate-800 leading-tight">Mes commandes</h4>
                 <p className="text-[9px] text-slate-400 mt-0.5 leading-none">Historique &amp; suivi</p>
@@ -1124,7 +1125,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
               onClick={() => onNavigate('cart')}
               className="p-3 bg-white border border-slate-100 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 hover:border-amber-300 transition-all cursor-pointer group shadow-2xs"
             >
-              <span className="text-xl group-hover:scale-110 transition duration-150">🛒</span>
+              <span className="text-xl group-hover:scale-110 transition duration-150"><EIcon name="ShoppingCart" /></span>
               <div>
                 <h4 className="text-[11px] font-black text-slate-800 leading-tight">Mon panier</h4>
                 <p className="text-[9px] text-slate-400 mt-0.5 leading-none">{cart.length} articles</p>
@@ -1135,7 +1136,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
               onClick={() => onNavigate('scanner')}
               className="p-3 bg-white border border-slate-100 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 hover:border-emerald-300 transition-all cursor-pointer group shadow-2xs"
             >
-              <span className="text-xl group-hover:scale-110 transition duration-150">📱</span>
+              <span className="text-xl group-hover:scale-110 transition duration-150"><EIcon name="Smartphone" /></span>
               <div>
                 <h4 className="text-[11px] font-black text-slate-800 leading-tight">Scanner QR</h4>
                 <p className="text-[9px] text-slate-400 mt-0.5 leading-none">Valider colis</p>
@@ -1146,7 +1147,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
               onClick={() => onNavigate('home')}
               className="p-3 bg-white border border-slate-100 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 hover:border-teal-300 transition-all cursor-pointer group shadow-2xs"
             >
-              <span className="text-xl group-hover:scale-110 transition duration-150">🛍️</span>
+              <span className="text-xl group-hover:scale-110 transition duration-150"><EIcon name="ShoppingBag" /></span>
               <div>
                 <h4 className="text-[11px] font-black text-slate-800 leading-tight">Catalogue</h4>
                 <p className="text-[9px] text-slate-400 mt-0.5 leading-none">Acheter</p>
@@ -1171,7 +1172,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                 /* Read-Only structure match */
                 <div className="space-y-3">
                   <div className="flex items-start gap-4 p-2.5 rounded-xl hover:bg-slate-50 transition border border-transparent">
-                    <span className="text-base text-slate-400 mt-0.5">👤</span>
+                    <span className="text-base text-slate-400 mt-0.5"><EIcon name="User" /></span>
                     <div>
                       <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Nom complet</span>
                       <span className="text-xs font-black text-slate-700">{formPrenom} {formNom || '—'}</span>
@@ -1179,7 +1180,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                   </div>
 
                   <div className="flex items-start gap-4 p-2.5 rounded-xl hover:bg-slate-50 transition border border-transparent">
-                    <span className="text-base text-slate-400 mt-0.5">📧</span>
+                    <span className="text-base text-slate-400 mt-0.5"><EIcon name="Mail" /></span>
                     <div>
                       <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Adresse Email</span>
                       <span className="text-xs font-mono font-bold text-slate-700">{formEmail}</span>
@@ -1187,7 +1188,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                   </div>
 
                   <div className="flex items-start gap-4 p-2.5 rounded-xl hover:bg-slate-50 transition border border-transparent">
-                    <span className="text-base text-slate-400 mt-0.5">📞</span>
+                    <span className="text-base text-slate-400 mt-0.5"><EIcon name="Phone" /></span>
                     <div>
                       <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Téléphone d'appel</span>
                       <span className="text-xs font-black text-slate-700">{formTel || 'Non renseigné'}</span>
@@ -1196,7 +1197,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
 
                   <div className="grid grid-cols-2 gap-3 pb-1">
                     <div className="flex items-start gap-4 p-2.5 rounded-xl hover:bg-slate-50 transition border border-transparent">
-                      <span className="text-base text-slate-400 mt-0.5">🗺️</span>
+                      <span className="text-base text-slate-400 mt-0.5"><EIcon name="Map" /></span>
                       <div>
                         <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Département</span>
                         <span className="text-xs font-black text-slate-700">{formDept || 'Non renseigné'}</span>
@@ -1204,7 +1205,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                     </div>
 
                     <div className="flex items-start gap-4 p-2.5 rounded-xl hover:bg-slate-50 transition border border-transparent">
-                      <span className="text-base text-slate-400 mt-0.5">📍</span>
+                      <span className="text-base text-slate-400 mt-0.5"><EIcon name="MapPin" /></span>
                       <div>
                         <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Commune</span>
                         <span className="text-xs font-black text-slate-700">{formCommune || 'Non renseignée'}</span>

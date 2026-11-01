@@ -38,6 +38,7 @@ import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 import { apiFetchAuthed } from './lib/api';
 import { withProductTagOnFirstMessage } from './lib/chatText';
 
+import { EIcon } from './components/EIcon';
 // Predefined live states empty to welcome live database content only
 const INITIAL_MESSAGES: Message[] = [];
 const INITIAL_ORDERS: Order[] = [];
@@ -1238,7 +1239,7 @@ export default function App() {
           }
 
           if (count && count > 0) {
-            console.log(`📢 SAMEDI — ${count} vendeurs à payer !`);
+            console.log(`SAMEDI — ${count} vendeurs à payer !`);
           }
         } catch (err: any) {
           const isFetchErr = err.message?.includes('fetch') || err.message?.includes('network');
@@ -2042,7 +2043,7 @@ export default function App() {
   const handleAddToCart = (product: Product, quantity = 1, color?: string, size?: string) => {
     if (product.stock <= 0) return;
     if (currentUser && (product.vendeurId === currentUser.id || (product.vendeurId === 'v-tph' && currentUser.id === 'v-tph'))) {
-      alert("⚠️ Vous êtes le vendeur de ce produit. Vous ne pouvez pas ajouter vos propres articles à votre panier.");
+      alert("Vous êtes le vendeur de ce produit. Vous ne pouvez pas ajouter vos propres articles à votre panier.");
       return;
     }
     setCart(prev => {
@@ -2060,7 +2061,7 @@ export default function App() {
         return [...prev, { product, quantity, selectedColor: color, selectedSize: size }];
       }
     });
-    alert(`🛒 "${product.nom}" ajouté au panier !`);
+    alert(`"${product.nom}" ajouté au panier !`);
   };
 
   const handleUpdateCartItemQty = (productId: string, qty: number) => {
@@ -2090,7 +2091,7 @@ export default function App() {
     }
 
     if (product.vendeurId === currentUser.id || (product.vendeurId === 'v-tph' && currentUser.id === 'v-tph')) {
-      alert("⚠️ Vous êtes le vendeur de ce produit. Vous ne pouvez pas acheter votre propre marchandise.");
+      alert("Vous êtes le vendeur de ce produit. Vous ne pouvez pas acheter votre propre marchandise.");
       return;
     }
 
@@ -2224,7 +2225,7 @@ export default function App() {
       } catch (err: any) {
         setIsRedirectingToMonCash(false);
         console.error("[Stripe Checkout Error]", err.message);
-        alert(`✕ Impossible de se connecter à Stripe: ${err.message}.\n\nVotre achat est enregistré en local.`);
+        alert(`Impossible de se connecter à Stripe: ${err.message}.\n\nVotre achat est enregistré en local.`);
       }
     } else if (paymentMethod === 'moncash') {
       setIsRedirectingToMonCash(true);
@@ -2261,7 +2262,7 @@ export default function App() {
       } catch (err: any) {
         setIsRedirectingToMonCash(false);
         console.error("[MonCash Instant Checkout Error]", err.message);
-        alert(`✕ Impossible de se connecter à MonCash (via Bazik): ${err.message}.\n\nVotre commande instantanée a été sauvegardée en local.`);
+        alert(`Impossible de se connecter à MonCash (via Bazik): ${err.message}.\n\nVotre commande instantanée a été sauvegardée en local.`);
       }
     }
   };
@@ -2374,7 +2375,7 @@ export default function App() {
         const errMsg = error.message || '';
         if (errMsg.toLowerCase().includes('fetch') || errMsg.toLowerCase().includes('network') || errMsg.toLowerCase().includes('failed to fetch')) {
           console.warn("Connection issue during order creation:", errMsg);
-          alert(`⚠️ Connexion réseau indisponible (Failed to fetch).\n\nVotre commande a été correctement enregistrée sur votre appareil en mode local Vendza. Le paiement par séquestre mobile est sauvegardé en local !`);
+          alert(`Connexion réseau indisponible (Failed to fetch).\n\nVotre commande a été correctement enregistrée sur votre appareil en mode local Vendza. Le paiement par séquestre mobile est sauvegardé en local !`);
           return;
         }
 
@@ -2435,7 +2436,7 @@ export default function App() {
         const errMsg = String(err?.message || '');
         if (errMsg.toLowerCase().includes('fetch') || errMsg.toLowerCase().includes('network') || errMsg.toLowerCase().includes('failed to fetch')) {
           console.warn("Connection exception during order creation:", errMsg);
-          alert(`⚠️ Connexion réseau indisponible (Failed to fetch).\n\nVotre commande a été correctement enregistrée sur votre appareil en mode local Vendza. Le paiement par séquestre mobile est sauvegardé en local !`);
+          alert(`Connexion réseau indisponible (Failed to fetch).\n\nVotre commande a été correctement enregistrée sur votre appareil en mode local Vendza. Le paiement par séquestre mobile est sauvegardé en local !`);
         } else {
           console.error("Outer exception during adaptive order database write:", err);
         }
@@ -2615,7 +2616,7 @@ export default function App() {
       } catch (err: any) {
         setIsRedirectingToMonCash(false);
         console.error("[Stripe Checkout Error]", err.message);
-        alert(`✕ Impossible de se connecter à Stripe: ${err.message}.\n\nVotre achat est enregistré en local.`);
+        alert(`Impossible de se connecter à Stripe: ${err.message}.\n\nVotre achat est enregistré en local.`);
       }
     } else if (paymentMethod === 'moncash') {
       setIsRedirectingToMonCash(true);
@@ -2650,7 +2651,7 @@ export default function App() {
       } catch (err: any) {
         setIsRedirectingToMonCash(false);
         console.error("[MonCash Connect Error]", err.message);
-        alert(`✕ Impossible de se connecter à MonCash (via Bazik): ${err.message}.\n\nVotre achat est enregistré en local.`);
+        alert(`Impossible de se connecter à MonCash (via Bazik): ${err.message}.\n\nVotre achat est enregistré en local.`);
       }
     }
   };
@@ -2723,7 +2724,7 @@ export default function App() {
         senderId: '99999999-9999-4999-9999-999999999999',
         senderNom: 'Vendza',
         recipientId: vendorId,
-        text: `⚠️ COMMANDE ANNULÉE PAR L'ACHETEUR\n\nID de commande : ${orderId}\nLe client a annulé cette commande. Le montant de sécurité a été retiré du séquestre et le client a été remboursé (frais d'annulation de 7.50% retenus).\n\nCette commande ne doit plus être préparée ni livrée.`,
+        text: `COMMANDE ANNULÉE PAR L'ACHETEUR\n\nID de commande : ${orderId}\nLe client a annulé cette commande. Le montant de sécurité a été retiré du séquestre et le client a été remboursé (frais d'annulation de 7.50% retenus).\n\nCette commande ne doit plus être préparée ni livrée.`,
         time: "Aujourd'hui, " + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
         createdAt: new Date().toISOString(),
         orderId: orderId
@@ -2746,7 +2747,7 @@ export default function App() {
         senderId: '99999999-9999-4999-9999-999999999999',
         senderNom: 'Vendza',
         recipientId: currentUser.id,
-        text: `⚠️ COMMANDE ANNULÉE AVEC SUCCÈS\n\nID de commande : ${orderId}\nMontant remboursé : ${montant_rembourse.toFixed(2)} HTG\nFrais d'annulation retenus (7.50%) : ${frais_annulation.toFixed(2)} HTG\n\nVotre remboursement a été initié et crédité sur votre compte selon votre mode de paiement d'origine.`,
+        text: `COMMANDE ANNULÉE AVEC SUCCÈS\n\nID de commande : ${orderId}\nMontant remboursé : ${montant_rembourse.toFixed(2)} HTG\nFrais d'annulation retenus (7.50%) : ${frais_annulation.toFixed(2)} HTG\n\nVotre remboursement a été initié et crédité sur votre compte selon votre mode de paiement d'origine.`,
         time: "Aujourd'hui, " + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
         createdAt: new Date().toISOString(),
         orderId: orderId
@@ -2851,21 +2852,21 @@ export default function App() {
         if (vendorId) {
           sendPushNotification(
             vendorId,
-            "📦 Livraison validée !",
+            "Livraison validée !",
             payoutOk
               ? "L'acheteur a confirmé la réception. Le virement vers votre compte MonCash est en cours."
               : "L'acheteur a confirmé la réception. Votre virement est en attente : vérifiez votre numéro MonCash.",
             'order'
           );
           await supabase.from('platform_messages').insert({
-            title: '📦 Livraison validée !',
+            title: 'Livraison validée !',
             message: `La livraison de la commande ${orderId} a été confirmée par l'acheteur. ${payoutOk ? 'Le virement MonCash est en cours.' : 'Le virement est en attente : vérifiez que votre numéro MonCash est configuré.'}`,
             audience: vendorId,
             is_active: true
           });
         }
         if (buyerId) {
-          sendPushNotification(buyerId, "📦 Commande confirmée !", `La livraison de votre commande (${orderId}) a été validée. Merci de votre confiance !`, 'order');
+          sendPushNotification(buyerId, "Commande confirmée !", `La livraison de votre commande (${orderId}) a été validée. Merci de votre confiance !`, 'order');
         }
       } catch (notifyErr: any) {
         console.warn("[Confirm Delivery] notifications failed:", notifyErr?.message);
@@ -3139,7 +3140,7 @@ export default function App() {
     if (currentUser?.id) {
       sendPushNotification(
         currentUser.id,
-        `🚀 Nouveau produit publié: ${fullProd.nom}`,
+        `Nouveau produit publié: ${fullProd.nom}`,
         `Votre nouvel article est en ligne pour ${fullProd.prix.toLocaleString('fr-FR')} HTG. Partagé avec vos abonnés de ${finalCommune}, ${finalDept}!`,
         'promo'
       );
@@ -3164,7 +3165,7 @@ export default function App() {
     if (isSupabaseConfigured && supabase) {
       const isValidUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
       if (!fullProd.vendeurId || !isValidUuid(fullProd.vendeurId)) {
-        alert("✕ Erreur de profil Supabase: ID de vendeur invalide ou inexistant. Veuillez vous reconnecter.");
+        alert("Erreur de profil Supabase: ID de vendeur invalide ou inexistant. Veuillez vous reconnecter.");
         return;
       }
 
@@ -3196,7 +3197,7 @@ export default function App() {
           const errMsg = String(error.message || '');
           if (errMsg.toLowerCase().includes('fetch') || errMsg.toLowerCase().includes('network') || errMsg.toLowerCase().includes('failed to fetch')) {
             console.warn("Network issue caught during product insert:", errMsg);
-            alert(`⚠️ Problème de connexion internet (Échec du réseau).\n\nVotre produit "${fullProd.nom}" a été enregistré correctement localement sur votre appareil.\n\nIl s'affiche dans votre mode Boutique et sera synchronisé dès le rétablissement de la liaison en ligne.`);
+            alert(`Problème de connexion internet (Échec du réseau).\n\nVotre produit "${fullProd.nom}" a été enregistré correctement localement sur votre appareil.\n\nIl s'affiche dans votre mode Boutique et sera synchronisé dès le rétablissement de la liaison en ligne.`);
           } else {
             console.error("Unrecoverable error creating product in Supabase:", error.message);
             alert(`Erreur lors de la création du produit: ${error.message}`);
@@ -3211,7 +3212,7 @@ export default function App() {
         const errMsg = String(err?.message || '');
         if (errMsg.toLowerCase().includes('fetch') || errMsg.toLowerCase().includes('network') || errMsg.toLowerCase().includes('failed to fetch')) {
           console.warn("Network exception caught during product insert:", errMsg);
-          alert(`⚠️ Problème de connexion internet (Échec du réseau).\n\nVotre produit "${fullProd.nom}" a été enregistré correctement localement sur votre appareil.\n\nIl s'affiche dans votre mode Boutique et sera synchronisé dès le rétablissement de la liaison en ligne.`);
+          alert(`Problème de connexion internet (Échec du réseau).\n\nVotre produit "${fullProd.nom}" a été enregistré correctement localement sur votre appareil.\n\nIl s'affiche dans votre mode Boutique et sera synchronisé dès le rétablissement de la liaison en ligne.`);
         } else {
           console.error("Exception in product insert:", err.message);
           alert(`Une erreur inattendue est survenue: ${err.message}`);
@@ -3323,7 +3324,7 @@ export default function App() {
           const errMsg = String(error.message || '');
           if (errMsg.toLowerCase().includes('fetch') || errMsg.toLowerCase().includes('network') || errMsg.toLowerCase().includes('failed to fetch')) {
             console.warn("Network issue caught during product update:", errMsg);
-            alert(`⚠️ Problème de connexion internet (Échec du réseau).\n\nLes modifications apportées au produit ont été enregistrées localement sur votre appareil.\n\nElles seront reportées en ligne dès le retour de connexion.`);
+            alert(`Problème de connexion internet (Échec du réseau).\n\nLes modifications apportées au produit ont été enregistrées localement sur votre appareil.\n\nElles seront reportées en ligne dès le retour de connexion.`);
             break;
           }
           const matchCol = errMsg.match(/Could not find the '([^']+)' column/i)
@@ -3342,7 +3343,7 @@ export default function App() {
           const errMsg = String(err?.message || '');
           if (errMsg.toLowerCase().includes('fetch') || errMsg.toLowerCase().includes('network') || errMsg.toLowerCase().includes('failed to fetch')) {
             console.warn("Network exception caught during product update:", errMsg);
-            alert(`⚠️ Problème de connexion internet (Échec du réseau).\n\nLes modifications apportées au produit ont été enregistrées localement sur votre appareil.\n\nElles seront reportées en ligne dès le retour de connexion.`);
+            alert(`Problème de connexion internet (Échec du réseau).\n\nLes modifications apportées au produit ont été enregistrées localement sur votre appareil.\n\nElles seront reportées en ligne dès le retour de connexion.`);
           } else {
             console.error("Exception in adaptive update:", err.message);
           }
@@ -3693,7 +3694,7 @@ export default function App() {
       // Données sensibles : table privée uniquement (jamais dans les colonnes publiques)
       const privFields = privateFromUpdates(cleanedUpdates);
       if (Object.keys(privFields).length && !(await savePrivate(currentUser.id, privFields))) {
-        alert("❌ Impossible d'enregistrer vos informations de paiement et d'identité. Réessayez.");
+        alert("Impossible d'enregistrer vos informations de paiement et d'identité. Réessayez.");
         return;
       }
       stripKeys(dbUpdates, LEGACY_PROFILE_KEYS);
@@ -3701,7 +3702,7 @@ export default function App() {
 
       if (!result.ok) {
         console.error("Erreur de sauvegarde profiles:", result.error);
-        alert("❌ Impossible d'enregistrer vos modifications en ligne. Veuillez vérifier votre connexion internet.");
+        alert("Impossible d'enregistrer vos modifications en ligne. Veuillez vérifier votre connexion internet.");
         return;
       }
 
@@ -3756,11 +3757,11 @@ export default function App() {
 
       // Successfully saved and verified via database! Now we display the updates and notify the user
       setCurrentUser(nextUser);
-      alert("✅ Vos modifications ont été enregistrées avec succès dans la base de données sécurisée !");
+      alert("Vos modifications ont été enregistrées avec succès dans la base de données sécurisée !");
     } else {
       // Offline / Fallback
       setCurrentUser(nextUser);
-      alert("✓ Modifications enregistrées localement.");
+      alert("Modifications enregistrées localement.");
     }
   };
 
@@ -4010,7 +4011,7 @@ export default function App() {
 
     for (const [vId, items] of Object.entries(vendorsWithItems)) {
       const itemsSummary = items.map(it => `${it.qte}x ${it.productNom || it.nom}`).join(', ');
-      const messageText = `📢 NOUVELLE COMMANDE DISPONIBLE !
+      const messageText = `NOUVELLE COMMANDE DISPONIBLE !
  
 ID de commande : ${order.id}
 Client : ${order.clientNom} (${order.clientTel || 'Aucun numéro'})
@@ -4036,12 +4037,12 @@ Veuillez préparer la commande. À la livraison, demandez le code QR de l'achete
       }
       
       // Notify the vendor of the new order
-      sendPushNotification(vId, "🛍️ Nouvelle commande !", `Vous avez reçu une commande d'un montant de ${order.total} HTG !`, 'order');
+      sendPushNotification(vId, "Nouvelle commande !", `Vous avez reçu une commande d'un montant de ${order.total} HTG !`, 'order');
     }
 
     // Also notify the BUYER/CLIENT who made the purchase
     if (order.clientId) {
-      const clientMessageText = `🎉 FÉLICITATIONS ! VOTRE COMMANDE A BIEN ÉTÉ ENREGISTRÉE EN SÉQUESTRE !
+      const clientMessageText = `FÉLICITATIONS ! VOTRE COMMANDE A BIEN ÉTÉ ENREGISTRÉE EN SÉQUESTRE !
  
 ID de commande : ${order.id}
 Montant total : ${order.total} HTG
@@ -4068,7 +4069,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
       }
 
       // Notify the buyer of order status
-      sendPushNotification(order.clientId, "🎉 Commande enregistrée !", "Votre paiement a été placé en séquestre de sécurité.", 'order');
+      sendPushNotification(order.clientId, "Commande enregistrée !", "Votre paiement a été placé en séquestre de sécurité.", 'order');
     }
   };
 
@@ -4193,7 +4194,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
     const origin = window.location.origin;
     const shareUrl = `${origin}/?product=${product.id}`;
     
-    const shareText = `🔍 Découvrez "${product.nom}" - ${product.prix.toLocaleString()} HTG sur Vendza.store!\n\n📋 Description : ${product.desc}`;
+    const shareText = `Découvrez "${product.nom}" - ${product.prix.toLocaleString()} HTG sur Vendza.store!\n\nDescription : ${product.desc}`;
     
     if (navigator.share) {
       navigator.share({
@@ -4205,11 +4206,11 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
       .catch((err) => {
         // Fallback if browser cancels or blocks native sharing
         navigator.clipboard.writeText(shareUrl);
-        alert(`✓ Lien professionnel généré : ${shareUrl}\n(copié dans votre presse-papier)`);
+        alert(`Lien professionnel généré : ${shareUrl}\n(copié dans votre presse-papier)`);
       });
     } else {
       navigator.clipboard.writeText(shareUrl);
-      alert("✓ Lien public copié dans votre presse-papier !\n\nVous pouvez le coller sur WhatsApp, Facebook ou Instagram pour partager cet article avec sa photo, son prix et sa description.");
+      alert("Lien public copié dans votre presse-papier !\n\nVous pouvez le coller sur WhatsApp, Facebook ou Instagram pour partager cet article avec sa photo, son prix et sa description.");
     }
   };
 
@@ -4277,8 +4278,8 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
                 <div>
                   <h4 className="font-bold text-sm sm:text-base tracking-tight text-white flex items-center gap-2">
                     {permissionState === 'denied' 
-                      ? "⚠️ Permission de notification bloquée" 
-                      : "🔔 Active les notifications pour ne rien manquer !"}
+                      ? <><EIcon name="AlertTriangle" /> Permission de notification bloquée</> 
+                      : <><EIcon name="Bell" /> Active les notifications pour ne rien manquer !</>}
                   </h4>
                   <p className="text-xs sm:text-sm text-slate-300 max-w-xl leading-relaxed mt-1">
                     {permissionState === 'denied'
@@ -4300,7 +4301,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
                   </button>
                 ) : (
                   <div className="text-xs bg-rose-500/20 border border-rose-500/30 text-rose-300 rounded-xl px-3 py-2 text-center md:text-left font-semibold">
-                    🔑 Active-les dans les paramètres
+                    <EIcon name="Key" /> Active-les dans les paramètres
                   </div>
                 )}
                 
@@ -4386,7 +4387,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
                 </div>
               ) : (
                 <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-slate-200">
-                  <span className="text-4xl">🏷️</span>
+                  <span className="text-4xl"><EIcon name="Tag" /></span>
                   <p className="text-xs font-semibold text-slate-500 mt-3 font-sans">Aucun produit à -50% n'est disponible en ce moment.</p>
                   <button 
                     onClick={() => navigateTo('home')} 
@@ -4749,7 +4750,7 @@ create policy "Allow Public Image Uploading"
 create policy "Allow Public Image Updating"
   on storage.objects for update
   with check ( bucket_id = 'images' );`);
-                alert("✓ Script SQL copié ! Collez-le dans l'éditeur SQL de votre serveur de base de données.");
+                alert("Script SQL copié ! Collez-le dans l'éditeur SQL de votre serveur de base de données.");
               }}
               className="absolute right-2 top-2 bg-slate-800 hover:bg-slate-700 text-[9px] text-teal-400 px-2 py-1 rounded border border-slate-700 font-sans cursor-pointer transition select-none"
             >
@@ -4772,7 +4773,7 @@ create policy "Allow Public Insert"
           </div>
 
           <p className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 p-2.5 rounded-xl border border-emerald-100 flex items-center gap-1.5 shadow-3xs leading-relaxed">
-            <span>💡</span>
+            <span><EIcon name="Lightbulb" /></span>
             <span><strong>Mode de secours actif :</strong> Votre produit a été sauvegardé correctement grâce à notre compresseur d'image résilient intégré !</span>
           </p>
         </div>
@@ -4815,7 +4816,7 @@ create policy "Lecture publique des messages"
 create policy "Insertion publique des messages"
   on public.messages for insert
   with check (true);`);
-                alert("✓ Script SQL copié ! Collez-le dans l'éditeur SQL de votre serveur de base de données.");
+                alert("Script SQL copié ! Collez-le dans l'éditeur SQL de votre serveur de base de données.");
               }}
               className="absolute right-2 top-2 bg-slate-800 hover:bg-slate-700 text-[9px] text-teal-400 px-2 py-1 rounded border border-slate-700 font-sans cursor-pointer transition select-none"
             >
@@ -4836,7 +4837,7 @@ create policy "Insertion publique des messages"
           </div>
 
           <p className="text-[10px] text-blue-850 font-semibold bg-emerald-50 p-2.5 rounded-xl border border-emerald-100 flex items-center gap-1.5 shadow-3xs leading-relaxed">
-            <span>💡</span>
+            <span><EIcon name="Lightbulb" /></span>
             <span><strong>Mode de secours actif :</strong> Votre message a bien été affiché localement en temps réel ! Vos discussions restent fluides et interactives.</span>
           </p>
         </div>
@@ -4884,7 +4885,7 @@ create policy "Mise à jour publique des commandes"
   on public.orders for update
   using (true)
   with check (true);`);
-                alert("✓ Script SQL copié ! Collez-le dans l'éditeur SQL de votre serveur de base de données Supabase.");
+                alert("Script SQL copié ! Collez-le dans l'éditeur SQL de votre serveur de base de données Supabase.");
               }}
               className="absolute right-2 top-2 bg-slate-800 hover:bg-slate-700 text-[9px] text-teal-400 px-2 py-1 rounded border border-slate-700 font-sans cursor-pointer transition select-none"
             >
@@ -4910,7 +4911,7 @@ create policy "Mise à jour publique des commandes"
           </div>
 
           <p className="text-[10px] text-blue-850 font-semibold bg-emerald-50 p-2.5 rounded-xl border border-emerald-100 flex items-center gap-1.5 shadow-3xs leading-relaxed">
-            <span>💡</span>
+            <span><EIcon name="Lightbulb" /></span>
             <span><strong>Mode de secours actif :</strong> Votre commande a bien été enregistrée localement en toute sécurité ! Vos transactions restent fluides.</span>
           </p>
         </div>
@@ -4944,7 +4945,7 @@ create policy "Mise à jour publique des commandes"
                   onClick={() => setInstantCheckoutModalItem(null)}
                   className="p-1.5 text-slate-400 hover:text-slate-650 hover:bg-slate-100 rounded-lg transition-all cursor-pointer font-bold text-xs"
                 >
-                  ✕
+                  <EIcon name="X" />
                 </button>
               </div>
 
@@ -5005,7 +5006,7 @@ create policy "Mise à jour publique des commandes"
 
                 {/* Info alert about secure process */}
                 <div className="p-3 bg-teal-50/50 border border-teal-100 rounded-xl space-y-1 flex items-start gap-2">
-                  <span className="text-sm mt-0.5">🔒</span>
+                  <span className="text-sm mt-0.5"><EIcon name="Lock" /></span>
                   <div className="space-y-0.5 min-w-0">
                     <p className="text-[9.5px] font-black uppercase tracking-wider text-teal-700">Fonds protégés en Séquestre</p>
                     <p className="text-[9.5px] text-slate-500 leading-normal font-sans">
@@ -5129,7 +5130,7 @@ create policy "Mise à jour publique des commandes"
               </div>
               <div className="flex justify-between items-center text-xs">
                 <span className="text-slate-400 font-medium">Protection Acheteur :</span>
-                <span className="font-bold text-emerald-600 flex items-center gap-1">Active <span className="text-xs">🛡️</span></span>
+                <span className="font-bold text-emerald-600 flex items-center gap-1">Active <span className="text-xs"><EIcon name="ShieldCheck" /></span></span>
               </div>
               <div className="flex justify-between items-center text-xs">
                 <span className="text-slate-400 font-medium">Statut Fonds :</span>
@@ -5278,7 +5279,7 @@ create policy "Mise à jour publique des commandes"
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-[1000] flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-100 shadow-2xl max-w-sm sm:max-w-md w-full space-y-5 animate-scale-up text-center">
             <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-1 text-2xl shadow-sm border border-indigo-100">
-              🚀
+              <EIcon name="Rocket" />
             </div>
             
             <div className="space-y-2">
@@ -5291,7 +5292,7 @@ create policy "Mise à jour publique des commandes"
 
             <div className="bg-amber-50 border border-amber-200/50 rounded-2xl p-3 text-left">
               <p className="text-[11px] text-amber-800 leading-normal font-semibold">
-                💡 Une fois sur le site autonome, cliquez à nouveau sur le bouton <b>"Activer les notifications"</b> pour accorder l'autorisation.
+                <EIcon name="Lightbulb" /> Une fois sur le site autonome, cliquez à nouveau sur le bouton <b>"Activer les notifications"</b> pour accorder l'autorisation.
               </p>
             </div>
 
@@ -5309,7 +5310,7 @@ create policy "Mise à jour publique des commandes"
                 onClick={() => setShowIframeNotice(false)}
                 className="flex-1 bg-[#0c1445] hover:bg-[#1a2355] text-white font-sans text-xs font-bold py-3 rounded-2xl transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                Ouvrir Vendza 🚀
+                Ouvrir Vendza <EIcon name="Rocket" />
               </a>
             </div>
           </div>

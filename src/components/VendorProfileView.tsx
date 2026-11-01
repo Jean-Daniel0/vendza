@@ -7,6 +7,7 @@ import { Product, Review, Order, UserProfile } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { cleanPhone } from '../lib/contacts';
 
+import { EIcon } from './EIcon';
 interface VendorProfileViewProps {
   vendorId: string;
   user: UserProfile | null;
@@ -325,7 +326,7 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
         commentaire: comment
       });
 
-      alert("✓ Merci ! Votre avis a été enregistré avec succès.");
+      alert("Merci ! Votre avis a été enregistré avec succès.");
       setComment('');
       setShowReviewForm(false);
     } catch (err) {
@@ -426,7 +427,7 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
                 </h1>
                 {(vendorProfile.statutVerification === 'verifie' || vendorProfile.plan === 'Pro Local' || vendorProfile.plan === 'Pro National') && (
                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black border border-emerald-300 shadow-3xs uppercase tracking-wider">
-                    ✓ Vérifié
+                    <EIcon name="Check" /> Vérifié
                   </span>
                 )}
                 {vendorProfile.plan === 'Pro Local' && (
@@ -480,7 +481,7 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
                     : 'bg-indigo-600 text-white hover:bg-indigo-700 border-indigo-600'
                 }`}
               >
-                {isFollowing ? '✓ Abonné (Ne plus suivre)' : '🔔 Suivre cette boutique'}
+                {isFollowing ? <><EIcon name="Check" /> Abonné (Ne plus suivre)</> : <><EIcon name="Bell" /> Suivre cette boutique</>}
               </button>
             ) : null}
           </div>
@@ -489,17 +490,17 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
         {/* Tags Row */}
         <div className="flex flex-wrap gap-1.5 mt-5">
           <span className="text-[9.5px] font-black tracking-wider uppercase bg-blue-50 text-blue-600 border border-blue-100 px-3 py-1 rounded-full">
-            🏪 Compte vendeur
+            <EIcon name="Store" /> Compte vendeur
           </span>
           <span className="text-[9.5px] font-black tracking-wider uppercase bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1 rounded-full flex items-center gap-1">
             <MapPin size={10} /> {vendorProfile.commune || 'Haïti'}
           </span>
           <span className="text-[9.5px] font-black tracking-wider uppercase bg-amber-50 text-amber-600 border border-amber-100 px-3 py-1 rounded-full">
-            📅 Depuis {new Date(vendorProfile.createdAt).getFullYear()}
+            <EIcon name="Calendar" /> Depuis {new Date(vendorProfile.createdAt).getFullYear()}
           </span>
           {vendorProfile.plan !== 'Gratuit' && (
             <span className="text-[9.5px] font-black tracking-wider uppercase bg-indigo-50 text-indigo-700 border border-indigo-100 px-3 py-1 rounded-full">
-              ⭐ {vendorProfile.plan}
+              <EIcon name="Star" /> {vendorProfile.plan}
             </span>
           )}
         </div>
@@ -601,7 +602,7 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
           {/* Zone de Livraison Couverte Card */}
           <div className="p-5 bg-white border border-slate-100 rounded-2xl shadow-xs space-y-4">
             <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-              <span className="text-teal-600">📍</span>
+              <span className="text-teal-600"><EIcon name="MapPin" /></span>
               <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
                 Zones de Livraison & Couverture
               </h3>
@@ -625,7 +626,7 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
                 <div className="flex flex-wrap gap-1">
                   {coveredDeptsList.map(dept => (
                     <span key={dept} className="text-[10px] font-bold bg-slate-50 text-slate-800 border border-slate-150 px-2 py-0.5 rounded select-none shadow-3xs">
-                      ✓ {dept}
+                      <EIcon name="Check" /> {dept}
                     </span>
                   ))}
                 </div>
@@ -633,7 +634,7 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
 
               {plan === 'Pro National' && (
                 <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 p-2.5 rounded-xl text-center">
-                  <span className="text-[9.5px] text-indigo-800 font-extrabold uppercase tracking-wide block">🇺🇳 Envoi National Assuré</span>
+                  <span className="text-[9.5px] text-indigo-800 font-extrabold uppercase tracking-wide block"><EIcon name="Globe" /> Envoi National Assuré</span>
                   <p className="text-[9px] text-indigo-600 mt-0.5 leading-snug">Service de messagerie express accessible sur l'ensemble d'Haïti.</p>
                 </div>
               )}
@@ -787,7 +788,7 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 space-y-4 animate-scale-up">
             <div className="text-center space-y-1">
               <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-2 text-xl shadow-xs">
-                🔔
+                <EIcon name="Bell" />
               </div>
               <h4 className="font-serif text-base font-extrabold text-[#0c1445] tracking-tight">Préférences d'abonnements</h4>
               <p className="text-xs text-slate-500">Personnalisez vos notifications pour la boutique <b>{vendorProfile.shopName}</b>.</p>

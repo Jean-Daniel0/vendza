@@ -124,7 +124,7 @@ export function shopPage(s: Shop, products: Product[], footer?: FooterData): str
     areaServed: { '@type': 'Country', name: 'Haïti' }, parentOrganization: { '@type': 'Organization', name: 'Vendza', url: SITE_ORIGIN + '/' } };
   if (s.logo_url && /^https?:/i.test(s.logo_url)) store.image = s.logo_url;
   const body = `<p class="crumbs"><a href="/">Accueil</a> › Boutiques › ${esc(s.shop_name)}</p><h1>${esc(s.shop_name)}</h1>
-<p>${esc((s.description || '').trim() || `${s.shop_name} vend sur Vendza, la marketplace sécurisée en Haïti.`)}</p>${verified ? '<p><b>✔ Boutique vérifiée</b></p>' : ''}
+<p>${esc((s.description || '').trim() || `${s.shop_name} vend sur Vendza, la marketplace sécurisée en Haïti.`)}</p>${verified ? '<p><b>Boutique vérifiée</b></p>' : ''}
 <p><a class="btn" href="/">Voir la boutique sur Vendza</a></p><h2>Produits de ${esc(s.shop_name)} (${products.length})</h2>${products.length ? productGrid(products) : '<p>Aucun produit publié pour le moment.</p>'}`;
   return layout({ title: `${s.shop_name} – Boutique en ligne en Haïti | Vendza`, description: desc, path, body, footer, image: s.logo_url && /^https?:/i.test(s.logo_url) ? s.logo_url : undefined,
     jsonld: [store, itemList(products), breadcrumb([['Accueil', '/'], [s.shop_name, path]])] });

@@ -151,7 +151,7 @@ if (isSupabaseConfigured && supabase) {
             senderName = m.sender_nom || m.senderNom;
           }
 
-          const title = `💬 Message de ${senderName}`;
+          const title = `Message de ${senderName}`;
           const text = m.text || "Vous avez reçu un nouveau message.";
           const apiAppId = '75a4d965-5500-4694-abfa-69b8a88c9d1d';
           const apiKey = process.env.ONESIGNAL_REST_API_KEY;
@@ -660,7 +660,7 @@ const activerAbonnement = async (
     await supabase
       .from('platform_messages')
       .insert({
-        title:     `✅ Abonnement ${planCodeLower === 'pro_national' ? 'Pro National ⭐' : 'Pro Local'} activé !`,
+        title:     `Abonnement ${planCodeLower === 'pro_national' ? 'Pro National' : 'Pro Local'} activé !`,
         message:   `Votre abonnement ${planCodeLower} est actif jusqu'au ${expiresAt.toLocaleDateString('fr-FR')}. Profitez de votre commission de ${planCodeLower === 'pro_national' ? '10%' : planCodeLower === 'pro_local' ? '15%' : '20%'}.`,
         audience:  userId,
         is_active: true
@@ -1897,7 +1897,7 @@ app.post('/api/bazik/webhook/transfer', express.raw({ type: '*/*' }), async (req
             await supabase
               .from('platform_messages')
               .insert({
-                title: '✅ Virement MonCash confirmé !',
+                title: 'Virement MonCash confirmé !',
                 message: `Le virement MonCash de ${finalAmount.toLocaleString('fr-FR')} HTG pour la commande ${orderId} a été crédité avec succès sur votre solde disponible.`,
                 audience: vendorId,
                 is_active: true
@@ -2095,7 +2095,7 @@ async function executeVendorPayout(
           await supabase
             .from('platform_messages')
             .insert({
-              title: '✅ Fonds disponibles (Test) !',
+              title: 'Fonds disponibles (Test) !',
               message: `Le virement MonCash simulé de ${finalAmount.toLocaleString('fr-FR')} HTG pour la commande ${orderId} a été confirmé (mode test).`,
               audience: vendorId,
               is_active: true
@@ -2547,7 +2547,7 @@ app.get('/stripe-simulation', (req, res) => {
             <!-- Simulation Banner -->
             <div class="bg-indigo-50/70 border border-indigo-100 rounded-xl p-4 text-xs text-indigo-900 space-y-1">
                 <p class="font-bold flex items-center gap-1 text-indigo-900">
-                    💳 Version de démonstration Stripe
+                    Version de démonstration Stripe
                 </p>
                 <p class="leading-relaxed text-indigo-800/90 text-[11px]">Notre passerelle locale simule instantanément l'API de Stripe. Vous pouvez utiliser n'importe quel numéro de carte de test pour valider l'achat.</p>
             </div>
@@ -2564,7 +2564,7 @@ app.get('/stripe-simulation', (req, res) => {
                     <div class="bg-white border border-slate-200 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all">
                         <!-- Card number input -->
                         <div class="relative flex items-center px-4 py-3 border-b border-slate-200">
-                            <span class="text-lg mr-2">💳</span>
+                            <span class="text-lg mr-2"></span>
                             <input type="text" value="4242 4242 4242 4242" class="w-full bg-transparent text-xs font-mono font-bold text-slate-700 outline-none" placeholder="Numéro de carte" />
                         </div>
                         <!-- Expiration and CVV -->
@@ -2584,7 +2584,7 @@ app.get('/stripe-simulation', (req, res) => {
             <!-- Action calls -->
             <div class="space-y-3 pt-4">
                 <button onclick="triggerStripePayment('success')" class="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl font-bold text-xs tracking-wider uppercase transition shadow-md hover:shadow-lg cursor-pointer transform hover:scale-[1.01] flex items-center justify-center gap-1.5">
-                    ✓ Payer $${cleanTotalUSD} USD
+                    Payer $${cleanTotalUSD} USD
                 </button>
                 <button onclick="triggerStripePayment('cancel')" class="w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl font-bold text-xs transition cursor-pointer flex items-center justify-center">
                     Annuler et retourner au panier
@@ -3328,7 +3328,7 @@ app.post('/api/notifications/new-product', async (req, res) => {
 
     console.log(`[New Product Notifications] Notification de ${followers.length} abonnés pour ${productNom}`);
     
-    const title = `🚀 Nouveau produit chez ${vendorShopName}`;
+    const title = `Nouveau produit chez ${vendorShopName}`;
     const message = `Le produit "${productNom}" est disponible à ${productPrix.toLocaleString('fr-FR')} HTG. Commandez-le vite !`;
 
     let notifiedCount = 0;
@@ -3382,7 +3382,7 @@ app.post('/api/notifications/promotion', async (req, res) => {
 
     console.log(`[Promotion Notifications] Notification de ${followers.length} abonnés pour baisse de prix de ${productNom}`);
 
-    const title = `⚡ Promotion chez ${vendorShopName} !`;
+    const title = `Promotion chez ${vendorShopName} !`;
     const message = `Baisse de prix sur "${productNom}" ! Il passe de ${oldPrice.toLocaleString('fr-FR')} HTG à seulement ${newPrice.toLocaleString('fr-FR')} HTG. Ne ratez pas ça !`;
 
     let notifiedCount = 0;

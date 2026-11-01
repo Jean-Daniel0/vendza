@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Shield, Sparkles, MapPin, CheckCircle, Mail, Phone, Clock, ArrowRight, Heart } from 'lucide-react';
 
+import { EIcon, RichText } from './EIcon';
 export const AboutPage: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -25,7 +26,7 @@ export const AboutPage: React.FC = () => {
       {submitted && (
         <div className="fixed bottom-5 right-5 z-60 bg-teal-900 border border-teal-400 text-teal-100 text-xs font-bold px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-bounce">
           <Sparkles size={14} className="text-teal-400" />
-          <span>✓ Message envoyé avec succès à l'équipe Vendza ! Nous vous répondrons sous 24h.</span>
+          <span><EIcon name="Check" /> Message envoyé avec succès à l'équipe Vendza ! Nous vous répondrons sous 24h.</span>
         </div>
       )}
 
@@ -79,7 +80,7 @@ export const AboutPage: React.FC = () => {
           <div className="h-px bg-slate-200" />
           <div>
             <span className="inline-block bg-teal-50 border border-teal-100 rounded-full px-4 py-1 text-teal-700 font-black text-[9px] uppercase tracking-wider">
-              🛡️ 100% Transactions Sécurisées
+              <EIcon name="ShieldCheck" /> 100% Transactions Sécurisées
             </span>
           </div>
         </div>
@@ -96,7 +97,7 @@ export const AboutPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-sans text-xs">
           <div className="bg-white border hover:border-blue-300 transition-all rounded-3xl p-5 shadow-2xs space-y-3">
             <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl font-bold">
-              🔒
+              <EIcon name="Lock" />
             </div>
             <h3 className="font-serif text-xs font-black text-slate-800 uppercase tracking-wider">Confiance &amp; sécurité</h3>
             <p className="text-slate-500 leading-relaxed font-semibold">
@@ -106,7 +107,7 @@ export const AboutPage: React.FC = () => {
 
           <div className="bg-white border hover:border-amber-300 transition-all rounded-3xl p-5 shadow-2xs space-y-3">
             <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl font-bold">
-              🇭🇹
+              <EIcon name="Flag" />
             </div>
             <h3 className="font-serif text-xs font-black text-slate-800 uppercase tracking-wider">Ancrage local</h3>
             <p className="text-slate-500 leading-relaxed font-semibold">
@@ -116,7 +117,7 @@ export const AboutPage: React.FC = () => {
 
           <div className="bg-white border hover:border-teal-300 transition-all rounded-3xl p-5 shadow-2xs space-y-3">
             <div className="w-10 h-10 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center text-xl font-bold">
-              🚀
+              <EIcon name="Rocket" />
             </div>
             <h3 className="font-serif text-xs font-black text-slate-800 uppercase tracking-wider">Innovation &amp; accessibilité</h3>
             <p className="text-slate-500 leading-relaxed font-semibold">
@@ -135,16 +136,16 @@ export const AboutPage: React.FC = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 text-xs font-sans">
           {[
-            { step: '01', icon: '🛍️', title: 'Commande', desc: 'Le client dépose son paiement en Gourdes dans le système sécurisé.' },
-            { step: '02', icon: '🔒', title: 'Sécurisation', desc: "L'argent est bloqué par Vendza, protégeant ainsi le vendeur contre les faux litiges." },
-            { step: '03', icon: '📦', title: 'Envoi', desc: 'Le vendeur s’occupe du colisage et de la livraison de la commande.' },
-            { step: '04', icon: '📱', title: 'Validation QR', desc: "À la livraison physique, le code QR est scanné pour confirmer la conformité." },
-            { step: '05', icon: '✅', title: 'Paiement', desc: "L'argent est immédiatement versé sur le compte mobile du vendeur." }
+            { step: '01', icon: '[[ShoppingBag]]', title: 'Commande', desc: 'Le client dépose son paiement en Gourdes dans le système sécurisé.' },
+            { step: '02', icon: '[[Lock]]', title: 'Sécurisation', desc: "L'argent est bloqué par Vendza, protégeant ainsi le vendeur contre les faux litiges." },
+            { step: '03', icon: '[[Package]]', title: 'Envoi', desc: 'Le vendeur s’occupe du colisage et de la livraison de la commande.' },
+            { step: '04', icon: '[[Smartphone]]', title: 'Validation QR', desc: "À la livraison physique, le code QR est scanné pour confirmer la conformité." },
+            { step: '05', icon: '[[CheckCircle2]]', title: 'Paiement', desc: "L'argent est immédiatement versé sur le compte mobile du vendeur." }
           ].map((item, idx) => (
             <div key={idx} className="bg-white border border-slate-100 p-4 rounded-2xl relative shadow-2xs flex flex-col justify-between space-y-2">
               <div className="flex justify-between items-center pb-2 border-b border-slate-50">
                 <span className="text-sm font-black text-blue-900 font-mono tracking-wider">{item.step}</span>
-                <span className="text-lg">{item.icon}</span>
+                <span className="text-lg"><RichText text={item.icon} /></span>
               </div>
               <h4 className="font-serif text-xs font-black text-slate-800 tracking-tight">{item.title}</h4>
               <p className="text-slate-500 text-[10.5px] leading-relaxed font-medium">{item.desc}</p>
@@ -190,7 +191,7 @@ export const AboutPage: React.FC = () => {
 
           <div className="space-y-3 text-xs font-sans">
             <div className="flex items-center gap-3 p-2 bg-slate-50/50 rounded-xl border border-slate-100">
-              <span className="text-base text-slate-400">📧</span>
+              <span className="text-base text-slate-400"><EIcon name="Mail" /></span>
               <div>
                 <div className="text-[9px] text-[#9aa3bf] font-bold uppercase tracking-wide">Email direct</div>
                 <a href="mailto:vendza@gmail.com" className="font-semibold text-blue-600">vendza@gmail.com</a>
@@ -198,7 +199,7 @@ export const AboutPage: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-3 p-2 bg-slate-50/50 rounded-xl border border-slate-100">
-              <span className="text-base text-slate-400">📞</span>
+              <span className="text-base text-slate-400"><EIcon name="Phone" /></span>
               <div>
                 <div className="text-[9px] text-[#9aa3bf] font-bold uppercase tracking-wide">Téléphone</div>
                 <a href="tel:+50941953739" className="font-semibold text-slate-700">+509 4195 3739</a>
@@ -206,7 +207,7 @@ export const AboutPage: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-3 p-2 bg-slate-50/50 rounded-xl border border-slate-100">
-              <span className="text-base text-slate-400">📍</span>
+              <span className="text-base text-slate-400"><EIcon name="MapPin" /></span>
               <div>
                 <div className="text-[9px] text-[#9aa3bf] font-bold uppercase tracking-wide font-sans">Siège</div>
                 <span className="font-semibold text-slate-700">Port-au-Prince, Haïti</span>

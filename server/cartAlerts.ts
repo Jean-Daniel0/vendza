@@ -42,7 +42,7 @@ export async function runCartReminders(db: any, send: PushMany, now = new Date()
     if (!live.length) continue;
     if (!(await claim(db, `cart-${userId}-${bucket}`))) continue;
     const first = prodById.get(live[0].product_id)!.name;
-    const title = '🛒 Votre panier vous attend';
+    const title = 'Votre panier vous attend';
     const message = `${live.length} article${live.length > 1 ? 's' : ''} : ${first}${live.length > 1 ? ` et ${live.length - 1} autre${live.length > 2 ? 's' : ''}` : ''}. Finalisez votre commande avant qu'il ne soit épuisé.`;
     await send([userId], title, message, 'cart');
     await inbox(db, userId, title, message);
@@ -71,7 +71,7 @@ export async function runLowStockAlerts(db: any, send: PushMany, now = new Date(
   for (const [userId, items] of byUser) {
     if (!allowed.has(userId)) continue;
     const p0 = lowById.get(items[0].product_id)!;
-    const title = '⚠️ Stock presque épuisé';
+    const title = 'Stock presque épuisé';
     const message = items.length === 1
       ? `Plus que ${p0.stock} « ${p0.name} » en stock. Commandez avant qu'il ne soit épuisé !`
       : `${items.length} articles de votre panier bientôt épuisés (par exemple « ${p0.name} » : plus que ${p0.stock}). Commandez maintenant !`;

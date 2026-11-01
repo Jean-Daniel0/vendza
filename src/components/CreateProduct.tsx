@@ -6,6 +6,7 @@ import {
 import { Product } from '../types';
 import { apiFetchAuthed } from '../lib/api';
 
+import { EIcon } from './EIcon';
 interface CreateProductProps {
   onAddProduct: (product: Omit<Product, 'id' | 'vendeur' | 'vendeurId' | 'rating' | 'dateCreation'>) => void;
   onUpdateProduct?: (productId: string, updates: Partial<Product>) => void;
@@ -267,12 +268,12 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
     const isSaveAsDraft = finalStatut === 'brouillon';
 
     if (!nom.trim()) {
-      alert("⚠️ Le nom du produit est obligatoire.");
+      alert("Le nom du produit est obligatoire.");
       return;
     }
 
     if (!isSaveAsDraft && completionPct < 70) {
-      alert(`⚠️ Fiche incomplète (${completionPct}%). Veuillez atteindre au moins 70% de complétion pour publier votre produit, ou sauvegardez-le comme Brouillon.`);
+      alert(`Fiche incomplète (${completionPct}%). Veuillez atteindre au moins 70% de complétion pour publier votre produit, ou sauvegardez-le comme Brouillon.`);
       return;
     }
 
@@ -343,9 +344,9 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
         seoWarning: seoWarn || undefined
       });
       if (seoScore < 100) {
-        alert(`📢 Produit enregistré mais référencement réduit...\n\n⚠️ ${seoWarn}\n\nVotre produit a été mis à jour, mais son référencement automatique dans le catalogue a été abaissé à ${seoScore}/100. Pensez à utiliser une photo physique nette pour retrouver un classement optimal.`);
+        alert(`Produit enregistré mais référencement réduit...\n\n${seoWarn}\n\nVotre produit a été mis à jour, mais son référencement automatique dans le catalogue a été abaissé à ${seoScore}/100. Pensez à utiliser une photo physique nette pour retrouver un classement optimal.`);
       } else {
-        alert(isSaveAsDraft ? "💾 Brouillon enregistré avec succès !" : "✅ Fiche produit mise à jour avec succès (Référencement Optimal ✨) !");
+        alert(isSaveAsDraft ? "Brouillon enregistré avec succès !" : "Fiche produit mise à jour avec succès (Référencement Optimal) !");
       }
     } else {
       onAddProduct({
@@ -370,9 +371,9 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
         seoWarning: seoWarn || undefined
       });
       if (seoScore < 100) {
-        alert(`📢 Produit publié mais référencement réduit...\n\n⚠️ ${seoWarn}\n\nVotre produit a été publié avec succès, mais son référencement automatique dans le catalogue a été abaissé à ${seoScore}/100. Pensez à utiliser une photo physique nette pour retrouver un classement optimal.`);
+        alert(`Produit publié mais référencement réduit...\n\n${seoWarn}\n\nVotre produit a été publié avec succès, mais son référencement automatique dans le catalogue a été abaissé à ${seoScore}/100. Pensez à utiliser une photo physique nette pour retrouver un classement optimal.`);
       } else {
-        alert(isSaveAsDraft ? "💾 Brouillon enregistré" : "✅ Nouveau produit créé et mis en vente avec succès - Référencement Optimal ✨ !");
+        alert(isSaveAsDraft ? "Brouillon enregistré" : "Nouveau produit créé et mis en vente avec succès - Référencement Optimal !");
       }
     }
 
@@ -421,7 +422,7 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
                 check.ok ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-slate-50 text-slate-400 border border-slate-200/50'
               }`}
             >
-              {check.ok ? '✓' : '○'} {check.label}
+              {check.ok ? <><EIcon name="Check" /></> : '○'} {check.label}
             </span>
           ))}
         </div>
@@ -454,7 +455,7 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
               <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${
                 step > s.id ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-600 font-bold'
               }`}>
-                {step > s.id ? '✓' : s.id}
+                {step > s.id ? <><EIcon name="Check" /></> : s.id}
               </span>
               <span>{s.label}</span>
             </button>
@@ -469,7 +470,7 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
         {step === 1 && (
           <div className="space-y-4">
             <div className="flex items-center gap-2.5 pb-2 border-b border-slate-50">
-              <span className="text-xl">📝</span>
+              <span className="text-xl"><EIcon name="PenLine" /></span>
               <div>
                 <h3 className="font-serif text-sm font-bold text-[#0c1445]">Informations principales</h3>
                 <p className="text-[10px] text-slate-400">Définissez le nom, la catégorie et les termes d'indexation</p>
@@ -499,18 +500,18 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
                 onChange={e => setCat(e.target.value)}
               >
                 <option value="">Sélectionnez une catégorie…</option>
-                <option value="Mode">👗 Mode</option>
-                <option value="Électronique">📱 Électronique</option>
-                <option value="Audio">🎧 Audio</option>
-                <option value="Wearable">⌚ Wearable</option>
-                <option value="Maison">🏠 Maison</option>
-                <option value="Photo">📷 Photo</option>
-                <option value="Gaming">🎮 Gaming</option>
-                <option value="Beauté">🧴 Beauté</option>
-                <option value="Accessoires">🎒 Accessoires</option>
-                <option value="Alimentaire">🛒 Alimentaire</option>
-                <option value="Sport">⚽ Sport</option>
-                <option value="Autre">📦 Autre</option>
+                <option value="Mode">Mode</option>
+                <option value="Électronique">Électronique</option>
+                <option value="Audio">Audio</option>
+                <option value="Wearable">Wearable</option>
+                <option value="Maison">Maison</option>
+                <option value="Photo">Photo</option>
+                <option value="Gaming">Gaming</option>
+                <option value="Beauté">Beauté</option>
+                <option value="Accessoires">Accessoires</option>
+                <option value="Alimentaire">Alimentaire</option>
+                <option value="Sport">Sport</option>
+                <option value="Autre">Autre</option>
               </select>
             </div>
 
@@ -558,7 +559,7 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
         {step === 2 && (
           <div className="space-y-4">
             <div className="flex items-center gap-2.5 pb-2 border-b border-slate-50">
-              <span className="text-xl">💰</span>
+              <span className="text-xl"><EIcon name="Wallet" /></span>
               <div>
                 <h3 className="font-serif text-sm font-bold text-[#0c1445]">Tarification & Stocks</h3>
                 <p className="text-[10px] text-slate-400">Configurez le prix de vente en gourdes et l'état des réserves</p>
@@ -647,7 +648,7 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
         {step === 3 && (
           <div className="space-y-4">
             <div className="flex items-center gap-2.5 pb-2 border-b border-slate-50">
-              <span className="text-xl">🖼️</span>
+              <span className="text-xl"><EIcon name="Image" /></span>
               <div>
                 <h3 className="font-serif text-sm font-bold text-[#0c1445]">Photographies</h3>
                 <p className="text-[10px] text-slate-400">Chargez l'illustration principale ou des visuels secondaires</p>
@@ -673,7 +674,7 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
                 </div>
               ) : (
                 <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 bg-slate-50 flex flex-col items-center justify-center text-center gap-2 hover:border-blue-400 transition relative">
-                  <span className="text-3xl">📷</span>
+                  <span className="text-3xl"><EIcon name="Camera" /></span>
                   <span className="text-xs font-bold text-slate-700">Choisir un fichier ou Glisser l'image</span>
                   <span className="text-[10.5px] text-slate-400">Taille max : 5 Mo (PNG, JPG, WEBP)</span>
                   <input
@@ -759,7 +760,7 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
         {step === 4 && (
           <div className="space-y-4">
             <div className="flex items-center gap-2.5 pb-2 border-b border-slate-50">
-              <span className="text-xl">🎨</span>
+              <span className="text-xl"><EIcon name="Palette" /></span>
               <div>
                 <h3 className="font-serif text-sm font-bold text-[#0c1445]">Variantes de couleurs &amp; Tailles</h3>
                 <p className="text-[10px] text-slate-400">Configurez les visuels de déclinaisons de l'article</p>
@@ -952,7 +953,7 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
         {step === 5 && (
           <div className="space-y-4">
             <div className="flex items-center gap-2.5 pb-2 border-b border-slate-50">
-              <span className="text-xl">📦</span>
+              <span className="text-xl"><EIcon name="Package" /></span>
               <div>
                 <h3 className="font-serif text-sm font-bold text-[#0c1445]">Départ d'expédition & Origine</h3>
                 <p className="text-[10px] text-slate-400">Renseignez la position géographique en Haïti pour de meilleurs frais de livraison</p>
@@ -996,7 +997,7 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
 
             {!isPaidPlan && (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5">
-                <span className="text-amber-500 text-sm mt-0.5">💡</span>
+                <span className="text-amber-500 text-sm mt-0.5"><EIcon name="Lightbulb" /></span>
                 <p className="text-[11px] leading-relaxed text-amber-800">
                   <strong>Plan Gratuit:</strong> Vos produits sont automatiquement rattachés à votre commune d'inscription (<strong>{user?.commune || 'Pétion-Ville'}, {user?.departement || 'Ouest'}</strong>). Passez à un plan payant (<strong>Pro Local</strong> ou <strong>Pro National</strong>) pour choisir librement d'autres localités d'expédition pour chaque article.
                 </p>
@@ -1033,7 +1034,7 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
                       : 'border-slate-200 bg-slate-50 text-slate-550 hover:bg-white'
                   }`}
                 >
-                  <span className="text-xl">🟢</span>
+                  <span className="text-xl"><EIcon name="Circle" /></span>
                   <div>
                     <span className="text-xs font-bold block">Publié</span>
                     <span className="text-[10px] opacity-85 block">Visible immédiatement</span>
@@ -1049,7 +1050,7 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
                       : 'border-slate-200 bg-slate-50 text-slate-550 hover:bg-white'
                   }`}
                 >
-                  <span className="text-xl">📝</span>
+                  <span className="text-xl"><EIcon name="PenLine" /></span>
                   <div>
                     <span className="text-xs font-bold block">Brouillon</span>
                     <span className="text-[10px] opacity-85 block">Sauvegarder pour plus tard</span>
@@ -1081,7 +1082,7 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
           {isAnalyzing ? (
             <div className="flex items-center gap-2 text-xs font-bold text-blue-600 animate-pulse bg-blue-50 px-4 py-2.5 rounded-xl border border-blue-100">
               <span className="w-3.5 h-3.5 rounded-full border-2 border-blue-600 border-t-transparent animate-spin"></span>
-              🔍 Diagnostic qualité & type de photo (Sightengine)...
+              <EIcon name="Search" /> Diagnostic qualité & type de photo (Sightengine)...
             </div>
           ) : step < 5 ? (
             <div className="flex gap-2">
@@ -1090,7 +1091,7 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
                 onClick={() => handleSave('brouillon')}
                 className="py-2 px-3.5 border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs rounded-xl transition cursor-pointer inline-flex items-center gap-1"
               >
-                💾 Brouillon
+                <EIcon name="Save" /> Brouillon
               </button>
               <button
                 type="button"
@@ -1107,7 +1108,7 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
                 onClick={() => handleSave('brouillon')}
                 className="py-2.5 px-4 border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-850 font-bold text-xs rounded-xl transition cursor-pointer inline-flex items-center gap-1"
               >
-                💾 Enregistrer en Brouillon
+                <EIcon name="Save" /> Enregistrer en Brouillon
               </button>
 
               <button

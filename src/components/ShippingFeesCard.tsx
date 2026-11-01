@@ -3,6 +3,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { HAITIAN_ZONES } from '../data';
 import { sanitizeFees } from '../lib/shipping';
 
+import { EIcon } from './EIcon';
 // Le vendeur fixe lui-même ses frais de livraison : un tarif par défaut + des tarifs par département.
 export const ShippingFeesCard: React.FC<{ vendorId: string }> = ({ vendorId }) => {
   const [defaultFee, setDefaultFee] = useState<string>('');
@@ -33,7 +34,7 @@ export const ShippingFeesCard: React.FC<{ vendorId: string }> = ({ vendorId }) =
     const clean = sanitizeFees(fees);
     const { error } = await supabase.from('shops').update({ shipping_fee_default: def === null ? null : Math.round(def), shipping_fees: clean }).eq('vendor_id', vendorId);
     setBusy(false);
-    setMsg(error ? { ok: false, text: 'Enregistrement impossible : ' + error.message } : { ok: true, text: '✅ Frais de livraison enregistrés. Ils s\'appliquent aux prochaines commandes.' });
+    setMsg(error ? { ok: false, text: 'Enregistrement impossible : ' + error.message } : { ok: true, text: 'Frais de livraison enregistrés. Ils s\'appliquent aux prochaines commandes.' });
   };
 
   if (!loaded) return null;
@@ -41,7 +42,7 @@ export const ShippingFeesCard: React.FC<{ vendorId: string }> = ({ vendorId }) =
   return (
     <div className="bg-white border border-slate-100 rounded-3xl p-5 shadow-3xs space-y-3">
       <div className="border-b border-slate-100 pb-2">
-        <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">🚚 Mes frais de livraison</h3>
+        <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider"><EIcon name="Truck" /> Mes frais de livraison</h3>
         <p className="text-[10px] text-slate-400">C'est vous qui fixez le prix. Il est ajouté à chaque commande de votre boutique selon la zone du client.</p>
       </div>
       <label className="flex items-center justify-between gap-3 text-[11px] font-bold text-slate-700">

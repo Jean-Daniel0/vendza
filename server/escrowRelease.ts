@@ -89,7 +89,7 @@ export async function runEscrowAutoRelease(
       const stage = escrowStage(at, now, days);
       if (stage === 'remind') {
         if (!(await claim(db, `escrow-remind-${order.id}`))) continue;
-        await tell(db, send, buyerOf(order), '⏳ Confirmez la réception de votre commande',
+        await tell(db, send, buyerOf(order), 'Confirmez la réception de votre commande',
           `Commande #${shortId(order.id)} : confirmez la réception ou signalez un problème avant le ${frDate(releaseDate(at, days))}. Passé cette date, les fonds seront libérés automatiquement au vendeur.`);
         out.reminded++;
       } else if (stage === 'release') {
@@ -98,8 +98,8 @@ export async function runEscrowAutoRelease(
         if (res.status >= 200 && res.status < 300) {
           out.released++;
           if (await claim(db, `escrow-released-${order.id}`)) {
-            await tell(db, send, buyerOf(order), '✅ Commande réglée automatiquement', `Commande #${shortId(order.id)} : le délai de ${days} jours est écoulé, les fonds ont été libérés au vendeur.`);
-            await tell(db, send, order.vendor_id, '💰 Fonds libérés', `Commande #${shortId(order.id)} : l'acheteur n'a pas répondu sous ${days} jours, vos fonds sont libérés.`);
+            await tell(db, send, buyerOf(order), 'Commande réglée automatiquement', `Commande #${shortId(order.id)} : le délai de ${days} jours est écoulé, les fonds ont été libérés au vendeur.`);
+            await tell(db, send, order.vendor_id, 'Fonds libérés', `Commande #${shortId(order.id)} : l'acheteur n'a pas répondu sous ${days} jours, vos fonds sont libérés.`);
           }
         } else {
           out.failed++;

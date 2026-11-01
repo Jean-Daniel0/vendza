@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowLeft, ShieldCheck, Smartphone, RefreshCw, Lock, AlertTriangle, XCircle, Mail, Phone, Globe } from 'lucide-react';
 
+import { EIcon } from './EIcon';
 interface TermsPageProps {
   onBack?: () => void;
 }
@@ -243,7 +244,7 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onBack }) => {
             </ul>
 
             <div className="p-3.5 bg-amber-50/50 border border-amber-200/60 rounded-xl mt-3 flex gap-2.5">
-              <span className="text-amber-600 shrink-0 mt-0.5 font-bold">⚠️</span>
+              <span className="text-amber-600 shrink-0 mt-0.5 font-bold"><EIcon name="AlertTriangle" /></span>
               <p className="text-[11px] sm:text-xs text-amber-800 leading-normal">
                 <strong>Important — Le scan du QR code est définitif.</strong> En scannant le QR code de votre commande, vous confirmez officiellement avoir reçu votre produit et vous déclenchez le paiement au vendeur. Inspectez toujours votre commande avant de scanner. Vous disposez de 24h après le scan pour signaler un problème.
               </p>
@@ -319,7 +320,7 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onBack }) => {
             </p>
 
             <div className="p-3.5 bg-indigo-50/50 border border-indigo-150/60 rounded-xl mt-3 flex gap-2.5">
-              <span className="text-indigo-600 shrink-0 mt-0.5 font-bold">💡</span>
+              <span className="text-indigo-600 shrink-0 mt-0.5 font-bold"><EIcon name="Lightbulb" /></span>
               <p className="text-[11px] sm:text-xs text-indigo-800 leading-normal">
                 <strong>Conseil.</strong> Un vendeur Pro National qui réalise des ventes régulières rentabilisera rapidement son abonnement grâce à la commission réduite à 10%. Pour une vente de 10 000 Gdes, la différence entre le plan Gratuit (20%) et le plan Pro National (10%) représente une économie de 1 000 Gdes sur une seule transaction.
               </p>
@@ -481,7 +482,7 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onBack }) => {
             </ul>
 
             <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl mt-3 flex gap-2.5">
-              <span className="text-amber-600 shrink-0 font-bold">⏰</span>
+              <span className="text-amber-600 shrink-0 font-bold"><EIcon name="AlarmClock" /></span>
               <p className="text-[11px] sm:text-xs text-amber-800 leading-normal">
                 <strong>Délai strict de 24 heures.</strong> Toute demande de remboursement doit être effectuée dans les <strong>24 heures suivant la confirmation de livraison</strong> (scan du QR code). Passé ce délai, aucune demande de remboursement ne sera acceptée, quelle qu'en soit la raison.
               </p>
@@ -524,23 +525,23 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onBack }) => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
               <div className="p-3 bg-red-50 border border-red-150 rounded-xl flex gap-2.5 items-center">
-                <span className="text-base shrink-0">🔫</span>
+                <span className="text-base shrink-0"><EIcon name="Crosshair" /></span>
                 <span className="text-[11px] sm:text-xs font-bold text-red-900">Armes à feu, munitions et explosifs</span>
               </div>
               <div className="p-3 bg-red-50 border border-red-150 rounded-xl flex gap-2.5 items-center">
-                <span className="text-base shrink-0">💊</span>
+                <span className="text-base shrink-0"><EIcon name="Pill" /></span>
                 <span className="text-[11px] sm:text-xs font-bold text-red-900">Drogues, stupéfiants et substances illicites</span>
               </div>
               <div className="p-3 bg-red-50 border border-red-150 rounded-xl flex gap-2.5 items-center">
-                <span className="text-base shrink-0">⛔</span>
+                <span className="text-base shrink-0"><EIcon name="Ban" /></span>
                 <span className="text-[11px] sm:text-xs font-bold text-red-900">Produits contrefaits, volés ou de provenance illicite</span>
               </div>
               <div className="p-3 bg-red-50 border border-red-150 rounded-xl flex gap-2.5 items-center">
-                <span className="text-base shrink-0">🔞</span>
+                <span className="text-base shrink-0"><EIcon name="ShieldAlert" /></span>
                 <span className="text-[11px] sm:text-xs font-bold text-red-900">Contenu adulte, pornographique ou sexuellement explicite</span>
               </div>
               <div className="p-3 bg-red-50 border border-red-150 rounded-xl flex gap-2.5 items-center sm:col-span-2">
-                <span className="text-base shrink-0">💉</span>
+                <span className="text-base shrink-0"><EIcon name="Syringe" /></span>
                 <span className="text-[11px] sm:text-xs font-bold text-red-900">Médicaments non homologués ou produits pharmaceutiques sans prescription</span>
               </div>
             </div>
@@ -728,7 +729,7 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onBack }) => {
           </p>
 
           <div className="bg-slate-50 border border-slate-150 rounded-xl p-4 sm:p-5 text-center space-y-4 mt-4">
-            <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">📬 Contactez l'équipe Vendza</p>
+            <p className="text-xs font-bold text-slate-700 uppercase tracking-wide"><EIcon name="Mailbox" /> Contactez l'équipe Vendza</p>
             
             <div className="flex flex-wrap justify-center gap-3">
               <a 

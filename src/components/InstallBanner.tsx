@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Download, X, Share, PlusSquare, Info, AppWindow } from 'lucide-react';
 
+import { EIcon } from './EIcon';
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
   readonly userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
@@ -239,7 +240,7 @@ export function InstallBanner() {
                   activeTab === 'android' ? 'border-teal-500 text-teal-600' : 'border-transparent text-slate-400 hover:text-slate-600'
                 }`}
               >
-                🤖 Android
+                <EIcon name="Bot" /> Android
               </button>
               <button
                 onClick={() => setActiveTab('ios')}
@@ -247,7 +248,7 @@ export function InstallBanner() {
                   activeTab === 'ios' ? 'border-teal-500 text-teal-600' : 'border-transparent text-slate-400 hover:text-slate-600'
                 }`}
               >
-                🍎 iOS (iPhone/iPad)
+                <EIcon name="Apple" /> iOS (iPhone/iPad)
               </button>
               <button
                 onClick={() => setActiveTab('desktop')}
@@ -255,7 +256,7 @@ export function InstallBanner() {
                   activeTab === 'desktop' ? 'border-teal-500 text-teal-600' : 'border-transparent text-slate-400 hover:text-slate-600'
                 }`}
               >
-                💻 Ordinateur
+                <EIcon name="Laptop" /> Ordinateur
               </button>
             </div>
 

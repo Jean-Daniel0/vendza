@@ -3,6 +3,7 @@ import { Search, MapPin, Sparkles, Flame, Clock, Plus, Star, Store, X } from 'lu
 import { Product, UserProfile, Review } from '../types';
 import { HAITIAN_ZONES } from '../data';
 
+import { EIcon, RichText } from './EIcon';
 interface MarketplaceHomeProps {
   products: Product[];
   reviews?: Review[];
@@ -66,19 +67,19 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
   }, []);
 
   const categories = [
-    { value: 'Tout', label: '🛍️ Tout' },
-    { value: 'Mode', label: '👗 Mode' },
-    { value: 'Électronique', label: '📱 Électronique' },
-    { value: 'Audio', label: '🎧 Audio' },
-    { value: 'Wearable', label: '⌚ Wearable' },
-    { value: 'Maison', label: '🏠 Maison' },
-    { value: 'Photo', label: '📷 Photo' },
-    { value: 'Gaming', label: '🎮 Gaming' },
-    { value: 'Beauté', label: '🧴 Beauté' },
-    { value: 'Accessoires', label: '🎒 Accessoires' },
-    { value: 'Alimentaire', label: '🛒 Alimentaire' },
-    { value: 'Sport', label: '⚽ Sport' },
-    { value: 'Autre', label: '📦 Autre' }
+    { value: 'Tout', label: '[[ShoppingBag]] Tout' },
+    { value: 'Mode', label: '[[Shirt]] Mode' },
+    { value: 'Électronique', label: '[[Smartphone]] Électronique' },
+    { value: 'Audio', label: '[[Headphones]] Audio' },
+    { value: 'Wearable', label: '[[Watch]] Wearable' },
+    { value: 'Maison', label: '[[Home]] Maison' },
+    { value: 'Photo', label: '[[Camera]] Photo' },
+    { value: 'Gaming', label: '[[Gamepad2]] Gaming' },
+    { value: 'Beauté', label: '[[Droplets]] Beauté' },
+    { value: 'Accessoires', label: '[[Backpack]] Accessoires' },
+    { value: 'Alimentaire', label: '[[ShoppingCart]] Alimentaire' },
+    { value: 'Sport', label: '[[Dumbbell]] Sport' },
+    { value: 'Autre', label: '[[Package]] Autre' }
   ];
 
   // Handle department changes - reset commune
@@ -224,7 +225,7 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
                 : 'bg-white hover:bg-slate-50 text-slate-500 border-[#e2e8f0]'
             }`}
           >
-            {cat.label}
+            <RichText text={cat.label} />
           </button>
         ))}
       </section>
@@ -479,7 +480,7 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
               </div>
             ) : (
               <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
-                <span className="text-3xl">📦</span>
+                <span className="text-3xl"><EIcon name="Package" /></span>
                 <h3 className="font-serif text-sm font-bold text-slate-700 mt-2">Aucun produit trouvé</h3>
                 <p className="text-xs text-slate-400 mt-1">Essayez de retirer vos filtres de recherche ou de localisation.</p>
               </div>
@@ -542,7 +543,7 @@ const ProductScrollCard: React.FC<{ product: Product; rating: number; onView: ()
               referrerPolicy="no-referrer" 
             />
           ) : (
-            <span className="font-serif text-3xl">👗</span>
+            <span className="font-serif text-3xl"><EIcon name="Shirt" /></span>
           )}
           {product.oldPrice && (
             <span className="absolute top-2 left-2 bg-red-600 text-white font-extrabold text-[8px] px-1.5 py-0.5 rounded-md uppercase tracking-wider">
@@ -572,7 +573,7 @@ const ProductScrollCard: React.FC<{ product: Product; rating: number; onView: ()
             </div>
             {(product.vendeurPlan === 'Pro Local' || product.vendeurPlan === 'Pro National' || String(product.vendeurPlan || '').toLowerCase().includes('pro')) && (
               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[8px] font-extrabold border border-emerald-200 shrink-0">
-                ✓ Vérifié
+                <EIcon name="Check" /> Vérifié
               </span>
             )}
             {(product.vendeurPlan === 'Pro Local' || String(product.vendeurPlan || '').toLowerCase().replace(/_/g, ' ') === 'pro local') && (
@@ -642,7 +643,7 @@ export const ProductGridCard: React.FC<{ product: Product; rating: number; onVie
               referrerPolicy="no-referrer" 
             />
           ) : (
-            <span className="font-serif text-4xl">👗</span>
+            <span className="font-serif text-4xl"><EIcon name="Shirt" /></span>
           )}
           {product.oldPrice && (
             <span className="absolute top-2 left-2 bg-red-600 text-white font-extrabold text-[8px] px-2 py-0.5 rounded-md uppercase tracking-wider shadow-sm">
@@ -680,7 +681,7 @@ export const ProductGridCard: React.FC<{ product: Product; rating: number; onVie
               </div>
               {(product.vendeurPlan === 'Pro Local' || product.vendeurPlan === 'Pro National' || String(product.vendeurPlan || '').toLowerCase().includes('pro')) && (
                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[8px] font-extrabold border border-emerald-200 shrink-0">
-                  ✓ Vérifié
+                  <EIcon name="Check" /> Vérifié
                 </span>
               )}
               {(product.vendeurPlan === 'Pro Local' || String(product.vendeurPlan || '').toLowerCase().replace(/_/g, ' ') === 'pro local') && (

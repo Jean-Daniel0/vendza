@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import OneSignal from 'react-onesignal';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
+import { EIcon } from './EIcon';
 const DISMISS_KEY = 'vendza_promo_optin_dismissed_at';
 const SEVEN_DAYS = 7 * 86400000;
 
@@ -27,7 +28,7 @@ export const PromoOptIn: React.FC<{ userId?: string; newsletter?: boolean; onEna
 
   return (
     <div className="fixed bottom-20 left-3 right-3 z-50 mx-auto max-w-md rounded-2xl border border-emerald-200 bg-white p-3 shadow-lg">
-      <p className="text-xs font-bold text-slate-800">🔥 Ne ratez plus les Ventes Flash</p>
+      <p className="text-xs font-bold text-slate-800"><EIcon name="Flame" /> Ne ratez plus les Ventes Flash</p>
       <p className="mt-0.5 text-[11px] text-slate-500">Recevez nos promotions et des suggestions selon ce que vous aimez. Désactivable à tout moment dans votre profil.</p>
       <div className="mt-2 flex gap-2">
         <button onClick={enable} disabled={busy} className="flex-1 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-60">{busy ? '…' : 'Activer'}</button>

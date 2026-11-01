@@ -8,6 +8,7 @@ import { QRCodeRenderer } from './QRCodeRenderer';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { parseOrderContacts } from '../lib/contacts';
 
+import { EIcon } from './EIcon';
 interface TicketDetailViewProps {
   order: Order;
   user: UserProfile | null;
@@ -94,7 +95,7 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
       if (result && result.success === false) {
         setActionMessage(`Erreur: ${result.message}`);
       } else {
-        setActionMessage(`✓ ${result?.message || 'Réception confirmée. Le versement au vendeur est en cours.'}`);
+        setActionMessage(`${result?.message || 'Réception confirmée. Le versement au vendeur est en cours.'}`);
       }
     } catch (e: any) {
       setActionMessage(`Erreur: ${e.message || 'Impossible de valider la livraison'}`);
@@ -110,7 +111,7 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
         <div className="fixed bottom-5 right-5 z-60 bg-blue-900 border border-teal-500 text-teal-300 font-bold text-xs px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 animate-bounce">
           <ShieldCheck size={14} className="text-teal-400" strokeWidth={3} />
           <span>{actionMessage}</span>
-          <button onClick={() => setActionMessage('')} className="ml-2 hover:text-white shrink-0">✕</button>
+          <button onClick={() => setActionMessage('')} className="ml-2 hover:text-white shrink-0"><EIcon name="X" /></button>
         </div>
       )}
 
@@ -129,7 +130,7 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
           
           <div>
             <h1 className="font-serif text-lg sm:text-2xl font-black text-slate-900 flex items-center gap-2 tracking-tight">
-              🎫 Billet de Garde & Reçu Officiel
+              <EIcon name="Ticket" /> Billet de Garde & Reçu Officiel
             </h1>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-sans">
               Plateforme Mandataire Séquestre Vendza
@@ -337,13 +338,13 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
           {/* Status Tracker */}
           <div className="bg-white rounded-3xl border border-slate-150 p-5 shadow-xs space-y-4">
             <h4 className="text-[10px] font-black tracking-widest text-[#0c1445] bg-[#eff6ff] border border-[#bfdbfe] px-3.5 py-1.5 rounded-full uppercase text-center w-full block">
-              🛡️ FEUILLE DE ROUTE DE SECURITÉ
+              <EIcon name="ShieldCheck" /> FEUILLE DE ROUTE DE SECURITÉ
             </h4>
 
             {/* QR Code Presentation or Camera Scanner Button accessible to all users */}
             <div className="flex flex-col items-center justify-center p-6 bg-slate-50/70 border border-slate-150 rounded-2xl gap-4">
               <div className="p-4 bg-blue-50 text-blue-600 rounded-full">
-                <span className="text-3xl">📷</span>
+                <span className="text-3xl"><EIcon name="Camera" /></span>
               </div>
               <div className="text-center space-y-1">
                 <h4 className="font-bold text-slate-800 text-sm">Scanner le code QR de livraison</h4>
@@ -357,14 +358,14 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
                 onClick={() => onNavigate && onNavigate('scanner')}
                 className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl shadow-md cursor-pointer flex items-center justify-center gap-2 transition-all transform hover:scale-[1.02]"
               >
-                <span>📷 OUVRIR LA CAMÉRA / SCANNER</span>
+                <span><EIcon name="Camera" /> OUVRIR LA CAMÉRA / SCANNER</span>
               </button>
             </div>
 
             {!isBuyer && (
               <div className="flex flex-col items-center justify-center p-5 bg-slate-50/50 border border-slate-150 rounded-2xl gap-3">
                 <p className="text-[11px] text-slate-500 font-bold text-center leading-relaxed">
-                  🔒 Colis Sécurisé Vendza.<br />Le QR Code officiel imprimable de déblocage est affiché directement dans le ticket de consignation ci-contre.
+                  <EIcon name="Lock" /> Colis Sécurisé Vendza.<br />Le QR Code officiel imprimable de déblocage est affiché directement dans le ticket de consignation ci-contre.
                 </p>
                 
                 <p className="text-[10.5px] text-slate-450 font-semibold text-center italic">
@@ -381,7 +382,7 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
                     : 'bg-amber-50 border-amber-200 text-amber-700'
                 }`}>
-                  {order.status === 'livree' ? '✅ LIVRAISON VALIDÉE' : '⏳ FUNDS BLOCKED (SÉQUESTRE)'}
+                  {order.status === 'livree' ? <><EIcon name="CheckCircle2" /> LIVRAISON VALIDÉE</> : <><EIcon name="Hourglass" /> FUNDS BLOCKED (SÉQUESTRE)</>}
                 </span>
               </div>
 

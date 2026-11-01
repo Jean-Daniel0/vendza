@@ -3,6 +3,7 @@ import { Store, CheckCircle, Smartphone, Award, ShieldAlert, Sparkles, MapPin, U
 import { UserProfile } from '../types';
 import { supabase } from '../lib/supabaseClient';
 
+import { EIcon, RichText } from './EIcon';
 interface BecomeSellerViewProps {
   user: UserProfile;
   onUpdateProfile: (updates: Partial<UserProfile>) => void;
@@ -23,16 +24,16 @@ const HAITIAN_ZONES: Record<string, string[]> = {
 };
 
 const CATEGORIES = [
-  { label: 'Mode', emoji: '👗' },
-  { label: 'Électronique', emoji: '📱' },
-  { label: 'Maison', emoji: '🏠' },
-  { label: 'Beauté', emoji: '💄' },
-  { label: 'Alimentation', emoji: '🍽️' },
-  { label: 'Sport', emoji: '⚽' },
-  { label: 'Audio', emoji: '🎵' },
-  { label: 'Photo', emoji: '📸' },
-  { label: 'Gaming', emoji: '🎮' },
-  { label: 'Autre', emoji: '📦' }
+  { label: 'Mode', emoji: '[[Shirt]]' },
+  { label: 'Électronique', emoji: '[[Smartphone]]' },
+  { label: 'Maison', emoji: '[[Home]]' },
+  { label: 'Beauté', emoji: '[[Sparkles]]' },
+  { label: 'Alimentation', emoji: '[[Utensils]]' },
+  { label: 'Sport', emoji: '[[Dumbbell]]' },
+  { label: 'Audio', emoji: '[[Music]]' },
+  { label: 'Photo', emoji: '[[Camera]]' },
+  { label: 'Gaming', emoji: '[[Gamepad2]]' },
+  { label: 'Autre', emoji: '[[Package]]' }
 ];
 
 export const BecomeSellerView: React.FC<BecomeSellerViewProps> = ({
@@ -304,7 +305,7 @@ export const BecomeSellerView: React.FC<BecomeSellerViewProps> = ({
     return (
       <div className="max-w-md mx-auto py-12 px-4 text-center font-sans">
         <div className="w-20 h-20 rounded-3xl bg-teal-50 text-teal-600 border border-teal-100 flex items-center justify-center text-4xl mx-auto mb-6 shadow-sm">
-          🏪
+          <EIcon name="Store" />
         </div>
         <h2 className="font-serif text-xl font-black text-[#0c1445] tracking-tight mb-2 animate-fade-in">
           Vous possédez déjà un compte Vendeur !
@@ -321,7 +322,7 @@ export const BecomeSellerView: React.FC<BecomeSellerViewProps> = ({
             }}
             className="w-full py-3.5 bg-gradient-to-r from-teal-600 to-teal-700 text-white rounded-xl text-xs font-bold shadow-md hover:opacity-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
           >
-            🔑 Activer le Mode Boutique
+            <EIcon name="Key" /> Activer le Mode Boutique
           </button>
           <button
             onClick={() => onNavigate('home')}
@@ -338,7 +339,7 @@ export const BecomeSellerView: React.FC<BecomeSellerViewProps> = ({
     return (
       <div className="max-w-lg mx-auto py-12 px-4 text-center font-sans">
         <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center text-4xl mx-auto mb-6 shadow-md shadow-emerald-200">
-          🎉
+          <EIcon name="PartyPopper" />
         </div>
         
         <h2 className="font-serif text-2xl font-black text-[#0c1445] tracking-tight mb-2">
@@ -347,7 +348,7 @@ export const BecomeSellerView: React.FC<BecomeSellerViewProps> = ({
         
         {finalStatus === 'en_verification' ? (
           <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4 text-xs font-semibold leading-relaxed mb-6 text-left flex gap-3">
-            <span className="text-xl">⏳</span>
+            <span className="text-xl"><EIcon name="Hourglass" /></span>
             <div>
               <strong className="text-amber-950 font-bold block mb-1">En cours de vérification :</strong>
               Notre équipe examine votre pièce d'identité et vos informations de paiement. Votre boutique sera activée après validation sous 24h-48h.
@@ -355,7 +356,7 @@ export const BecomeSellerView: React.FC<BecomeSellerViewProps> = ({
           </div>
         ) : (
           <div className="bg-red-50 border border-red-200 text-red-900 rounded-2xl p-4 text-xs font-semibold leading-relaxed mb-6 text-left flex gap-3">
-            <span className="text-xl">⚠️</span>
+            <span className="text-xl"><EIcon name="AlertTriangle" /></span>
             <div>
               <strong className="text-red-950 font-bold block mb-1">Revenus bloqués :</strong>
               Votre boutique est opérationnelle et vous pouvez publier des produits ! Cependant, vos gains de ventes seront conservés en attente jusqu'à complet renseignement de votre compte MonCash et de votre CIN dans votre profil.
@@ -365,22 +366,22 @@ export const BecomeSellerView: React.FC<BecomeSellerViewProps> = ({
 
         <div className="grid grid-cols-2 gap-3 mb-8">
           <div className="p-4 bg-white border border-slate-100 rounded-2xl text-left shadow-3xs">
-            <span className="text-lg block mb-1">📦</span>
+            <span className="text-lg block mb-1"><EIcon name="Package" /></span>
             <span className="block text-xs font-extrabold text-[#0c1445] mb-0.5">Préparez vos produits</span>
             <span className="text-[10px] text-slate-400 font-semibold leading-normal">Créez vos fiches dès maintenant en mode brouillon ou public.</span>
           </div>
           <div className="p-4 bg-white border border-slate-100 rounded-2xl text-left shadow-3xs">
-            <span className="text-lg block mb-1">📸</span>
+            <span className="text-lg block mb-1"><EIcon name="Camera" /></span>
             <span className="block text-xs font-extrabold text-[#0c1445] mb-0.5">Soignez vos photos</span>
             <span className="text-[10px] text-slate-400 font-semibold leading-normal">Un fond uniforme, clair et lumineux multiplie vos ventes.</span>
           </div>
           <div className="p-4 bg-white border border-slate-100 rounded-2xl text-left shadow-3xs">
-            <span className="text-lg block mb-1">💰</span>
+            <span className="text-lg block mb-1"><EIcon name="Wallet" /></span>
             <span className="block text-xs font-extrabold text-[#0c1445] mb-0.5">Fixez de bons prix</span>
             <span className="text-[10px] text-slate-400 font-semibold leading-normal">Étudiez le marché haïtien pour offrir des tarifs justes et compétitifs.</span>
           </div>
           <div className="p-4 bg-white border border-slate-100 rounded-2xl text-left shadow-3xs">
-            <span className="text-lg block mb-1">🚚</span>
+            <span className="text-lg block mb-1"><EIcon name="Truck" /></span>
             <span className="block text-xs font-extrabold text-[#0c1445] mb-0.5">Zone de livraison</span>
             <span className="text-[10px] text-slate-400 font-semibold leading-normal">Dites à vos clients jusqu'où vos transporteurs peuvent livrer.</span>
           </div>
@@ -424,7 +425,7 @@ export const BecomeSellerView: React.FC<BecomeSellerViewProps> = ({
                     ? 'bg-blue-600 text-white ring-4 ring-blue-50' 
                     : 'bg-slate-100 text-slate-400 border'
               }`}>
-                {st < currentStep ? '✓' : st}
+                {st < currentStep ? <><EIcon name="Check" /></> : st}
               </div>
               {st < 5 && <div className={`w-8 h-0.5 ${st < currentStep ? 'bg-emerald-500' : 'bg-slate-100'}`} />}
             </div>
@@ -436,7 +437,7 @@ export const BecomeSellerView: React.FC<BecomeSellerViewProps> = ({
       {currentStep === 1 && (
         <div className="space-y-4">
           <div className="text-center">
-            <span className="text-3xl">🏪</span>
+            <span className="text-3xl"><EIcon name="Store" /></span>
             <h3 className="font-serif text-lg font-black text-[#0c1445] mt-2 mb-1">Votre Boutique</h3>
             <p className="text-xs text-slate-400 font-semibold max-w-xs mx-auto">Donnez un nom et décrivez votre enseigne de commerce unique sur Vendza.</p>
           </div>
@@ -481,7 +482,7 @@ export const BecomeSellerView: React.FC<BecomeSellerViewProps> = ({
       {currentStep === 2 && (
         <div className="space-y-4">
           <div className="text-center">
-            <span className="text-3xl">🗂️</span>
+            <span className="text-3xl"><EIcon name="FolderOpen" /></span>
             <h3 className="font-serif text-lg font-black text-[#0c1445] mt-2 mb-1">Type de Produits</h3>
             <p className="text-xs text-slate-400 font-semibold max-w-xs mx-auto">Sélectionnez les catégories d'articles que vous commercialisez (choisir au moins 1).</p>
           </div>
@@ -504,9 +505,9 @@ export const BecomeSellerView: React.FC<BecomeSellerViewProps> = ({
                     <div className={`w-4 h-4 rounded border flex items-center justify-center text-[9px] shrink-0 font-black ${
                       isSel ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 bg-white'
                     }`}>
-                      {isSel && '✓'}
+                      {isSel && <><EIcon name="Check" /></>}
                     </div>
-                    <span className="text-sm shrink-0">{cat.emoji}</span>
+                    <span className="text-sm shrink-0"><RichText text={cat.emoji} /></span>
                     <span className="text-xs font-bold leading-none truncate">{cat.label}</span>
                   </button>
                 );
@@ -521,7 +522,7 @@ export const BecomeSellerView: React.FC<BecomeSellerViewProps> = ({
       {currentStep === 3 && (
         <div className="space-y-4">
           <div className="text-center">
-            <span className="text-3xl">📸</span>
+            <span className="text-3xl"><EIcon name="Camera" /></span>
             <h3 className="font-serif text-lg font-black text-[#0c1445] mt-2 mb-1">Photo de Boutique / Logo</h3>
             <p className="text-xs text-slate-400 font-semibold max-w-xs mx-auto">Uploadez un bel emblème ou votre logo de commerce pour asseoir votre réputation.</p>
           </div>
@@ -531,7 +532,7 @@ export const BecomeSellerView: React.FC<BecomeSellerViewProps> = ({
               {logoPreview ? (
                 <div className="flex flex-col items-center">
                   <img src={logoPreview} alt="Logo Preview" className="w-24 h-24 rounded-2xl object-cover border-4 border-white shadow-md mb-2" referrerPolicy="no-referrer" />
-                  <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">✓ IMAGE SÉLECTIONNÉE</span>
+                  <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100"><EIcon name="Check" /> IMAGE SÉLECTIONNÉE</span>
                 </div>
               ) : (
                 <div className="text-center space-y-1">
@@ -549,7 +550,7 @@ export const BecomeSellerView: React.FC<BecomeSellerViewProps> = ({
             </div>
 
             <div className="bg-blue-50/70 border border-blue-100/50 rounded-2xl p-3.5 space-y-1.5 text-[10.5px] text-blue-900">
-              <span className="font-extrabold text-[#0c1445] flex items-center gap-1">💡 Conseils pour augmenter vos ventes :</span>
+              <span className="font-extrabold text-[#0c1445] flex items-center gap-1"><EIcon name="Lightbulb" /> Conseils pour augmenter vos ventes :</span>
               <ul className="list-disc pl-3 font-semibold space-y-0.5 text-slate-600">
                 <li>Privilégiez un fond clair, uni ou neutre.</li>
                 <li>Format carré recommandé (1:1).</li>
@@ -564,7 +565,7 @@ export const BecomeSellerView: React.FC<BecomeSellerViewProps> = ({
       {currentStep === 4 && (
         <div className="space-y-4">
           <div className="text-center">
-            <span className="text-3xl">💰</span>
+            <span className="text-3xl"><EIcon name="Wallet" /></span>
             <h3 className="font-serif text-lg font-black text-[#0c1445] mt-2 mb-1">Compte de Recouvrement</h3>
             <p className="text-xs text-slate-400 font-semibold max-w-xs mx-auto">Veuillez renseigner votre ligne MonCash pour recevoir automatiquement les paiements acheteurs débrayés.</p>
           </div>
@@ -657,7 +658,7 @@ export const BecomeSellerView: React.FC<BecomeSellerViewProps> = ({
               </div>
             </div>
             
-            <p className="text-[9px] font-bold text-slate-400 text-center">🛡️ Chiffrement de sécurité actif sur les informations bancaires.</p>
+            <p className="text-[9px] font-bold text-slate-400 text-center"><EIcon name="ShieldCheck" /> Chiffrement de sécurité actif sur les informations bancaires.</p>
           </div>
         </div>
       )}
@@ -666,7 +667,7 @@ export const BecomeSellerView: React.FC<BecomeSellerViewProps> = ({
       {currentStep === 5 && (
         <div className="space-y-4">
           <div className="text-center">
-            <span className="text-3xl">🪪</span>
+            <span className="text-3xl"><EIcon name="IdCard" /></span>
             <h3 className="font-serif text-lg font-black text-[#0c1445] mt-2 mb-1">Validation d'Identité</h3>
             <p className="text-xs text-slate-400 font-semibold max-w-xs mx-auto">Veuillez soumettre une pièce officielle pour sécuriser la confiance client.</p>
           </div>
@@ -728,7 +729,7 @@ export const BecomeSellerView: React.FC<BecomeSellerViewProps> = ({
               <div className="flex flex-col items-center justify-center p-5 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 relative overflow-hidden group hover:bg-slate-100/50 transition">
                 {idFile ? (
                   <div className="flex flex-col items-center">
-                    <span className="text-3xl text-emerald-600">📄</span>
+                    <span className="text-3xl text-emerald-600"><EIcon name="FileText" /></span>
                     <span className="text-[9.5px] font-bold text-emerald-600 mt-1">FICHIER RECTO AJOUTÉ</span>
                   </div>
                 ) : (
@@ -749,7 +750,7 @@ export const BecomeSellerView: React.FC<BecomeSellerViewProps> = ({
             </div>
 
             <div className="p-3 bg-teal-50 border border-teal-100/50 text-teal-900 rounded-2xl text-[9.5px] font-semibold leading-relaxed">
-              ⚠️ <strong>Luminosité importante :</strong> Veillez à ce que les caractères et vos photos d'aspiration soient visibles et nets, sinon notre service risque de rejeter la conformité.
+              <EIcon name="AlertTriangle" /> <strong>Luminosité importante :</strong> Veillez à ce que les caractères et vos photos d'aspiration soient visibles et nets, sinon notre service risque de rejeter la conformité.
             </div>
           </div>
         </div>
@@ -773,7 +774,7 @@ export const BecomeSellerView: React.FC<BecomeSellerViewProps> = ({
           onClick={handleNextStep}
           className="flex-2 py-3 text-xs bg-[#0c1445] text-white rounded-xl hover:bg-blue-900 font-extrabold transition uppercase tracking-widest flex items-center justify-center gap-1 cursor-pointer shadow-sm select-none"
         >
-          <span>{currentStep === TOTAL_STEPS ? (submitting ? 'Validation...' : 'Créer ma boutique 🚀') : 'Continuer'}</span>
+          <span>{currentStep === TOTAL_STEPS ? (submitting ? 'Validation...' : <>Créer ma boutique <EIcon name="Rocket" /></>) : 'Continuer'}</span>
           {currentStep < TOTAL_STEPS && <ChevronRight size={14} />}
         </button>
       </div>

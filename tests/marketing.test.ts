@@ -13,7 +13,7 @@ assert.equal(haitiClock(new Date('2026-12-11T01:30:00Z')).dateKey, '2026-12-10')
 const P = (o: any) => ({ id: 'p', name: 'X', price: 100, old_price: null, stock: 5, category: 'Mode', vendor_id: 'v', created_at: '2026-10-01T00:00:00Z', is_active: true, status: 'published', ...o });
 const prods = [P({ id: 'a', price: 50, old_price: 100 }), P({ id: 'b', price: 80, old_price: 100 }), P({ id: 'c' }), P({ id: 'd', price: 10, old_price: 100, stock: 0 }), P({ id: 'e', price: 10, old_price: 100, is_active: false })];
 assert.deepEqual(flashSummary(prods), { count: 2, maxPct: 50 });   // sans rupture ni produit inactif
-assert.equal(buildFlashMessage({ count: 2, maxPct: 50 }).title, "🔥 Ventes Flash — jusqu'à -50%");
+assert.equal(buildFlashMessage({ count: 2, maxPct: 50 }).title, "Ventes Flash — jusqu'à -50%");
 assert.match(buildFlashMessage({ count: 1, maxPct: 20 }).message, /^1 produit en promotion/);
 assert.equal(discountPct(P({ price: 150, old_price: 100 })), 0);
 
@@ -24,9 +24,9 @@ const catalog = [P({ id: 'm1', category: 'Mode', name: 'Robe', created_at: '2026
   P({ id: 'au', category: 'Audio', name: 'Casque' }), P({ id: 'mine', category: 'Mode', vendor_id: 'me', price: 1, old_price: 100 })];
 const r = pickRecommendation(interests, catalog, { userId: 'me', now })!;
 assert.equal(r.category, 'Mode'); assert.equal(r.product.id, 'm2');        // meilleure promo, pas son propre produit
-assert.equal(buildRecommendationMessage(r).title, '🔥 Pour vous : -40% sur Costume');
+assert.equal(buildRecommendationMessage(r).title, 'Pour vous : -40% sur Costume');
 const r2 = pickRecommendation(interests, catalog.filter(p => p.id !== 'm2'), { userId: 'me', now })!;
-assert.equal(r2.product.id, 'm1'); assert.equal(buildRecommendationMessage(r2).title, '✨ Nouveau en Mode');
+assert.equal(r2.product.id, 'm1'); assert.equal(buildRecommendationMessage(r2).title, 'Nouveau en Mode');
 // plafond : pas de 2e message avant 72 h
 assert.equal(pickRecommendation([{ ...interests[0], last_notified_at: '2026-10-15T13:00:00Z' }], catalog, { userId: 'me', now }), null);
 assert.ok(pickRecommendation([{ ...interests[0], last_notified_at: '2026-10-14T11:00:00Z' }], catalog, { userId: 'me', now }));
@@ -35,4 +35,4 @@ assert.equal(pickRecommendation(interests, catalog.filter(p => p.category === 'A
 // décroissance : après 14 jours le score est divisé par 2
 assert.ok(Math.abs(effectiveScore({ category: 'x', score: 8, last_viewed_at: '2026-10-03T12:00:00Z' }, now) - 4) < 0.01);
 assert.equal(pickRecommendation([], catalog, { userId: 'me', now }), null);
-console.log('  ✓ marketing: 19 assertions OK');
+console.log('  marketing: 19 assertions OK');

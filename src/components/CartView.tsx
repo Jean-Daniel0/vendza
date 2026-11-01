@@ -5,6 +5,7 @@ import { HAITIAN_ZONES } from '../data';
 import { isLowStock } from '../lib/cartSync';
 import { resolveShippingFee, ShippingConfig } from '../lib/shipping';
 
+import { EIcon, RichText } from './EIcon';
 interface CartViewProps {
   cart: CartItem[];
   user: UserProfile | null;
@@ -67,15 +68,15 @@ export const CartView: React.FC<CartViewProps> = ({
 
     if (code === 'VENDZA10') {
       setDiscountPercent(10);
-      setPromoSuccess('🏷️ Code VENDZA10 (10% de réduction) appliqué !');
+      setPromoSuccess('[[Tag]] Code VENDZA10 (10% de réduction) appliqué !');
     } else if (code === 'BIENVENUE') {
       setDiscountPercent(15);
-      setPromoSuccess('🎉 Code BIENVENUE (15% de réduction) appliqué !');
+      setPromoSuccess('[[PartyPopper]] Code BIENVENUE (15% de réduction) appliqué !');
     } else if (code === 'HAITI20') {
       setDiscountPercent(20);
-      setPromoSuccess('🇭🇹 Code HAITI20 (20% de réduction) appliqué !');
+      setPromoSuccess('[[Flag]] Code HAITI20 (20% de réduction) appliqué !');
     } else {
-      setPromoError('✕ Code invalide ou expiré.');
+      setPromoError('Code invalide ou expiré.');
       setDiscountPercent(0);
     }
   };
@@ -125,7 +126,7 @@ export const CartView: React.FC<CartViewProps> = ({
         </div>
 
         <div className="bg-gradient-to-r from-[#0c1445] via-[#1e3a8a] to-[#0d9488] rounded-3xl p-6 text-white shadow-md relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none text-7xl select-none">🧾</div>
+          <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none text-7xl select-none"><EIcon name="Receipt" /></div>
           <h2 className="text-lg font-extrabold tracking-tight font-sans">Résumé de votre commande</h2>
           <p className="text-xs text-white/80 leading-normal mt-1.5">
             Prenez un instant pour valider les informations de livraison et de prix de votre panier avant de procéder au règlement sécurisé.
@@ -145,22 +146,22 @@ export const CartView: React.FC<CartViewProps> = ({
                       <div className="w-12 h-12 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 overflow-hidden font-serif text-lg">
                         {item.product.image_url && !item.product.image_url.startsWith('#') ? (
                           <img src={item.product.image_url} alt={item.product.nom} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                        ) : '👜'}
+                        ) : <><EIcon name="ShoppingBag" /></>}
                       </div>
                       <div>
                         <h4 className="text-xs font-extrabold text-slate-800 leading-snug">{item.product.nom}</h4>
-                        {isLowStock(item.product) && <p className="mt-0.5 text-[10px] font-black text-amber-600">⚠️ Plus que {item.product.stock} en stock</p>}
+                        {isLowStock(item.product) && <p className="mt-0.5 text-[10px] font-black text-amber-600"><EIcon name="AlertTriangle" /> Plus que {item.product.stock} en stock</p>}
                         {item.product.stock <= 0 && <p className="mt-0.5 text-[10px] font-black text-rose-600">Épuisé pour le moment — gardé dans votre panier</p>}
                         <div className="flex flex-wrap items-center gap-1.5 mt-1 font-sans">
                           <span className="text-[10px] text-slate-500 font-bold bg-slate-50 px-1.5 py-0.5 rounded">Quantité : {item.quantity}</span>
                           {item.selectedColor && (
                             <span className="text-[9px] font-black text-[#5a6480] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                              🎨 Couleur
+                              <EIcon name="Palette" /> Couleur
                             </span>
                           )}
                           {item.selectedSize && (
                             <span className="text-[9px] font-black text-[#5a6400] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                              📐 Taille {item.selectedSize}
+                              <EIcon name="Ruler" /> Taille {item.selectedSize}
                             </span>
                           )}
                         </div>
@@ -341,7 +342,7 @@ export const CartView: React.FC<CartViewProps> = ({
                         <div className="w-9 h-9 rounded-lg shadow-sm border border-white" style={{ backgroundColor: item.selectedColor }} />
                       </div>
                     ) : (
-                      <span className="font-serif text-3xl">👜</span>
+                      <span className="font-serif text-3xl"><EIcon name="ShoppingBag" /></span>
                     )}
                   </div>
 
@@ -367,12 +368,12 @@ export const CartView: React.FC<CartViewProps> = ({
                       <div className="flex flex-wrap gap-1.5 mt-1.5">
                         {item.selectedColor && (
                           <span className="text-[9px] font-black text-[#5a6480] bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                            🎨 Couleur select
+                            <EIcon name="Palette" /> Couleur select
                           </span>
                         )}
                         {item.selectedSize && (
                           <span className="text-[9px] font-black text-[#5a6400] bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                            📐 Taille {item.selectedSize}
+                            <EIcon name="Ruler" /> Taille {item.selectedSize}
                           </span>
                         )}
                       </div>
@@ -418,7 +419,7 @@ export const CartView: React.FC<CartViewProps> = ({
               onClick={onClearCart}
               className="px-3.5 py-1.5 rounded-lg border border-red-200 hover:border-red-300 text-red-600 hover:bg-red-50 text-[10px] font-extrabold uppercase tracking-widest cursor-pointer"
             >
-              🗑️ Vider le panier
+              <EIcon name="Trash2" /> Vider le panier
             </button>
           </div>
 
@@ -498,7 +499,7 @@ export const CartView: React.FC<CartViewProps> = ({
                 </button>
               </div>
               {promoError && <p className="text-[10px] text-red-600 font-bold">{promoError}</p>}
-              {promoSuccess && <p className="text-[10px] text-emerald-600 font-bold">{promoSuccess}</p>}
+              {promoSuccess && <p className="text-[10px] text-emerald-600 font-bold"><RichText text={promoSuccess} /></p>}
             </div>
 
             {/* Price calculation sheet summary */}
@@ -580,7 +581,7 @@ export const CartView: React.FC<CartViewProps> = ({
         </div>
       ) : (
         <div className="text-center py-16 bg-white rounded-3xl border border-dashed border-slate-200 shadow-xs max-w-lg mx-auto">
-          <span className="text-5xl block animate-bounce mb-3">🛒</span>
+          <span className="text-5xl block animate-bounce mb-3"><EIcon name="ShoppingCart" /></span>
           <h2 className="font-serif text-sm font-bold text-slate-800">Votre panier est vide !</h2>
           <p className="text-xs text-slate-500 max-w-xs mx-auto mt-2 leading-relaxed">
             Consultez les différents départements, ajoutez des articles à votre panier, et commencez vos emplettes sécurisées en Haïti.
@@ -625,7 +626,7 @@ export const CartView: React.FC<CartViewProps> = ({
                       <div className="w-7 h-7 rounded-lg shadow-sm border border-white" style={{ backgroundColor: p.image_url }} />
                     </div>
                   ) : (
-                    <span className="font-serif text-2xl">🛍️</span>
+                    <span className="font-serif text-2xl"><EIcon name="ShoppingBag" /></span>
                   )}
                 </div>
                 <div className="p-2">

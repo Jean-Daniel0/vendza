@@ -6,6 +6,7 @@ import { TermsPage } from './TermsPage';
 import { PrivacyPage } from './PrivacyPage';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
+import { EIcon, RichText } from './EIcon';
 interface AuthViewProps {
   onLogin: (user: UserProfile) => void;
   onNavigate: (view: string) => void;
@@ -79,7 +80,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
 
   const handleGoogleSignIn = async () => {
     if (!isSupabaseConfigured || !supabase) {
-      const errMsg = "❌ Le serveur Supabase n'est pas configuré. Veuillez définir les variables d'environnement VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY.";
+      const errMsg = "[[XCircle]] Le serveur Supabase n'est pas configuré. Veuillez définir les variables d'environnement VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY.";
       console.error("[Vendza Supabase Config Error]", errMsg);
       showNotice(errMsg, 'error');
       return;
@@ -160,7 +161,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
     clearNotice();
 
     if (!isSupabaseConfigured || !supabase) {
-      const errMsg = "❌ Supabase n'est pas configuré. Veuillez définir les variables d'environnement VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY.";
+      const errMsg = "[[XCircle]] Supabase n'est pas configuré. Veuillez définir les variables d'environnement VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY.";
       console.error("[Vendza Supabase Config Error]", errMsg);
       showNotice(errMsg, 'error');
       return;
@@ -391,7 +392,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
     }
 
     if (!isSupabaseConfigured || !supabase) {
-      const errMsg = "❌ Supabase n'est pas configuré. Veuillez définir les variables d'environnement VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY.";
+      const errMsg = "[[XCircle]] Supabase n'est pas configuré. Veuillez définir les variables d'environnement VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY.";
       console.error("[Vendza Supabase Config Error]", errMsg);
       showNotice(errMsg, 'error');
       return;
@@ -413,7 +414,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
         console.error("[Vendza Supabase Auth SignUp Error]", authError);
         let errorMsg = `Erreur d'inscription : ${authError.message}`;
         if (authError.message.toLowerCase().includes('already registered') || authError.status === 422) {
-          errorMsg = "❌ Cet email est déjà utilisé. Veuillez vous connecter ou utiliser un autre email.";
+          errorMsg = "[[XCircle]] Cet email est déjà utilisé. Veuillez vous connecter ou utiliser un autre email.";
         }
         showNotice(errorMsg, 'error');
         return;
@@ -554,9 +555,9 @@ export const AuthView: React.FC<AuthViewProps> = ({
         }`}>
           <div className="flex gap-2 items-start font-medium">
             <span className="text-sm">
-              {notification.type === 'success' ? '✓' : notification.type === 'error' ? '❌' : notification.type === 'warning' ? '⚠️' : 'ℹ️'}
+              {notification.type === 'success' ? <><EIcon name="Check" /></> : notification.type === 'error' ? <><EIcon name="XCircle" /></> : notification.type === 'warning' ? <><EIcon name="AlertTriangle" /></> : <><EIcon name="Info" /></>}
             </span>
-            <div className="flex-1">{notification.text}</div>
+            <div className="flex-1"><RichText text={notification.text} /></div>
           </div>
           {notification.action && (
             <button
@@ -688,7 +689,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                     signupType === 'client' ? 'bg-blue-50 border-blue-400 text-blue-700' : 'bg-slate-50 text-slate-600 border-slate-200'
                   }`}
                 >
-                  <span className="text-xl block">🛍️</span>
+                  <span className="text-xl block"><EIcon name="ShoppingBag" /></span>
                   <span className="text-xs font-black">Acheter</span>
                 </div>
 
@@ -698,7 +699,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                     signupType === 'vendeur' ? 'bg-teal-50 border-teal-400 text-teal-700' : 'bg-slate-50 text-slate-600 border-slate-200'
                   }`}
                 >
-                  <span className="text-xl block">🏪</span>
+                  <span className="text-xl block"><EIcon name="Store" /></span>
                   <span className="text-xs font-black">Vendre</span>
                 </div>
               </div>
@@ -846,7 +847,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
               {isLoading ? (
                 <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : null}
-              {isLoading ? 'Inscription...' : '🚀 Finaliser la création de compte'}
+              {isLoading ? 'Inscription...' : <><EIcon name="Rocket" /> Finaliser la création de compte</>}
             </button>
           </form>
         </div>

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { UserProfile, CartItem } from '../types';
 
+import { EIcon } from './EIcon';
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
@@ -105,7 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     )}
                   </h3>
                   {user.userType === 'vendeur' && user.shopName && (
-                    <p className="text-[11px] text-teal-300 font-bold truncate">🏪 {user.shopName}</p>
+                    <p className="text-[11px] text-teal-300 font-bold truncate"><EIcon name="Store" /> {user.shopName}</p>
                   )}
                   <p className="text-[11px] text-slate-300 truncate">{user.email}</p>
                 </div>
@@ -114,7 +115,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {/* Badges strip */}
               <div className="flex flex-wrap gap-1.5 mt-1">
                 <span className="text-[9px] font-bold tracking-wider uppercase bg-white/15 px-2 py-0.5 rounded-full border border-white/10 text-white/95">
-                  {user.userType === 'vendeur' ? '🏪 Vendeur' : '🛍️ Client'}
+                  {user.userType === 'vendeur' ? <><EIcon name="Store" /> Vendeur</> : <><EIcon name="ShoppingBag" /> Client</>}
                 </span>
                 
                 {user.userType === 'vendeur' && (
@@ -125,7 +126,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         ? 'bg-blue-400/90 text-blue-950 border-blue-300/80' 
                         : 'bg-white/10 text-slate-100 border-white/5'
                   }`}>
-                    ★ {user.plan}
+                    <EIcon name="Star" /> {user.plan}
                   </span>
                 )}
 
@@ -147,7 +148,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       }}
                       className="w-full text-left text-[10px] font-bold tracking-wide bg-gradient-to-r from-teal-500/20 to-blue-500/20 hover:from-teal-500/35 hover:to-blue-500/35 border border-teal-300/30 text-teal-300 hover:text-white px-2.5 py-2 rounded-lg transition-all cursor-pointer backdrop-blur-xs flex items-center justify-center gap-1.5"
                     >
-                      <span>🔄 {user.userType === 'vendeur' ? 'Mode Client 🛍️' : 'Mode Vendeur 🏪'}</span>
+                      <span><EIcon name="RefreshCw" /> {user.userType === 'vendeur' ? <>Mode Client <EIcon name="ShoppingBag" /></> : <>Mode Vendeur <EIcon name="Store" /></>}</span>
                     </button>
                   ) : (
                     <button
@@ -156,7 +157,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       }}
                       className="w-full text-left text-[10px] font-bold tracking-wide bg-teal-400/20 hover:bg-teal-400/35 border border-teal-300/30 text-teal-300 hover:text-white px-2.5 py-2 rounded-lg transition-all cursor-pointer backdrop-blur-xs flex items-center justify-center gap-1"
                     >
-                      <span>Devenir Vendeur 🏪</span>
+                      <span>Devenir Vendeur <EIcon name="Store" /></span>
                     </button>
                   )}
                 </div>

@@ -2,7 +2,7 @@
 export interface ChatProductRef { id: string; nom: string }
 
 export const productRefTag = (p: ChatProductRef): string =>
-  `📦 ${String(p.nom || 'Produit').trim()} · Réf. #${String(p.id || '').replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+  `${String(p.nom || 'Produit').trim()} · Réf. #${String(p.id || '').replace(/-/g, '').slice(0, 8).toUpperCase()}`;
 
 // Ajoute la référence (nom + id court) seulement au PREMIER message échangé à propos de ce produit.
 export function withProductTagOnFirstMessage(args: {

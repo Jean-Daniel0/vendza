@@ -12,6 +12,7 @@ import { DeliveryCodeQR } from './DeliveryCodeQR';
 import { ShopSettingsView } from './ShopSettingsView';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
+import { EIcon, RichText } from './EIcon';
 interface VendorDashboardProps {
   products: Product[];
   orders: Order[];
@@ -425,7 +426,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
 
   const handleSaveProfile = () => {
     if (!formPrenom.trim() || !formNom.trim() || !formEmail.trim() || !formShopName.trim()) {
-      showToast("⚠️ Les champs Prénom, Nom, Email et Nom de Boutique sont obligatoires (*)");
+      showToast("[[AlertTriangle]] Les champs Prénom, Nom, Email et Nom de Boutique sont obligatoires (*)");
       return;
     }
     
@@ -458,7 +459,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
     });
     setFormStatutVerification(nextStatut);
     setEditMode(false);
-    showToast("💾 Configuration de boutique sauvegardée avec succès !");
+    showToast("[[Save]] Configuration de boutique sauvegardée avec succès !");
   };
 
   const handleUpdatePassword = (e: React.FormEvent) => {
@@ -476,7 +477,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
       return;
     }
 
-    setPwdStatus({ type: 'success', text: '✓ Mot de passe réinitialisé !' });
+    setPwdStatus({ type: 'success', text: 'Mot de passe réinitialisé !' });
     setPwdCurrent('');
     setPwdNew('');
     setPwdConf('');
@@ -506,7 +507,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
   const handleToggleProductStatus = (prod: Product) => {
     const nextStatus = prod.statut === 'actif' ? 'brouillon' : 'actif';
     onUpdateProduct(prod.id, { statut: nextStatus });
-    showToast(`✓ Statut de "${prod.nom}" mis à jour : ${nextStatus === 'actif' ? 'Actif (Publié)' : 'Brouillon'}`);
+    showToast(`[[Check]] Statut de "${prod.nom}" mis à jour : ${nextStatus === 'actif' ? 'Actif (Publié)' : 'Brouillon'}`);
   };
 
   // Fast inline stock safe updates
@@ -518,7 +519,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
   const handleSaveStockValue = (productId: string) => {
     onUpdateProduct(productId, { stock: editingStockValue });
     setEditingStockProductId(null);
-    showToast("✓ Quantité en stock mise à jour !");
+    showToast("[[Check]] Quantité en stock mise à jour !");
   };
 
   // Duplicate product as draft matching buildDuplicateRow in mes-produit.js
@@ -539,7 +540,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
       caracteristiques: prod.caracteristiques || {},
       statut: 'brouillon'
     });
-    showToast(`✓ Produit "${prod.nom}" dupliqué en Brouillon avec succès !`);
+    showToast(`[[Check]] Produit "${prod.nom}" dupliqué en Brouillon avec succès !`);
   };
 
   // Delete product wrapper
@@ -574,7 +575,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
     setTimeout(() => {
       window.print();
       setIsPrinting(false);
-      showToast("🖨️ Impression POS lancée avec succès.");
+      showToast("[[Printer]] Impression POS lancée avec succès.");
     }, 1000);
   };
 
@@ -584,7 +585,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
       {toastMessage && (
         <div className="fixed bottom-5 right-5 z-60 bg-teal-900 border border-teal-400 text-teal-100 text-xs font-bold px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-bounce">
           <Sparkles size={14} className="text-teal-400" />
-          <span>{toastMessage}</span>
+          <span><RichText text={toastMessage} /></span>
         </div>
       )}
 
@@ -597,7 +598,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
               activeTab === 'dashboard' ? 'bg-[#0c1445] text-white shadow-xs' : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            📊 Tableau de bord
+            <EIcon name="BarChart3" /> Tableau de bord
             {activeOrderNotifications.length > 0 && (
               <span className="ml-1.5 bg-red-500 text-white font-mono text-[9px] font-black rounded-full h-4 min-w-[16px] px-1 flex items-center justify-center animate-pulse">
                 {activeOrderNotifications.length}
@@ -611,7 +612,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
               activeTab === 'products' ? 'bg-[#0c1445] text-white shadow-xs' : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            📦 Mes Produits
+            <EIcon name="Package" /> Mes Produits
           </button>
 
           <button
@@ -620,7 +621,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
               activeTab === 'deliveries' ? 'bg-[#0c1445] text-white shadow-xs' : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            🚚 Suivi Livraisons
+            <EIcon name="Truck" /> Suivi Livraisons
           </button>
 
           <button
@@ -629,7 +630,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
               activeTab === 'profile' ? 'bg-[#0c1445] text-white shadow-xs' : 'text-slate-500 hover:text-slate-800'
             }`}
           >
-            🏪 Identité &amp; Boutique
+            <EIcon name="Store" /> Identité &amp; Boutique
           </button>
         </div>
 
@@ -845,7 +846,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
           {!moncashAlertDismissed && user && !user.moncash && (
             <div className="bg-amber-50 border border-amber-300 p-4 rounded-3xl shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 animate-pulse-subtle">
               <div className="flex items-start gap-3">
-                <span className="text-xl">⚠️</span>
+                <span className="text-xl"><EIcon name="AlertTriangle" /></span>
                 <div>
                   <p className="text-sm font-bold text-amber-800">
                     Votre numéro MonCash n'est pas configuré.
@@ -890,7 +891,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
             <div className="bg-amber-50 border border-amber-300 rounded-3xl p-4 sm:p-5 shadow-xs space-y-3 animate-pulse-subtle">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-xl">🔔</span>
+                  <span className="text-xl"><EIcon name="Bell" /></span>
                   <div>
                     <h3 className="text-xs font-black text-amber-900 uppercase tracking-wider">
                       Nouvelles commandes sécurisées reçues ({activeOrderNotifications.length})
@@ -919,10 +920,10 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                           <span className="text-xs font-extrabold text-slate-800 truncate">{notificationOrder.clientNom}</span>
                         </div>
                         <p className="text-[10px] text-slate-600 truncate font-semibold">
-                          🛒 {itemsSummary}
+                          <EIcon name="ShoppingCart" /> {itemsSummary}
                         </p>
                         <p className="text-[9.5px] text-slate-400 font-bold flex items-center gap-1">
-                          📍 {notificationOrder.commune}, {notificationOrder.departement}
+                          <EIcon name="MapPin" /> {notificationOrder.commune}, {notificationOrder.departement}
                         </p>
                       </div>
                       <div className="flex flex-col gap-1 shrink-0">
@@ -953,7 +954,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
             user.statutVerification === 'en_verification' ? (
               <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs font-sans">
                 <div className="flex items-start gap-3">
-                  <span className="text-xl shrink-0">⏳</span>
+                  <span className="text-xl shrink-0"><EIcon name="Hourglass" /></span>
                   <div>
                     <h4 className="text-xs font-extrabold text-amber-900 uppercase tracking-wider">Vérification de sécurité en cours</h4>
                     <p className="text-[11px] text-amber-700 leading-normal mt-0.5">
@@ -971,7 +972,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
             ) : (
               <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs font-sans">
                 <div className="flex items-start gap-3">
-                  <span className="text-xl shrink-0">🚨</span>
+                  <span className="text-xl shrink-0"><EIcon name="Siren" /></span>
                   <div>
                     <h4 className="text-xs font-extrabold text-red-900 uppercase tracking-wider">Revenus de boutique bloqués ({user.revenusBloques || 0} Gdes)</h4>
                     <p className="text-[11px] text-red-700 leading-normal mt-0.5">
@@ -993,15 +994,15 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
           <div className="dash-header flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="dash-header-grid"></div>
             <div className="flex-1 min-w-0 relative z-10">
-              <div className="dash-greeting">Bonjour 👋</div>
+              <div className="dash-greeting">Bonjour <EIcon name="Hand" /></div>
               <div className="dash-name">{user.shopName || `${user.prenom} Boutique`}</div>
               <div className="dash-sub">Plateforme de confiance sécurisée Vendza Haïti</div>
               <div className="dash-header-bottom">
                 <div className="dash-pill"><span className="dot"></span> Boutique active</div>
-                <div className="dash-pill">👥 {followersCount} {followersCount === 1 ? 'abonné' : 'abonnés'}</div>
-                <div className="dash-pill">📅 {new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+                <div className="dash-pill"><EIcon name="Users" /> {followersCount} {followersCount === 1 ? 'abonné' : 'abonnés'}</div>
+                <div className="dash-pill"><EIcon name="Calendar" /> {new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
                 <div className="dash-pill">
-                  ⭐ Plan {user.plan || 'Gratuit'}
+                  <EIcon name="Star" /> Plan {user.plan || 'Gratuit'}
                   {user.plan !== 'Gratuit' && subscriptionExpiry && ` (Expire le ${subscriptionExpiry})`}
                 </div>
               </div>
@@ -1030,7 +1031,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
           <div className="bg-white border border-slate-200 rounded-3xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-3xs font-sans">
             <div className="flex items-start sm:items-center gap-3">
               <span className="text-2xl shrink-0">
-                {user.plan === 'Pro National' ? '🏆' : user.plan === 'Pro Local' ? '⭐' : '📦'}
+                {user.plan === 'Pro National' ? <><EIcon name="Trophy" /></> : user.plan === 'Pro Local' ? <><EIcon name="Star" /></> : <><EIcon name="Package" /></>}
               </span>
               <div>
                 <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-2">
@@ -1057,7 +1058,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
               onClick={() => onNavigate('subscription')}
               className="shrink-0 px-3.5 py-2 border border-slate-200 hover:border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl text-[10px] font-black uppercase tracking-wider transition cursor-pointer"
             >
-              🚀 {user.plan === 'Gratuit' ? 'Passer au Plan Supérieur' : 'Option Abonnements'}
+              <EIcon name="Rocket" /> {user.plan === 'Gratuit' ? 'Passer au Plan Supérieur' : 'Option Abonnements'}
             </button>
           </div>
 
@@ -1081,21 +1082,21 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
               {/* Card available */}
               <div className="bg-white border border-emerald-100 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:border-emerald-200 transition duration-150">
                 <div className="space-y-2">
-                  <span className="text-[10px] font-black tracking-widest text-emerald-600 uppercase block">💰 Disponible</span>
+                  <span className="text-[10px] font-black tracking-widest text-emerald-600 uppercase block"><EIcon name="Wallet" /> Disponible</span>
                   <div className="text-xl font-mono font-black text-emerald-700 leading-none">
                     {wallet.available_balance.toLocaleString('fr-FR')} HTG
                   </div>
                   <div className="text-[10px] text-[#0d9488] font-bold mt-1 inline-flex items-center gap-1">
-                    📅 Versement le {prochainSamedi()}
+                    <EIcon name="Calendar" /> Versement le {prochainSamedi()}
                   </div>
                 </div>
                 <button 
                   onClick={() => {
                     if (wallet.available_balance <= 0) {
-                      showToast("⚠️ Votre solde disponible est de 0 Gdes.");
+                      showToast("[[AlertTriangle]] Votre solde disponible est de 0 Gdes.");
                       return;
                     }
-                    alert(`✓ Votre demande de versement de ${wallet.available_balance.toLocaleString()} Gdes via MonCash / Compte Bancaire a bien été transmise à la direction de Vendza. Versement prévu ce samedi : ${prochainSamedi()}`);
+                    alert(`Votre demande de versement de ${wallet.available_balance.toLocaleString()} Gdes via MonCash / Compte Bancaire a bien été transmise à la direction de Vendza. Versement prévu ce samedi : ${prochainSamedi()}`);
                   }}
                   className="mt-4 w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10.5px] font-bold transition uppercase tracking-wider cursor-pointer shadow-xs active:scale-95 duration-100"
                 >
@@ -1106,7 +1107,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
               {/* Card pending */}
               <div className="bg-white border border-amber-100 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:border-amber-200 transition duration-150">
                 <div className="space-y-2">
-                  <span className="text-[10px] font-black tracking-widest text-amber-600 uppercase block">🔒 En attente QR</span>
+                  <span className="text-[10px] font-black tracking-widest text-amber-600 uppercase block"><EIcon name="Lock" /> En attente QR</span>
                   <div className="text-xl font-mono font-black text-amber-700 leading-none">
                     {wallet.pending_balance.toLocaleString('fr-FR')} HTG
                   </div>
@@ -1119,7 +1120,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
               {/* Card total */}
               <div className="bg-white border border-indigo-100 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:border-indigo-200 transition duration-150">
                 <div className="space-y-2">
-                  <span className="text-[10px] font-black tracking-widest text-indigo-600 uppercase block">📊 Total gagné</span>
+                  <span className="text-[10px] font-black tracking-widest text-indigo-600 uppercase block"><EIcon name="BarChart3" /> Total gagné</span>
                   <div className="text-xl font-mono font-black text-indigo-700 leading-none">
                     {wallet.total_earned.toLocaleString('fr-FR')} HTG
                   </div>
@@ -1135,7 +1136,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
           <div className="stats-grid">
             <div className="stat-card blue">
               <div className="stat-trend trend-new">En vitrine</div>
-              <div className="stat-icon">📦</div>
+              <div className="stat-icon"><EIcon name="Package" /></div>
               <div className="stat-val">{vendorProducts.length}</div>
               <div className="stat-lbl">Produits actifs</div>
             </div>
@@ -1144,31 +1145,31 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
               {pendingConfirmationCount > 0 && (
                 <div className="stat-trend trend-up">Attention</div>
               )}
-              <div className="stat-icon">🛒</div>
+              <div className="stat-icon"><EIcon name="ShoppingCart" /></div>
               <div className="stat-val">{vendorOrders.length}</div>
               <div className="stat-lbl">Commandes reçues</div>
             </div>
 
             <div className="stat-card green">
-              <div className="stat-icon">💰</div>
+              <div className="stat-icon"><EIcon name="Wallet" /></div>
               <div className="stat-val">{totalSalesVolume.toLocaleString('fr-FR')}</div>
               <div className="stat-lbl">Revenus nets (Gdes)</div>
             </div>
 
             <div className="stat-card violet">
-              <div className="stat-icon">⭐</div>
+              <div className="stat-icon"><EIcon name="Star" /></div>
               <div className="stat-val">4.8</div>
               <div className="stat-lbl">Note moyenne</div>
             </div>
 
             <div className="stat-card teal">
-              <div className="stat-icon">👥</div>
+              <div className="stat-icon"><EIcon name="Users" /></div>
               <div className="stat-val">{followersCount}</div>
               <div className="stat-lbl">{followersCount === 1 ? 'abonné' : 'abonnés'}</div>
             </div>
 
             <div className="stat-card red">
-              <div className="stat-icon">🛍️</div>
+              <div className="stat-icon"><EIcon name="ShoppingBag" /></div>
               <div className="stat-val">
                 {(() => {
                   try {
@@ -1196,7 +1197,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                       {totalSalesVolume.toLocaleString('fr-FR')} HTG
                     </div>
                     <span className="text-[9px] font-black tracking-wide bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full uppercase border border-emerald-250">
-                      Gains Hebdo ✓
+                      Gains Hebdo <EIcon name="Check" />
                     </span>
                   </div>
                   <div className="revenue-sub text-[10.5px] text-slate-400 font-semibold leading-normal font-sans mt-0.5">
@@ -1404,7 +1405,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
 
               {/* Weekly info tagline */}
               <div className="mt-2 bg-slate-50 border border-slate-150 rounded-2xl p-2.5 text-left text-[10px] text-slate-500 font-bold leading-normal font-sans">
-                💡 Les données de vente sont mises à jour en direct lors des livraisons physiques.
+                <EIcon name="Lightbulb" /> Les données de vente sont mises à jour en direct lors des livraisons physiques.
               </div>
             </div>
 
@@ -1738,7 +1739,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                             : 'bg-rose-50/70 border border-rose-100 text-slate-600'
                           )
                     }`}>
-                      <span className="text-sm shrink-0">{isFlat ? '📊' : (isUp ? '📈' : '📉')}</span>
+                      <span className="text-sm shrink-0">{isFlat ? <><EIcon name="BarChart3" /></> : (isUp ? <><EIcon name="TrendingUp" /></> : <><EIcon name="TrendingDown" /></>)}</span>
                       <div>
                         {isFlat ? (
                           <p>Vos profits mensuels sont stables par rapport au mois précédent.</p>
@@ -1770,7 +1771,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                 }}
                 className="qa-btn"
               >
-                <span className="qa-icon">📦</span>
+                <span className="qa-icon"><EIcon name="Package" /></span>
                 <div>
                   <div className="qa-label">Ajouter un produit</div>
                   <div className="qa-sub">Publier un article</div>
@@ -1781,7 +1782,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                 onClick={() => setActiveTab('deliveries')}
                 className="qa-btn"
               >
-                <span className="qa-icon">🚚</span>
+                <span className="qa-icon"><EIcon name="Truck" /></span>
                 <div>
                   <div className="qa-label">Voir commandes</div>
                   <div className="qa-sub">Feuille de route active</div>
@@ -1795,7 +1796,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                 }}
                 className="qa-btn"
               >
-                <span className="qa-icon">⏳</span>
+                <span className="qa-icon"><EIcon name="Hourglass" /></span>
                 <div>
                   <div className="qa-label">Livraisons prévues</div>
                   <div className="qa-sub">Colis en séquestre</div>
@@ -1806,7 +1807,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                 onClick={() => onNavigate('subscription')}
                 className="qa-btn"
               >
-                <span className="qa-icon">⭐</span>
+                <span className="qa-icon"><EIcon name="Star" /></span>
                 <div>
                   <div className="qa-label">Mon abonnement</div>
                   <div className="qa-sub">Changer mon plan</div>
@@ -1827,7 +1828,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                     : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
                 }`}
               >
-                🛒 Commandes Clients ({vendorOrders.length})
+                <EIcon name="ShoppingCart" /> Commandes Clients ({vendorOrders.length})
               </button>
               <button
                 onClick={() => setDashboardSubTab('purchases')}
@@ -1837,7 +1838,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                     : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
                 }`}
               >
-                🛍️ Mes Achats ({orders.filter(o => o.clientId === user.id).length})
+                <EIcon name="ShoppingBag" /> Mes Achats ({orders.filter(o => o.clientId === user.id).length})
               </button>
               <button
                 onClick={() => setDashboardSubTab('products')}
@@ -1847,7 +1848,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                     : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
                 }`}
               >
-                📦 Mes Produits ({vendorProducts.length})
+                <EIcon name="Package" /> Mes Produits ({vendorProducts.length})
               </button>
             </div>
 
@@ -1888,7 +1889,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                           : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
                       }`}
                     >
-                      <span>🆕 Nouvelles</span>
+                      <span><EIcon name="Sparkles" /> Nouvelles</span>
                       <span className="font-mono bg-white/25 text-[9px] px-1 py-0.2 rounded">
                         {vendorOrders.filter(o => o.status === 'payee' || o.status === 'attente').length}
                       </span>
@@ -1931,7 +1932,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                               </div>
                               <div className="cmd-body">
                                 <div className="cmd-client">{ord.clientNom}</div>
-                                <div className="cmd-date">📅 {ord.date} à {ord.heure} • 📍 {ord.commune}</div>
+                                <div className="cmd-date"><EIcon name="Calendar" /> {ord.date} à {ord.heure} • <EIcon name="MapPin" /> {ord.commune}</div>
                               </div>
                               <div className="cmd-right text-right">
                                 <div className="cmd-total text-emerald-700 font-extrabold">{netAmt.toLocaleString('fr-FR')} HTG</div>
@@ -1948,7 +1949,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                       </div>
                     ) : (
                       <div className="empty border border-dashed border-slate-200 rounded-3xl p-8 text-center text-slate-400">
-                        <div className="empty-icon text-2xl mb-2">🛒</div>
+                        <div className="empty-icon text-2xl mb-2"><EIcon name="ShoppingCart" /></div>
                         <p className="font-bold text-xs">Aucune commande disponible pour ce filtre.</p>
                       </div>
                     );
@@ -1973,11 +1974,11 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                             onClick={() => handleViewOrderDetails(ord)}
                           >
                             <div className="cmd-num" style={{ background: '#f5f3ff', color: '#7c3aed' }}>
-                              🛍️
+                              <EIcon name="ShoppingBag" />
                             </div>
                             <div className="cmd-body">
                               <div className="cmd-client">Commande chez {ord.items[0]?.vendeur || 'Vendeur'}</div>
-                              <div className="cmd-date">📅 {ord.date} • {ord.items.length} article(s)</div>
+                              <div className="cmd-date"><EIcon name="Calendar" /> {ord.date} • {ord.items.length} article(s)</div>
                             </div>
                             <div className="cmd-right text-right">
                               <div className="cmd-total">{ord.total.toLocaleString('fr-FR')} Gdes</div>
@@ -1991,7 +1992,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                     </div>
                   ) : (
                     <div className="empty">
-                      <div className="empty-icon">🛍️</div>
+                      <div className="empty-icon"><EIcon name="ShoppingBag" /></div>
                       <p>Vous n'avez effectué aucun achat personnel pour l'instant.</p>
                     </div>
                   )}
@@ -2028,11 +2029,11 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                         // Categories mapper
                         const getProductEmoji = (cat: string) => {
                           const c = (cat || '').toLowerCase();
-                          if (c.includes('mode') || c.includes('vetem') || c.includes('chauss') || c.includes('hab')) return '👗';
-                          if (c.includes('electr') || c.includes('phone') || c.includes('teleph') || c.includes('ordi')) return '📱';
-                          if (c.includes('alim') || c.includes('mang') || c.includes('nourri') || c.includes('epic')) return '🍎';
-                          if (c.includes('maison') || c.includes('meub')) return '🏠';
-                          return '📦';
+                          if (c.includes('mode') || c.includes('vetem') || c.includes('chauss') || c.includes('hab')) return '[[Shirt]]';
+                          if (c.includes('electr') || c.includes('phone') || c.includes('teleph') || c.includes('ordi')) return '[[Smartphone]]';
+                          if (c.includes('alim') || c.includes('mang') || c.includes('nourri') || c.includes('epic')) return '[[Apple]]';
+                          if (c.includes('maison') || c.includes('meub')) return '[[Home]]';
+                          return '[[Package]]';
                         };
 
                         return (
@@ -2045,11 +2046,11 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                             className="prod-card"
                           >
                             <div className="prod-emoji">
-                              {getProductEmoji(prod.categorie)}
+                              <RichText text={getProductEmoji(prod.categorie)} />
                             </div>
                             <div className="prod-body">
                               <div className="prod-name">{prod.nom}</div>
-                              <div className="prod-meta">📁 {prod.categorie} • ⭐ {prod.rating ? prod.rating.toFixed(1) : '5.0'}</div>
+                              <div className="prod-meta"><EIcon name="Folder" /> {prod.categorie} • <EIcon name="Star" /> {prod.rating ? prod.rating.toFixed(1) : '5.0'}</div>
                             </div>
                             <div className="prod-right">
                               <div className="prod-price">{prod.prix.toLocaleString('fr-FR')} Gdes</div>
@@ -2063,7 +2064,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                     </div>
                   ) : (
                     <div className="empty">
-                      <div className="empty-icon">📦</div>
+                      <div className="empty-icon"><EIcon name="Package" /></div>
                       <p>Aucun produit dans votre catalogue.</p>
                     </div>
                   )}
@@ -2073,7 +2074,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
               {/* Secure escrow reminder block */}
               <div className="bg-[#f8fafc] border border-slate-200/60 rounded-3xl p-4 space-y-2 text-left mt-2">
                 <span className="text-[9.5px] font-extrabold text-blue-700 bg-blue-100/60 px-2 py-0.5 rounded uppercase tracking-wider">
-                  ⚠️ Rappel Séquestre Résident
+                  <EIcon name="AlertTriangle" /> Rappel Séquestre Résident
                 </span>
                 <p className="text-[10px] text-slate-500 leading-relaxed font-semibold">
                   Les fonds versés par les clients haïtiens via MonCash ou carte de crédit sont systématiquement gelés dans notre pool de garantie nationale sécurisée. Les escroqueries, achats personnels invalides et usurpations sont bloqués par audits de livraison QR.
@@ -2106,7 +2107,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                     onClick={() => setProductsSearch('')}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
                   >
-                    ✕
+                    <EIcon name="X" />
                   </button>
                 )}
               </div>
@@ -2187,18 +2188,18 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                         </h4>
                         <div className="flex gap-1 flex-wrap mt-1.5">
                           <span className="inline-block text-[9px] font-bold text-slate-500 bg-slate-200/50 px-2 py-0.5 rounded-full uppercase">
-                            📁 {prod.cat}
+                            <EIcon name="Folder" /> {prod.cat}
                           </span>
                           {prod.scoreReferencement !== undefined && prod.scoreReferencement < 100 ? (
                             <span 
                               title={prod.seoWarning || "L'image du produit présente des défauts de qualité."}
                               className="inline-block text-[9px] font-extrabold text-amber-700 bg-amber-55 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full uppercase animate-pulse"
                             >
-                              ⚠️ Référencement réduit ({prod.scoreReferencement}/100)
+                              <EIcon name="AlertTriangle" /> Référencement réduit ({prod.scoreReferencement}/100)
                             </span>
                           ) : (
                             <span className="inline-block text-[9px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full uppercase">
-                              ✨ Référencement Optimal
+                              <EIcon name="Sparkles" /> Référencement Optimal
                             </span>
                           )}
                         </div>
@@ -2262,7 +2263,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                               onClick={() => handleEditStockClick(prod)}
                               className="text-slate-400 hover:text-blue-600 font-semibold text-[10px] uppercase underline cursor-pointer"
                             >
-                              ✏️ Ajuster
+                              <EIcon name="Pencil" /> Ajuster
                             </button>
                           </div>
                         )}
@@ -2321,7 +2322,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
             </div>
           ) : (
             <div className="text-center py-16 bg-white border border-dashed rounded-3xl p-6">
-              <span className="text-4xl text-slate-300">📦</span>
+              <span className="text-4xl text-slate-300"><EIcon name="Package" /></span>
               <h3 className="font-serif text-xs font-extrabold uppercase mt-3 text-slate-700">Aucun produit ne correspond à vos filtres</h3>
               <p className="text-slate-400 text-[11px] max-w-xs mx-auto mt-1">Saisissez une autre recherche ou modifiez les filtres de visibilité de votre vitrine marchande.</p>
             </div>
@@ -2425,19 +2426,19 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                       {/* Attributes */}
                       <div className="space-y-2 text-slate-700 font-medium leading-relaxed">
                         <div className="flex items-center gap-1.5 text-[11px]">
-                          <span className="text-base text-slate-400">👤</span>
+                          <span className="text-base text-slate-400"><EIcon name="User" /></span>
                           <span>Acheteur destinataire : <strong>{delOrder.clientNom}</strong></span>
                         </div>
                         <div className="flex items-start gap-1.5 text-[11px]">
-                          <span className="text-base text-slate-400">📍</span>
+                          <span className="text-base text-slate-400"><EIcon name="MapPin" /></span>
                           <span>Point d'expédition : <strong>{delOrder.commune}, {delOrder.departement} (Haïti)</strong></span>
                         </div>
                         <div className="flex items-start gap-1.5 text-[11px]">
-                          <span className="text-base text-slate-400">🕒</span>
+                          <span className="text-base text-slate-400"><EIcon name="Clock" /></span>
                           <span>Planification : En main propre — 24H à 48H</span>
                         </div>
                         <div className="flex items-start gap-1.5 text-[11px] bg-slate-50 p-2 rounded-lg border border-slate-100/50">
-                          <span className="text-base text-slate-400">📦</span>
+                          <span className="text-base text-slate-400"><EIcon name="Package" /></span>
                           <div className="flex-1">
                             <span className="text-[9.5px] text-slate-400 block font-bold uppercase tracking-wider font-sans">Désignation colis</span>
                             {delOrder.items.map((it, idx) => (
@@ -2465,11 +2466,11 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
 
                       {isPaidEscrow ? (
                         <span className="inline-flex items-center justify-center gap-1 px-4 py-2 bg-blue-50 text-blue-850 border border-blue-100 font-extrabold text-[9.5px] uppercase rounded-xl flex-1 h-10 select-none text-center leading-tight">
-                          ⌛ Attente scan acheteur
+                          <EIcon name="Hourglass" /> Attente scan acheteur
                         </span>
                       ) : isFinalized ? (
                         <span className="inline-flex items-center justify-center gap-1 px-4 py-2 bg-emerald-50 text-emerald-800 border border-emerald-100 font-extrabold text-[10.5px] uppercase rounded-xl flex-1 h-10 select-none">
-                          ✓ Gains Libérés
+                          <EIcon name="Check" /> Gains Libérés
                         </span>
                       ) : null}
                     </div>
@@ -2479,7 +2480,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
             </div>
           ) : (
             <div className="text-center py-16 bg-white border border-dashed rounded-3xl p-6">
-              <span className="text-4xl text-slate-300 animate-pulse">🚚</span>
+              <span className="text-4xl text-slate-300 animate-pulse"><EIcon name="Truck" /></span>
               <h3 className="font-serif text-xs font-extrabold uppercase mt-3 text-slate-700">Aucun colis en cours</h3>
               <p className="text-slate-400 text-[11px] max-w-xs mx-auto mt-1">Toutes vos expéditions validées et clôturées s'affichent ici.</p>
             </div>
@@ -2501,7 +2502,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-4">
             <div>
               <h1 className="font-serif text-lg font-black text-[#0c1445]">
-                🏪 Profil de Boutique &amp; Paramètres
+                <EIcon name="Store" /> Profil de Boutique &amp; Paramètres
               </h1>
               <p className="text-xs text-slate-400 font-semibold">
                 Gérez vos informations de vitrine de vente, vos coordonnées de gérant et vos virements.
@@ -2545,7 +2546,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
               </div>
             )}
             <div className="absolute top-4 right-4 bg-amber-500/20 text-amber-300 font-mono text-[9px] font-extrabold uppercase tracking-widest border border-amber-400/20 px-3 py-1 rounded-full backdrop-blur-xs">
-              ✓ Membre Certifié {user.plan}
+              <EIcon name="Check" /> Membre Certifié {user.plan}
             </div>
 
             {/* Cover photo upload button - visible only in editMode */}
@@ -2563,7 +2564,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                       reader.onloadend = () => {
                         if (typeof reader.result === 'string') {
                           setFormBanner(reader.result);
-                          showToast("📸 Photo de couverture ajoutée ! N'oubliez pas de cliquer sur Enregistrer.");
+                          showToast("[[Camera]] Photo de couverture ajoutée ! N'oubliez pas de cliquer sur Enregistrer.");
                         }
                       };
                       reader.readAsDataURL(file);
@@ -2604,7 +2605,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                           reader.onloadend = () => {
                             if (typeof reader.result === 'string') {
                               setFormAvatar(reader.result);
-                              showToast("📸 Photo de profil ajoutée ! N'oubliez pas de cliquer sur Enregistrer.");
+                              showToast("[[Camera]] Photo de profil ajoutée ! N'oubliez pas de cliquer sur Enregistrer.");
                             }
                           };
                           reader.readAsDataURL(file);
@@ -2642,13 +2643,13 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
 
                 <div className="flex flex-wrap gap-1.5 pt-1.5">
                   <span className="text-[9px] font-black tracking-wider uppercase bg-teal-50 text-teal-800 border border-teal-100 px-2 py-0.5 rounded-full">
-                    🏪 Compte vendeur
+                    <EIcon name="Store" /> Compte vendeur
                   </span>
                   <span className="text-[9px] font-black tracking-wider uppercase bg-[#dff0e2] text-emerald-800 border border-emerald-100 px-2 py-0.5 rounded-full">
-                    📍 {formCommune}, {formDept}
+                    <EIcon name="MapPin" /> {formCommune}, {formDept}
                   </span>
                   <span className="text-[9px] font-black tracking-wider uppercase bg-blue-50 text-blue-800 border border-blue-100 px-2 py-0.5 rounded-full">
-                    ⭐ Plan {user.plan}
+                    <EIcon name="Star" /> Plan {user.plan}
                   </span>
                 </div>
               </div>
@@ -2674,7 +2675,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                 {!editMode ? (
                   <div className="space-y-3">
                     <div className="flex items-start gap-4 p-2.5 rounded-xl hover:bg-slate-50 transition">
-                      <span className="text-base text-slate-400 mt-0.5">👤</span>
+                      <span className="text-base text-slate-400 mt-0.5"><EIcon name="User" /></span>
                       <div>
                         <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Nom complet</span>
                         <span className="text-xs font-black text-slate-700">{formPrenom} {formNom || '—'}</span>
@@ -2682,7 +2683,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                     </div>
 
                     <div className="flex items-start gap-4 p-2.5 rounded-xl hover:bg-slate-50 transition">
-                      <span className="text-base text-slate-400 mt-0.5">📧</span>
+                      <span className="text-base text-slate-400 mt-0.5"><EIcon name="Mail" /></span>
                       <div>
                         <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Adresse mail</span>
                         <span className="text-xs font-mono font-bold text-slate-700">{formEmail}</span>
@@ -2690,7 +2691,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                     </div>
 
                     <div className="flex items-start gap-4 p-2.5 rounded-xl hover:bg-slate-50 transition">
-                      <span className="text-base text-slate-400 mt-0.5">📞</span>
+                      <span className="text-base text-slate-400 mt-0.5"><EIcon name="Phone" /></span>
                       <div>
                         <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">Ligne Mobile (Payouts)</span>
                         <span className="text-xs font-mono font-bold text-slate-700">{formTel || 'Non spécifié'}</span>
@@ -3028,13 +3029,13 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
             <div className="bg-[#f8fafc] rounded-3xl max-w-lg w-full p-5 border border-slate-200 flex flex-col space-y-4 shadow-2xl relative max-h-[92vh] overflow-y-auto no-scrollbar">
               <div className="flex justify-between items-center border-b pb-2 shrink-0">
                 <span className="font-serif text-xs font-bold text-[#0c1445] uppercase tracking-wider flex items-center gap-1">
-                  🎟️ Billet Offre &amp; QR Sésame
+                  <EIcon name="Ticket" /> Billet Offre &amp; QR Sésame
                 </span>
                 <button 
                   onClick={() => setSelectedOrderDetails(null)}
                   className="text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 p-1.5 rounded-full font-extrabold text-sm transition"
                 >
-                  ✕
+                  <EIcon name="X" />
                 </button>
               </div>
 
@@ -3131,7 +3132,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                         )}
                         <div className="col-span-2">
                           <span className="text-[8.5px] text-slate-400 font-bold uppercase block">Localité de déblocage</span>
-                          <span className="font-bold text-slate-700">📍 {selectedOrderDetails.commune}, {selectedOrderDetails.departement}</span>
+                          <span className="font-bold text-slate-700"><EIcon name="MapPin" /> {selectedOrderDetails.commune}, {selectedOrderDetails.departement}</span>
                         </div>
                       </div>
                     </div>
@@ -3148,7 +3149,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                       {selectedOrderDetails.status === 'livree' && (
                         <div className="absolute inset-0 bg-white/80 flex items-center justify-center p-1 rounded-xl">
                           <span className="bg-emerald-100 text-emerald-800 text-[8px] font-bold px-1.5 py-1 rounded shadow-xs uppercase border border-emerald-300">
-                            ✓ LIVRÉ
+                            <EIcon name="Check" /> LIVRÉ
                           </span>
                         </div>
                       )}
@@ -3166,7 +3167,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
 
                 {/* Footer brand info */}
                 <div className="bg-slate-50 border-t border-slate-100 px-5 py-3 flex justify-between items-center text-[9px] text-slate-400">
-                  <span className="font-semibold">📧 info@vendza.store</span>
+                  <span className="font-semibold"><EIcon name="Mail" /> info@vendza.store</span>
                   <span className="font-bold">© Vendza.store S.A</span>
                 </div>
               </div>
@@ -3192,7 +3193,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                   </span>
                 ) : (
                   <span className="flex-1 py-3 bg-slate-100 border text-slate-400 rounded-xl uppercase tracking-wider flex items-center justify-center gap-1.5 select-none font-black text-center text-[10px]">
-                    ✓ Solde Libéré
+                    <EIcon name="Check" /> Solde Libéré
                   </span>
                 )}
               </div>

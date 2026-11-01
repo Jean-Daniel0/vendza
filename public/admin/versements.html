@@ -26,7 +26,7 @@
     <div class="max-w-6xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
       <div class="flex items-center gap-3">
         <div class="bg-teal-500/20 p-2 rounded-xl border border-teal-300/35">
-          <span class="text-2xl">💰</span>
+          <span class="text-2xl"><svg xmlns="http://www.w3.org/2000/svg" width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wallet" style="display:inline-block;vertical-align:-0.2em" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"></path><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"></path></svg></span>
         </div>
         <div>
           <h1 class="text-xl font-bold tracking-tight">Vendza Administrator</h1>
@@ -35,10 +35,10 @@
       </div>
       <div class="flex gap-3">
         <button onclick="marquerToutPayé()" class="bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/40 text-white font-bold py-2 px-4 rounded-xl text-xs transition-all uppercase tracking-wider cursor-pointer">
-          ✓ Tout marquer payé
+          <svg xmlns="http://www.w3.org/2000/svg" width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" style="display:inline-block;vertical-align:-0.2em" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg> Tout marquer payé
         </button>
         <button onclick="chargerVersements()" class="bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded-xl text-xs transition-all uppercase tracking-wider flex items-center gap-1 cursor-pointer">
-          🔄 Actualiser
+          <svg xmlns="http://www.w3.org/2000/svg" width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-cw" style="display:inline-block;vertical-align:-0.2em" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg> Actualiser
         </button>
       </div>
     </div>
@@ -70,7 +70,7 @@
 
   <!-- Custom beautiful Toast element -->
   <div id="toast" class="fixed bottom-5 right-5 bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-lg transform translate-y-24 opacity-0 transition-all duration-300 flex items-center gap-2 select-none z-50">
-    <span class="text-lg">✅</span>
+    <span class="text-lg"><svg xmlns="http://www.w3.org/2000/svg" width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check" style="display:inline-block;vertical-align:-0.2em" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg></span>
     <span id="toast-message" class="text-xs font-bold font-sans">Action effectuée</span>
   </div>
 
@@ -137,7 +137,7 @@
         document.getElementById('resume-versements')
           .innerHTML = `
             <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm bg-gradient-to-br from-white to-slate-50/50">
-              <h2 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-1.5">💰 Versements du Samedi</h2>
+              <h2 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-1.5"><svg xmlns="http://www.w3.org/2000/svg" width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wallet" style="display:inline-block;vertical-align:-0.2em" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"></path><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"></path></svg> Versements du Samedi</h2>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="bg-slate-50 border border-slate-100 p-4 rounded-xl flex flex-col justify-center">
                   <div class="text-3xl font-black text-slate-900">
@@ -167,19 +167,19 @@
           <div class="flex flex-col md:flex-row justify-between items-start md:items-center py-5 gap-4 hover:bg-slate-50/50 px-3 rounded-xl transition-all" id="vendeur-${w.vendor_id}">
             <div class="space-y-1 md:space-y-1.5">
               <div class="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                <span>🏪 ${w.shops?.shop_name || 'Boutique'}</span>
+                <span><svg xmlns="http://www.w3.org/2000/svg" width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-store" style="display:inline-block;vertical-align:-0.2em" aria-hidden="true"><path d="M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5"></path><path d="M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244"></path><path d="M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05"></path></svg> ${w.shops?.shop_name || 'Boutique'}</span>
                 <span class="text-[10px] bg-slate-100 border text-slate-600 font-mono py-0.5 px-2 rounded-full">${w.vendor_id.slice(0, 6)}</span>
               </div>
               <div class="text-xs text-slate-600 font-medium flex items-center gap-1">
-                👤 ${w.profiles?.prenom || ''} ${w.profiles?.nom || 'Vendeur anonyme'} (${w.profiles?.email || 'Pas d\'email'})
+                <svg xmlns="http://www.w3.org/2000/svg" width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user" style="display:inline-block;vertical-align:-0.2em" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> ${w.profiles?.prenom || ''} ${w.profiles?.nom || 'Vendeur anonyme'} (${w.profiles?.email || 'Pas d\'email'})
               </div>
               <div class="text-xs text-amber-800 bg-amber-50 border border-amber-200/50 rounded-lg p-2 flex flex-col gap-1 inline-block mt-1 max-w-lg">
-                <span class="font-bold flex items-center gap-1">📱 Information MonCash :</span>
+                <span class="font-bold flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-smartphone" style="display:inline-block;vertical-align:-0.2em" aria-hidden="true"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"></rect><path d="M12 18h.01"></path></svg> Information MonCash :</span>
                 <span>Portefeuille : ${w.shops?.moncash || 'Non renseigné'} (${w.shops?.moncash_nom || 'Nom non défini'})</span>
               </div>
               ${w.shops?.bank_name ? `
                 <div class="text-xs text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-lg p-2 flex flex-col gap-1 max-w-lg">
-                  <span class="font-bold">🏦 Compte Bancaire :</span>
+                  <span class="font-bold"><svg xmlns="http://www.w3.org/2000/svg" width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-landmark" style="display:inline-block;vertical-align:-0.2em" aria-hidden="true"><path d="M10 18v-7"></path><path d="M11.12 2.198a2 2 0 0 1 1.76.006l7.866 3.847c.476.233.31.949-.22.949H3.474c-.53 0-.695-.716-.22-.949z"></path><path d="M14 18v-7"></path><path d="M18 18v-7"></path><path d="M3 22h18"></path><path d="M6 18v-7"></path></svg> Compte Bancaire :</span>
                   <span>Banque : ${w.shops.bank_name} - Compte : ${w.shops.bank_account || 'N/A'}</span>
                 </div>
               ` : ''}
@@ -192,7 +192,7 @@
                 onclick="marquerPayé('${w.vendor_id}', ${w.available_balance})"
                 class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl text-xs transition-all w-full md:w-auto cursor-pointer flex justify-center items-center gap-1"
                 id="btn-${w.vendor_id}">
-                ✓ Marquer payé
+                <svg xmlns="http://www.w3.org/2000/svg" width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check" style="display:inline-block;vertical-align:-0.2em" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg> Marquer payé
               </button>
             </div>
           </div>
@@ -247,7 +247,7 @@
         await supabase
           .from('platform_messages')
           .insert({
-            title:     '💸 Paiement reçu !',
+            title:     'Paiement reçu !',
             message:   `${montant.toLocaleString('fr-FR')} HTG ont été virés sur votre MonCash. Bonne semaine !`,
             audience:  vendorId,
             is_active: true
@@ -258,7 +258,7 @@
         const targetBtn = document.getElementById(`btn-${vendorId}`);
         if (targetCard) targetCard.style.opacity = '0.4';
         if (targetBtn) {
-          targetBtn.textContent = '✅ Payé';
+          targetBtn.textContent = 'Payé';
           targetBtn.disabled = true;
           targetBtn.classList.replace('bg-blue-600', 'bg-slate-400');
           targetBtn.classList.remove('hover:bg-blue-700');

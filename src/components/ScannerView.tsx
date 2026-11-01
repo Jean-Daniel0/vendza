@@ -3,6 +3,7 @@ import { Video, Check, Key } from 'lucide-react';
 import { Order } from '../types';
 import jsQR from 'jsqr';
 
+import { EIcon } from './EIcon';
 interface ScannerViewProps {
   orders: Order[];
   // Résultat renvoyé par le serveur : seul l'ACHETEUR peut confirmer la réception
@@ -62,12 +63,12 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
 
     const found = orders.find(o => o.id.toLowerCase() === searchId.toLowerCase());
     if (!found) {
-      setScanError(`✕ Commande introuvable pour la référence "${searchId}".`);
+      setScanError(`Commande introuvable pour la référence "${searchId}".`);
       setScannedOrder(null);
       return;
     }
     if (currentUserId && found.clientId !== currentUserId) {
-      setScanError("✕ Seul l'acheteur de cette commande peut confirmer la réception.");
+      setScanError("Seul l'acheteur de cette commande peut confirmer la réception.");
       setScannedOrder(null);
       return;
     }
@@ -155,7 +156,7 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
       const result = await onConfirmDelivery(scannedOrder.id, scannedCode || undefined);
       if (result && result.success === false) {
         // refus du serveur (pas l'acheteur, code invalide, paiement non vérifié, déjà confirmé...)
-        setScanError(`✕ ${result.message}`);
+        setScanError(`${result.message}`);
         return;
       }
       setScanSuccess(true);
@@ -174,7 +175,7 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
       {/* Title */}
       <div className="text-center space-y-1.5">
         <h1 className="font-serif text-lg font-bold tracking-tight text-slate-800 flex items-center justify-center gap-1.5">
-          💥 Validation de Livraison Vendza
+          <EIcon name="Zap" /> Validation de Livraison Vendza
         </h1>
         <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
           Scannez le QR Code affiché par le vendeur (ou saisissez l'identifiant et son code) pour confirmer la réception : le versement est alors libéré au vendeur.
@@ -192,7 +193,7 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
             Le reçu est bien enregistré. Les Gourdes de la commande ont été débloquées et automatiquement créditées sur le compte mobile du vendeur.
           </p>
           <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl max-w-xs mx-auto text-[10.5px] font-bold text-slate-500">
-            ✓ Garantie libérée · Statut mis à jour
+            <EIcon name="Check" /> Garantie libérée · Statut mis à jour
           </div>
           <button
             onClick={() => {
@@ -236,7 +237,7 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
               disabled={isConfirming}
               className="flex-2 py-2 bg-gradient-to-r from-emerald-600 to-teal-500 text-white font-extrabold text-xs tracking-wider uppercase rounded-lg shadow-md cursor-pointer"
             >
-              {isConfirming ? 'Validation…' : '✅ Confirmer Réception'}
+              {isConfirming ? 'Validation…' : <><EIcon name="CheckCircle2" /> Confirmer Réception</>}
             </button>
           </div>
         </div>
@@ -278,7 +279,7 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
                 </>
               ) : (
                 <div className="my-auto text-center space-y-2">
-                  <span className="text-3xl">📷</span>
+                  <span className="text-3xl"><EIcon name="Camera" /></span>
                   <p className="text-slate-400 text-xs font-bold">Caméra désactivée</p>
                   <p className="text-[10px] text-slate-500 max-w-xs">Appuyez sur démarrer pour activer votre caméra et scanner la livraison.</p>
                 </div>
