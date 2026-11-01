@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { LogoLoader } from './LogoLoader';
 import { ShieldCheck, ArrowRight, Loader2, PartyPopper, Check, Activity } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
@@ -131,9 +132,7 @@ export const SubscriptionSuccess: React.FC<SubscriptionSuccessProps> = ({
 
         {status === 'verifying' && (
           <div className="py-12 space-y-4 animate-in fade-in duration-300">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-50 text-blue-600 rounded-full animate-bounce">
-              <Loader2 className="animate-spin h-8 w-8" />
-            </div>
+            <LogoLoader size={88} className="mx-auto" label="Vérification du paiement" />
             <h2 className="font-serif text-xl font-bold text-slate-800">
               Vérification de votre paiement...
             </h2>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { LogoLoader } from './LogoLoader';
 import { motion } from 'motion/react';
 import { CheckCircle2, XCircle, AlertTriangle, Loader2, ArrowRight, ShoppingBag } from 'lucide-react';
 
@@ -155,12 +156,7 @@ export const CheckoutReturn: React.FC<CheckoutReturnProps> = ({
       >
         {status === 'pending' && (
           <div className="space-y-6">
-            <div className="relative flex items-center justify-center">
-              <div className="absolute animate-ping h-16 w-16 rounded-full bg-[#e2001a]/10 opacity-75"></div>
-              <div className="relative rounded-full bg-[#e2001a]/5 p-5">
-                <Loader2 className="h-10 w-10 text-[#e2001a] animate-spin" />
-              </div>
-            </div>
+            <LogoLoader size={88} className="mx-auto" label="Vérification du paiement" />
             <div className="space-y-2">
               <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Vérification du paiement</h1>
               <p className="text-slate-500 text-sm leading-relaxed px-2">

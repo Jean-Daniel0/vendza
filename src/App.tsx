@@ -7,6 +7,7 @@ import { CartReminderToast } from './components/CartReminderToast';
 import type { ShippingConfig } from './lib/shipping';
 import { loadPrivate, savePrivate, privateFromUpdates, stripKeys, LEGACY_PROFILE_KEYS, LEGACY_SHOP_KEYS } from './lib/privateData';
 import { PushPermissionPrompt } from './components/PushPermissionPrompt';
+import { LogoLoader } from './components/LogoLoader';
 import { usePushStatus } from './lib/pushStatus';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -5064,10 +5065,7 @@ create policy "Mise à jour publique des commandes"
       {isRedirectingToMonCash && (
         <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-md z-[999] flex flex-col items-center justify-center p-4">
           <div className="bg-white p-8 rounded-3xl border border-slate-100/90 shadow-2xl max-w-sm w-full text-center space-y-5 animate-in fade-in zoom-in duration-300">
-            <div className="relative w-16 h-16 mx-auto">
-              <div className="absolute inset-0 rounded-full border-4 border-slate-100"></div>
-              <div className="absolute inset-0 rounded-full border-4 border-blue-600 border-t-transparent animate-spin"></div>
-            </div>
+            <LogoLoader size={84} className="mx-auto" label="Chargement" />
             <div>
               <h3 className="font-serif text-lg font-bold tracking-tight text-slate-800">
                 {redirectPaymentMethod === 'stripe' ? "Redirection vers Stripe" : "Redirection vers MonCash"}
@@ -5090,10 +5088,7 @@ create policy "Mise à jour publique des commandes"
       {isVerifyingPayment && (
         <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-md z-[999] flex flex-col items-center justify-center p-4">
           <div className="bg-white p-8 rounded-3xl border border-slate-100/90 shadow-2xl max-w-sm w-full text-center space-y-5 animate-in fade-in zoom-in duration-300">
-            <div className="relative w-16 h-16 mx-auto">
-              <div className="absolute inset-0 rounded-full border-4 border-slate-100"></div>
-              <div className="absolute inset-0 rounded-full border-4 border-teal-600 border-t-transparent animate-spin"></div>
-            </div>
+            <LogoLoader size={84} className="mx-auto" label="Chargement" />
             <div>
               <h3 className="font-serif text-lg font-bold tracking-tight text-slate-800">
                 Vérification du paiement...

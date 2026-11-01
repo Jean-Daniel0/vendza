@@ -187,3 +187,13 @@
   animation: shimmer 1.5s infinite;
 }
 
+
+/* Indicateur de chargement Vendza (logo + anneau) */
+@keyframes vz-spin { to { transform: rotate(360deg); } }
+@keyframes vz-breathe { 0%, 100% { transform: scale(0.92); opacity: 0.9; } 50% { transform: scale(1.06); opacity: 1; } }
+.vz-loader-ring { animation: vz-spin 1.1s linear infinite; }
+.vz-loader-logo { animation: vz-breathe 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .vz-loader-ring { animation-duration: 3s; }
+  .vz-loader-logo { animation: none; }
+}
