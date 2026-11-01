@@ -4,7 +4,6 @@ import { Product, UserProfile, Review } from '../types';
 import { HAITIAN_ZONES } from '../data';
 
 import { EIcon, RichText } from './EIcon';
-import { LogoLoader } from './LogoLoader';
 interface MarketplaceHomeProps {
   products: Product[];
   reviews?: Review[];
@@ -343,7 +342,26 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
           )}
 
           {/* Section Scrolls */}
-          {loading ? null : (
+          {loading ? (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="font-serif text-sm font-bold tracking-tight text-slate-800">Populaires & Vérifiés</h2>
+                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full uppercase tracking-wider">Premium</span>
+              </div>
+              <div className="flex gap-4 overflow-x-auto pb-3 pl-1 -ml-1 scrollbar-none">
+                {[1, 2, 3, 4, 5].map(i => (
+                  <div key={i} className="min-w-[145px] w-[145px] skeleton-card animate-pulse">
+                    <div className="skeleton-image h-[100px] rounded-t-lg"></div>
+                    <div className="skeleton-body gap-1.5 p-2.5">
+                      <div className="skeleton-category h-[8px] w-1/2"></div>
+                      <div className="skeleton-title h-[12px] w-[85%]"></div>
+                      <div className="skeleton-price h-[10px] w-2/3 pb-1"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : (
             popularProducts.length > 0 && (
               <section className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -359,7 +377,26 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
             )
           )}
 
-          {loading ? null : (
+          {loading ? (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="font-serif text-sm font-bold tracking-tight text-slate-800">Tendances & Mode</h2>
+                <span className="text-[10px] font-bold text-teal-600 bg-teal-50 px-2.5 py-1 rounded-full uppercase tracking-wider">Mode</span>
+              </div>
+              <div className="flex gap-4 overflow-x-auto pb-3 pl-1 -ml-1 scrollbar-none">
+                {[1, 2, 3, 4, 5].map(i => (
+                  <div key={i} className="min-w-[145px] w-[145px] skeleton-card animate-pulse">
+                    <div className="skeleton-image h-[100px] rounded-t-lg"></div>
+                    <div className="skeleton-body gap-1.5 p-2.5">
+                      <div className="skeleton-category h-[8px] w-1/2"></div>
+                      <div className="skeleton-title h-[12px] w-[85%]"></div>
+                      <div className="skeleton-price h-[10px] w-2/3 pb-1"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : (
             trendsProducts.length > 0 && (
               <section className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -375,7 +412,26 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
             )
           )}
 
-          {loading ? null : (
+          {loading ? (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="font-serif text-sm font-bold tracking-tight text-slate-800">Super Aubaines (Promos)</h2>
+                <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2.5 py-1 rounded-full uppercase tracking-wider">Rabais</span>
+              </div>
+              <div className="flex gap-4 overflow-x-auto pb-3 pl-1 -ml-1 scrollbar-none">
+                {[1, 2, 3, 4, 5].map(i => (
+                  <div key={i} className="min-w-[145px] w-[145px] skeleton-card animate-pulse">
+                    <div className="skeleton-image h-[100px] rounded-t-lg"></div>
+                    <div className="skeleton-body gap-1.5 p-2.5">
+                      <div className="skeleton-category h-[8px] w-1/2"></div>
+                      <div className="skeleton-title h-[12px] w-[85%]"></div>
+                      <div className="skeleton-price h-[10px] w-2/3 pb-1"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : (
             discountProducts.length > 0 && (
               <section className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -403,9 +459,18 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
             </div>
 
             {loading ? (
-              <div className="flex flex-col items-center justify-center py-20 gap-4">
-                <LogoLoader size={104} label="Chargement des produits" />
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Chargement des produits…</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => (
+                  <div key={i} className="skeleton-card bg-white rounded-xl overflow-hidden border border-slate-100">
+                    <div className="skeleton-image h-[160px] sm:h-[180px]"></div>
+                    <div className="skeleton-body p-3 flex flex-col gap-2">
+                      <div className="skeleton-category h-[10px] w-[40%] rounded"></div>
+                      <div className="skeleton-title h-[14px] w-[85%] rounded"></div>
+                      <div className="skeleton-shop h-[10px] w-[55%] rounded"></div>
+                      <div className="skeleton-price h-[16px] w-[45%] rounded"></div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : filteredProducts.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
