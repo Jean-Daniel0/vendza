@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   ArrowLeft, Printer, ShieldCheck, Tag, Info, 
   MapPin, User, Calendar, Check, Send, AlertTriangle, RefreshCw
@@ -143,57 +144,63 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
 
 
       {/* Fenêtre d'informations (bouton « ! ») : tout ce qui était dans l'ancienne « feuille de route de sécurité » */}
-      {showInfo && (
-        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-3 print:hidden" role="dialog" aria-modal="true" aria-label="Informations sur la commande">
-          <div className="absolute inset-0 bg-slate-900/50" onClick={() => setShowInfo(false)} />
-          <div className="relative w-full max-w-md max-h-[85vh] overflow-y-auto bg-white rounded-3xl shadow-2xl p-5 space-y-4 text-left">
-            <div className="flex items-start justify-between gap-3">
-              <h2 className="font-serif text-lg font-black text-slate-900 flex items-center gap-2">
-                <ShieldCheck size={18} className="text-teal-600 shrink-0" /> Sécurité de votre commande
+      {showInfo && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 print:hidden" role="dialog" aria-modal="true" aria-label="Informations sur la commande" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+          <div className="absolute inset-0 bg-slate-900/60" onClick={() => setShowInfo(false)} />
+          <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col font-sans" style={{ maxHeight: 'min(88dvh, 640px)' }}>
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-100 shrink-0">
+              <h2 className="text-sm font-black text-slate-900 flex items-center gap-2 min-w-0">
+                <ShieldCheck size={16} className="text-teal-600 shrink-0" />
+                <span className="truncate">Sécurité de la commande</span>
               </h2>
               <button type="button" aria-label="Fermer" onClick={() => setShowInfo(false)} className="shrink-0 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer"><EIcon name="X" /></button>
             </div>
 
-            <div className="flex justify-center">
-              <span className={`text-[10px] font-black uppercase tracking-wider px-4 py-1.5 rounded-full border ${
-                order.status === 'livree' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-amber-50 border-amber-200 text-amber-700'
-              }`}>
-                {order.status === 'livree' ? 'Livraison validée' : 'Fonds en séquestre'}
-              </span>
-            </div>
-
-            <div className="bg-slate-50 p-4 border border-slate-150 rounded-2xl space-y-1">
-              <h3 className="font-bold text-xs text-slate-800">Fonctionnement du séquestre</h3>
-              <p className="text-[12px] leading-relaxed text-slate-600">
-                {isBuyer
-                  ? "Vos Gourdes restent en sécurité chez Vendza. Une fois que vous avez examiné et accepté les marchandises remises en mains propres, cliquez sur « Confirmer la réception » pour libérer le paiement au vendeur."
-                  : "Les fonds ont été déposés par l'acheteur et sont garantis. Ils vous seront versés dès que l'acheteur confirme la réception du colis."}
-              </p>
-            </div>
-
-            <div className="bg-slate-50 p-4 border border-slate-150 rounded-2xl space-y-1">
-              <h3 className="font-bold text-xs text-slate-800 flex items-center gap-1.5"><EIcon name="Lock" /> Colis sécurisé Vendza</h3>
-              <p className="text-[12px] leading-relaxed text-slate-600">
-                {isBuyer
-                  ? "Le paiement n'est transmis au vendeur qu'après votre confirmation de réception."
-                  : "Le code QR officiel de déblocage est affiché directement sur le ticket de la commande."}
-              </p>
-              <p className="text-[11px] text-slate-500 pt-1">Référence : <span className="font-mono font-bold text-slate-800 break-all">{order.id.toUpperCase()}</span></p>
-            </div>
-
-            {isBuyer && order.status !== 'livree' && (
-              <div className="flex items-start gap-2 text-[11px] text-red-600 font-semibold bg-red-50 border border-red-150 p-3 rounded-2xl">
-                <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                <span>N'appuyez sur « Confirmer la réception » que si vous êtes en possession physique du colis vérifié.</span>
+            <div className="px-4 py-3 space-y-3 overflow-y-auto text-[12px] leading-relaxed text-slate-600">
+              <div className="flex justify-center">
+                <span className={`text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border ${
+                  order.status === 'livree' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-amber-50 border-amber-200 text-amber-700'
+                }`}>
+                  {order.status === 'livree' ? 'Livraison validée' : 'Fonds en séquestre'}
+                </span>
               </div>
-            )}
-            {isVendor && order.status !== 'livree' && (
-              <p className="text-[11px] text-slate-500 font-bold text-center uppercase tracking-wider">En attente de la confirmation de l'acheteur pour le versement</p>
-            )}
 
-            <button type="button" onClick={() => setShowInfo(false)} className="w-full py-2.5 rounded-xl bg-[#0c1445] hover:bg-[#1a255c] text-white text-xs font-bold cursor-pointer">Compris</button>
+              <section className="space-y-0.5">
+                <h3 className="text-xs font-bold text-slate-800">Fonctionnement du séquestre</h3>
+                <p>
+                  {isBuyer
+                    ? "Vos Gourdes restent en sécurité chez Vendza. Une fois les marchandises examinées et acceptées en mains propres, cliquez sur « Confirmer la réception » pour libérer le paiement au vendeur."
+                    : "Les fonds ont été déposés par l'acheteur et sont garantis. Ils vous seront versés dès que l'acheteur confirme la réception du colis."}
+                </p>
+              </section>
+
+              <section className="space-y-0.5">
+                <h3 className="text-xs font-bold text-slate-800">Colis sécurisé</h3>
+                <p>
+                  {isBuyer
+                    ? "Le paiement n'est transmis au vendeur qu'après votre confirmation de réception."
+                    : "Le code QR officiel de déblocage est affiché sur le ticket de la commande."}
+                </p>
+                <p className="text-[11px] text-slate-500 pt-0.5">Référence : <span className="font-mono font-bold text-slate-800 break-all">{order.id.toUpperCase()}</span></p>
+              </section>
+
+              {isBuyer && order.status !== 'livree' && (
+                <div className="flex items-start gap-2 text-[11px] text-red-600 font-semibold bg-red-50 border border-red-100 p-2.5 rounded-xl">
+                  <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                  <span>N'appuyez sur « Confirmer la réception » que si vous avez le colis en main et l'avez vérifié.</span>
+                </div>
+              )}
+              {isVendor && order.status !== 'livree' && (
+                <p className="text-[11px] text-slate-500 font-semibold text-center">En attente de la confirmation de l'acheteur pour le versement.</p>
+              )}
+            </div>
+
+            <div className="px-4 py-3 border-t border-slate-100 shrink-0">
+              <button type="button" onClick={() => setShowInfo(false)} className="w-full py-2.5 rounded-xl bg-[#0c1445] hover:bg-[#1a255c] text-white text-xs font-bold cursor-pointer">Compris</button>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Primary Header/Breadcrumbs */}
