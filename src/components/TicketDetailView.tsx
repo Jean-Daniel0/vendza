@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   ArrowLeft, Printer, ShieldCheck, Tag, Info, 
-  MapPin, User, Calendar, Check, Send, AlertTriangle, RefreshCw
+  MapPin, User, Calendar, Send, AlertTriangle, ScanQrCode
 } from 'lucide-react';
 import { Order, UserProfile } from '../types';
-import { QRCodeRenderer } from './QRCodeRenderer';
+import { DeliveryCodeQR } from './DeliveryCodeQR';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { parseOrderContacts } from '../lib/contacts';
 
@@ -40,10 +40,8 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
   order,
   user,
   onBack,
-  onConfirmDelivery,
   onNavigate
 }) => {
-  const [isConfirming, setIsConfirming] = useState(false);
   const [actionMessage, setActionMessage] = useState('');
   const [clientProfil, setClientProfil] = useState<any>(null);
   const [vendeurProfil, setVendeurProfil] = useState<any>(null);
@@ -114,23 +112,6 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
     window.print();
   };
 
-  const handleReleaseFunds = async () => {
-    if (!onConfirmDelivery) return;
-    setIsConfirming(true);
-    try {
-      const result: any = await onConfirmDelivery(order.id);
-      if (result && result.success === false) {
-        setActionMessage(`Erreur: ${result.message}`);
-      } else {
-        setActionMessage(`${result?.message || 'Réception confirmée. Le versement au vendeur est en cours.'}`);
-      }
-    } catch (e: any) {
-      setActionMessage(`Erreur: ${e.message || 'Impossible de valider la livraison'}`);
-    } finally {
-      setIsConfirming(false);
-    }
-  };
-
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-6 font-sans">
       {/* Toast Notification */}
@@ -169,7 +150,7 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
                 <h3 className="text-xs font-bold text-slate-800">Fonctionnement du séquestre</h3>
                 <p>
                   {isBuyer
-                    ? "Vos Gourdes restent en sécurité chez Vendza. Une fois les marchandises examinées et acceptées en mains propres, cliquez sur « Confirmer la réception » pour libérer le paiement au vendeur."
+                    ? "Vos Gourdes restent en sécurité chez Vendza. Une fois les marchandises examinées et acceptées en mains propres, scannez le code QR présenté par le vendeur pour libérer le paiement au vendeur."
                     : "Les fonds ont été déposés par l'acheteur et sont garantis. Ils vous seront versés dès que l'acheteur confirme la réception du colis."}
                 </p>
               </section>
@@ -187,7 +168,7 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
               {isBuyer && order.status !== 'livree' && (
                 <div className="flex items-start gap-2 text-[11px] text-red-600 font-semibold bg-red-50 border border-red-100 p-2.5 rounded-xl">
                   <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                  <span>N'appuyez sur « Confirmer la réception » que si vous avez le colis en main et l'avez vérifié.</span>
+                  <span>Ne scannez le code QR que si vous avez le colis en main et l'avez vérifié.</span>
                 </div>
               )}
               {isVendor && order.status !== 'livree' && (
@@ -358,9 +339,9 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
                 {/* QR de validation : vendeur seulement */}
                 {isVendor && (
                   <div className="mt-4 flex flex-col items-center text-center gap-1.5">
-                    <QRCodeRenderer value={`https://www.vendza.store/?order=${order.id}`} size={120} />
+                    <DeliveryCodeQR orderId={order.id} size={120} delivered={order.status === 'livree'} />
                     <p className="text-[11px] leading-snug max-w-[260px]">
-                      Code de validation de la commande.
+                      {order.status === 'livree' ? 'Commande livrée.' : "À faire scanner par l'acheteur à la réception pour libérer le paiement."}
                     </p>
                   </div>
                 )}
@@ -397,19 +378,20 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
               </span>
             </div>
 
-            {isBuyer && order.status !== 'livree' && onConfirmDelivery && (
+            {isBuyer && order.status !== 'livree' && onNavigate && (
               <div className="space-y-2">
                 <button
-                  disabled={isConfirming}
-                  onClick={handleReleaseFunds}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 disabled:opacity-50 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl shadow-md cursor-pointer flex items-center justify-center gap-2 transition-all"
+                  id="btn-open-camera-scanner"
+                  type="button"
+                  onClick={() => onNavigate('scanner')}
+                  className="w-full py-3 px-4 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white font-extrabold text-xs tracking-wide rounded-2xl shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2 uppercase"
                 >
-                  {isConfirming ? <RefreshCw size={13} className="animate-spin" /> : <Check size={13} strokeWidth={3} />}
-                  <span>Confirmer la réception (Débloquer fonds)</span>
+                  <ScanQrCode size={16} strokeWidth={2.5} />
+                  <span>Scanner le code QR</span>
                 </button>
                 <div className="flex items-center gap-1.5 text-[9px] text-red-500 font-bold bg-red-50 border border-red-150 p-2 rounded-xl">
                   <AlertTriangle size={12} className="shrink-0" />
-                  <span>N'appuyez que si vous êtes en possession physique du colis vérifié.</span>
+                  <span>Ne scannez que si vous êtes en possession physique du colis vérifié.</span>
                 </div>
               </div>
             )}

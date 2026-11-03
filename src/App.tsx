@@ -1934,7 +1934,7 @@ export default function App() {
     
     // Automatically log in or adapt user role to prevent any restriction alerts
     if (protectedViews.includes(view)) {
-      const isVendorView = ['vendor-dashboard', 'create-product', 'subscription', 'scanner'].includes(view);
+      const isVendorView = ['vendor-dashboard', 'create-product', 'subscription'].includes(view);
       
       if (!currentUser) {
         // Rediriger proprement vers l'authentification au lieu de se connecter automatiquement avec un compte démo
