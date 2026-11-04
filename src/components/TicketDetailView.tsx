@@ -16,6 +16,7 @@ interface TicketDetailViewProps {
   onBack: () => void;
   onConfirmDelivery?: (orderId: string, code?: string) => Promise<{ success: boolean; message: string }> | void;
   onNavigate?: (view: string) => void;
+  tauxUSD?: number;
 }
 
 
@@ -40,7 +41,8 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
   order,
   user,
   onBack,
-  onNavigate
+  onNavigate,
+  tauxUSD = 130
 }) => {
   const [actionMessage, setActionMessage] = useState('');
   const [clientProfil, setClientProfil] = useState<any>(null);
@@ -54,6 +56,17 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [showInfo]);
+
+
+  // Devise du ticket : un achat par carte est payé en dollars, le ticket l'affiche donc en dollars
+  const anyOrder = order as any;
+  const isUsd = order.paymentCurrency === 'USD' || anyOrder.payment_currency === 'USD' || order.paymentMethod === 'stripe';
+  const storedRate = Number(order.usdRate || anyOrder.usd_rate) || 0;
+  const usdRate = storedRate || tauxUSD || 130;
+  const fmtUsd = (n: number) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const money = (htg: number) => (isUsd ? fmtUsd((Number(htg) || 0) / usdRate) : (Number(htg) || 0).toLocaleString('fr-FR'));
+  const totalHtg = Number(order.total) || 0;
+  const totalUsd = Number(order.amountUsd || anyOrder.amount_usd) || totalHtg / usdRate;
 
   const isBuyer = user?.id === order.clientId;
   const isVendor = !isBuyer;
@@ -285,11 +298,11 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
                       <li key={idx}>
                         <div className="flex justify-between gap-3">
                           <span className="min-w-0 break-words"># {item.productNom}</span>
-                          <span className="shrink-0 tabular-nums">{((item.prix || 0) * item.qte).toLocaleString('fr-FR')}</span>
+                          <span className="shrink-0 tabular-nums">{money((item.prix || 0) * item.qte)}</span>
                         </div>
                         {(item.qte > 1 || variant) && (
                           <div className="pl-3 text-[11px] text-slate-500">
-                            {item.qte > 1 && <span>{item.qte} × {(item.prix || 0).toLocaleString('fr-FR')}</span>}
+                            {item.qte > 1 && <span>{item.qte} × {money(item.prix || 0)}</span>}
                             {item.qte > 1 && variant && <span> · </span>}
                             {variant && <span>{variant}</span>}
                           </div>
@@ -305,22 +318,28 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
                 <div className="space-y-0.5">
                   <div className="flex justify-between text-slate-600">
                     <span>Sous-total</span>
-                    <span className="tabular-nums">{order.items.reduce((s, i) => s + (i.prix || 0) * i.qte, 0).toLocaleString('fr-FR')}</span>
+                    <span className="tabular-nums">{money(order.items.reduce((s, i) => s + (i.prix || 0) * i.qte, 0))}</span>
                   </div>
                   <div className="flex justify-between text-slate-600">
                     <span>Livraison</span>
-                    <span className="tabular-nums">{order.fraisLivraison ? Number(order.fraisLivraison).toLocaleString('fr-FR') : 'Gratuit'}</span>
+                    <span className="tabular-nums">{order.fraisLivraison ? money(Number(order.fraisLivraison)) : 'Gratuit'}</span>
                   </div>
                   {order.discount > 0 && (
                     <div className="flex justify-between text-slate-600">
                       <span>Réduction</span>
-                      <span className="tabular-nums">-{Number(order.discount).toLocaleString('fr-FR')}</span>
+                      <span className="tabular-nums">-{money(Number(order.discount))}</span>
                     </div>
                   )}
                   <div className="flex justify-between items-baseline font-bold text-base pt-1">
-                    <span>Total (Gdes)</span>
-                    <span className="tabular-nums">{order.total.toLocaleString('fr-FR')}</span>
+                    <span>{isUsd ? 'Total (USD)' : 'Total (Gdes)'}</span>
+                    <span className="tabular-nums">{isUsd ? fmtUsd(totalUsd) : totalHtg.toLocaleString('fr-FR')}</span>
                   </div>
+                  {isUsd && (
+                    <div className="pt-1 text-[11px] text-slate-500 space-y-0.5">
+                      <div className="flex justify-between"><span>Équivalent en gourdes</span><span className="tabular-nums">{totalHtg.toLocaleString('fr-FR')} HTG</span></div>
+                      <div className="flex justify-between"><span>Taux{storedRate ? '' : ' (indicatif)'}</span><span className="tabular-nums">1 USD = {usdRate.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} HTG</span></div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="my-3 border-t-2 border-dashed border-slate-800" />
@@ -328,7 +347,7 @@ export const TicketDetailView: React.FC<TicketDetailViewProps> = ({
                 {/* Paiement et statut */}
                 <div className="space-y-0.5">
                   {order.paymentMethod && (
-                    <div className="flex justify-between"><span>Paiement :</span><span>{order.paymentMethod}</span></div>
+                    <div className="flex justify-between"><span>Paiement :</span><span>{order.paymentMethod === 'stripe' ? 'Carte bancaire (USD)' : order.paymentMethod === 'moncash' ? 'MonCash (HTG)' : order.paymentMethod}</span></div>
                   )}
                   <div className="flex justify-between font-semibold">
                     <span>Statut :</span>

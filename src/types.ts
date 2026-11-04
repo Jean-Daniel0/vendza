@@ -62,6 +62,10 @@ export interface Order {
   departement: string;
   commune: string;
   paymentMethod?: string;
+  // Devise réellement payée (carte = USD) ; taux et montant en dollars figés au paiement
+  paymentCurrency?: 'USD' | 'HTG';
+  usdRate?: number;
+  amountUsd?: number;
   stripeSessionId?: string;
   checkout_group_id?: string;
   vendor_id?: string;

@@ -914,7 +914,8 @@ const creerCommandeApresPaiement = async (
   orderId: string, 
   paymentMethod: string,
   transactionId?: string | null,
-  paidAmount?: number | null
+  paidAmount?: number | null,
+  fx?: { usdRate?: number | null }
 ) => {
   if (!isSupabaseConfigured || !supabase) {
     console.error('[Webhook] Database is not configured.');
@@ -1041,6 +1042,10 @@ const creerCommandeApresPaiement = async (
     };
     const dateStr = getDbDate();
     const heureStr = getDbTime();
+    // Paiement par carte : taux utilisé au moment de la session Stripe (métadonnée), sinon taux courant
+    const stripeUsdRate = paymentMethod === 'stripe'
+      ? (Number(fx?.usdRate) > 0 ? Number(fx!.usdRate) : await getUsdRate())
+      : 0;
 
     for (const pendingOrder of pendingOrders) {
       const subRefId = pendingOrder.reference_id || orderId;
@@ -1237,6 +1242,10 @@ const creerCommandeApresPaiement = async (
         statut: 'payee', // alias
         payment_method: paymentMethod,
         paymentMethod: paymentMethod, // alias
+        // Devise réellement payée : carte = dollars (montant et taux figés au paiement), MonCash = gourdes
+        payment_currency: paymentMethod === 'stripe' ? 'USD' : 'HTG',
+        usd_rate: paymentMethod === 'stripe' ? stripeUsdRate : null,
+        amount_usd: paymentMethod === 'stripe' ? usdCents(total_price, stripeUsdRate) / 100 : null,
         stripe_session_id: paymentMethod === 'stripe' ? transactionId : null,
         qr_code: qrCode,
         is_validated: false,
@@ -2747,7 +2756,8 @@ app.post('/api/stripe/create-checkout-session', async (req, res) => {
         type: type || 'order',
         planCode: planCode || '',
         billing: billing || '',
-        userId: userId || ''
+        userId: userId || '',
+        usdRate: String(currentRate)
       },
       success_url: actualSuccessUrl,
       cancel_url: actualCancelUrl,
@@ -2812,7 +2822,7 @@ app.post('/api/stripe/verify-session', async (req, res) => {
         });
       } else if (orderId) {
         console.log(`[Stripe Verification Proxy] Session paid! Finalizing order inside database securely: ${orderId}`);
-        await creerCommandeApresPaiement(orderId, 'stripe', session.id);
+        await creerCommandeApresPaiement(orderId, 'stripe', session.id, null, { usdRate: Number(session.metadata?.usdRate) || null });
       }
     }
 
@@ -2874,7 +2884,12 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
       }
     } else if (orderId) {
       console.log(`[Stripe Webhook] Verified success for order ${orderId}. Session ID: ${session.id}`);
-      await creerCommandeApresPaiement(orderId, 'stripe', session.id);
+      // Commande créée seulement si Stripe confirme que la carte a bien été débitée
+      if (session.payment_status === 'paid') {
+        await creerCommandeApresPaiement(orderId, 'stripe', session.id, null, { usdRate: Number(session.metadata?.usdRate) || null });
+      } else {
+        console.warn(`[Stripe Webhook] Session ${session.id} non payée (${session.payment_status}) : commande non créée.`);
+      }
     }
   }
 

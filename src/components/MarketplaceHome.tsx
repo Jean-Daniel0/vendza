@@ -599,10 +599,15 @@ const ProductScrollCard: React.FC<{ product: Product; rating: number; onView: ()
           <span className="font-mono text-xs font-extrabold text-[#2563eb]">
             {product.prix.toLocaleString('fr-FR')} <span className="text-[8px] font-sans font-medium text-slate-400">Gdes</span>
           </span>
+          {product.oldPrice && product.oldPrice > product.prix && (
+            <span className="block font-mono text-[9px] text-slate-400 line-through leading-none mt-0.5">
+              {product.oldPrice.toLocaleString('fr-FR')} Gdes
+            </span>
+          )}
           <span className="block font-mono text-[9.5px] text-emerald-600 font-bold leading-none mt-0.5">
             ${(product.prix / tauxUSD).toFixed(2)} <span className="text-[7.5px] font-sans font-medium text-slate-400">USD</span>
           </span>
-          {product.oldPrice && (
+          {product.oldPrice && product.oldPrice > product.prix && (
             <span className="block font-mono text-[8px] text-slate-400 line-through leading-none mt-0.5">
               ${(product.oldPrice / tauxUSD).toFixed(2)}
             </span>
@@ -708,10 +713,15 @@ export const ProductGridCard: React.FC<{ product: Product; rating: number; onVie
           <span className="font-mono text-sm font-black text-[#2563eb]">
             {product.prix.toLocaleString('fr-FR')} <span className="text-[9px] font-sans font-medium text-slate-400">HTG</span>
           </span>
+          {product.oldPrice && product.oldPrice > product.prix && (
+            <span className="block font-mono text-[10px] text-slate-400 line-through leading-none mt-1">
+              {product.oldPrice.toLocaleString('fr-FR')} HTG
+            </span>
+          )}
           <span className="block font-mono text-xs text-emerald-600 font-extrabold leading-none mt-1">
             ${(product.prix / tauxUSD).toFixed(2)} <span className="text-[9px] font-sans font-medium text-slate-400">USD</span>
           </span>
-          {product.oldPrice && (
+          {product.oldPrice && product.oldPrice > product.prix && (
             <span className="block font-mono text-[9px] text-slate-400 line-through leading-none mt-1">
               ${(product.oldPrice / tauxUSD).toFixed(2)} USD
             </span>

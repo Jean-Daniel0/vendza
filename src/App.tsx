@@ -1903,7 +1903,10 @@ export default function App() {
               checkout_group_id: o.checkout_group_id,
               vendor_id: o.vendor_id || o.vendeur_id,
               vendor_name: o.vendor_name || o.vendeur_nom || o.vendeur || 'Boutique',
-              paymentMethod: o.payment_method || o.paymentMethod || 'moncash'
+              paymentMethod: o.payment_method || o.paymentMethod || 'moncash',
+              paymentCurrency: (o.payment_currency || ((o.payment_method || o.paymentMethod) === 'stripe' ? 'USD' : 'HTG')) as 'USD' | 'HTG',
+              usdRate: o.usd_rate ? Number(o.usd_rate) : undefined,
+              amountUsd: o.amount_usd ? Number(o.amount_usd) : undefined
             };
           });
 
@@ -4520,6 +4523,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
                   }}
                   onConfirmDelivery={handleConfirmDelivery}
                   onNavigate={navigateTo}
+                  tauxUSD={tauxUSD}
                 />
               ) : null;
             })()
