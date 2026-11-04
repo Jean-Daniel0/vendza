@@ -40,3 +40,8 @@ export const isUnderpaid = (paid: number | null | undefined, expected: number, b
   Number(paid) > 0 && expected > 0 && Number(paid) < expected * (1 - Math.max(0, blockPct) / 100) - 1;
 
 export const usdCents = (totalHtg: number, htgPerUsd: number): number => Math.max(50, Math.round((totalHtg / (htgPerUsd || 130)) * 100));
+
+// Paiement par carte : le client doit avoir été débité d'au moins la somme des lignes calculées à la création de la session
+// (mêmes arrondis, taux enregistré). Tolérance : 1 centime par ligne. Retourne true si le montant encaissé est insuffisant.
+export const isUnderpaidUsd = (paidCents: number | null | undefined, expectedCents: number, lines = 1): boolean =>
+  Number(paidCents) >= 0 && paidCents != null && expectedCents > 0 && Number(paidCents) < expectedCents - Math.max(1, Math.floor(lines));

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { priceVendorOrder, promoPercent, isUnderpaid, usdCents, DbProduct } from '../server/pricing';
+import { priceVendorOrder, promoPercent, isUnderpaid, isUnderpaidUsd, usdCents, DbProduct } from '../server/pricing';
 import { resolveShippingFee, sanitizeFees, legacyShippingFee } from '../src/lib/shipping';
 
 const P = (id: string, price: number, o: Partial<DbProduct> = {}): [string, DbProduct] => [id, { id, name: 'Prod ' + id, price, stock: 10, vendor_id: 'V1', is_active: true, status: 'published', ...o }];
@@ -25,6 +25,10 @@ assert.match((priceVendorOrder({ ...base, items: [{ productId: 'b', qte: 5000 }]
 // paiement insuffisant : bloqué seulement si l'écart est net (pas pour de petits frais du fournisseur)
 assert.equal(isUnderpaid(1, 2650), true); assert.equal(isUnderpaid(2000, 2650), true);
 assert.equal(isUnderpaid(2600, 2650), false); assert.equal(isUnderpaid(2450, 2650), false); assert.equal(isUnderpaid(null, 2650), false);
+// carte : encaissé vs dû (en centimes)
+assert.equal(isUnderpaidUsd(1000, 1000), false); assert.equal(isUnderpaidUsd(999, 1000, 1), false); assert.equal(isUnderpaidUsd(998, 1000, 1), true);
+assert.equal(isUnderpaidUsd(1998, 2000, 2), false); assert.equal(isUnderpaidUsd(1997, 2000, 2), true); assert.equal(isUnderpaidUsd(0, 1000), true);
+assert.equal(isUnderpaidUsd(null, 1000), false); assert.equal(isUnderpaidUsd(undefined, 1000), false); assert.equal(isUnderpaidUsd(5000, 1000), false);
 assert.equal(usdCents(1300, 130), 1000); assert.equal(usdCents(10, 130), 50);
 
 // frais de livraison saisis par le vendeur

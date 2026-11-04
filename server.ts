@@ -10,7 +10,7 @@ import crypto from 'crypto';
 import { runFlashSale, runRecommendations } from './server/campaigns';
 import { haitiClock } from './server/marketing';
 import { runCartReminders, runLowStockAlerts } from './server/cartAlerts';
-import { priceVendorOrder, promoPercent, isUnderpaid, usdCents, DbProduct } from './server/pricing';
+import { priceVendorOrder, promoPercent, isUnderpaid, isUnderpaidUsd, usdCents, DbProduct } from './server/pricing';
 import { normalizePlan, normalizeBilling, planPriceHtg, decideActivation, stripePaidHtg, newSubscriptionRef, isUuid, isSubscriptionRef } from './server/subscriptions';
 import { resolveShippingFee } from './src/lib/shipping';
 import { registerSeoRoutes, runIndexNow } from './server/seoRoutes';
@@ -915,7 +915,7 @@ const creerCommandeApresPaiement = async (
   paymentMethod: string,
   transactionId?: string | null,
   paidAmount?: number | null,
-  fx?: { usdRate?: number | null }
+  fx?: { usdRate?: number | null; paidUsdCents?: number | null }
 ) => {
   if (!isSupabaseConfigured || !supabase) {
     console.error('[Webhook] Database is not configured.');
@@ -1028,6 +1028,21 @@ const creerCommandeApresPaiement = async (
         const underpaid = { id: `orph-under-${crypto.randomBytes(3).toString('hex').toUpperCase()}`, order_id: orderId, buyer_id: pendingOrders[0]?.buyer_id || null,
           amount: Number(paidAmount) || 0, payment_method: paymentMethod, transaction_id: transactionId || orderId, status: 'underpaid',
           payload_details: JSON.stringify({ expected: expectedGroupTotal, paid: paidAmount, pending: pendingOrders }), created_at: new Date().toISOString() };
+        try { await supabase.from('orphaned_payments').insert([underpaid]); } catch (_) { saveOrphanedPayment(underpaid); }
+        return null;
+      }
+    }
+
+    // Carte : le montant réellement encaissé par Stripe doit couvrir ce qui était dû (en dollars, taux de la session)
+    // (seulement si le taux de la session est connu : sans lui, un taux différent pourrait refuser à tort un vrai paiement)
+    if (paymentMethod === 'stripe' && fx?.paidUsdCents != null && Number(fx?.usdRate) > 0) {
+      const rateForCheck = Number(fx!.usdRate);
+      const expectedCents = pendingOrders.reduce((sum: number, po: any) => sum + usdCents(Number(po.total_price) || 0, rateForCheck), 0);
+      if (isUnderpaidUsd(fx.paidUsdCents, expectedCents, pendingOrders.length)) {
+        console.error(`[SÉCURITÉ] Paiement carte insuffisant pour ${orderId} : encaissé ${fx.paidUsdCents} cents, dû ${expectedCents} cents. Commandes non créées.`);
+        const underpaid = { id: `orph-under-${crypto.randomBytes(3).toString('hex').toUpperCase()}`, order_id: orderId, buyer_id: pendingOrders[0]?.buyer_id || null,
+          amount: Number(fx.paidUsdCents) / 100, payment_method: 'stripe', transaction_id: transactionId || orderId, status: 'underpaid',
+          payload_details: JSON.stringify({ expected_usd_cents: expectedCents, paid_usd_cents: fx.paidUsdCents, usd_rate: rateForCheck, pending: pendingOrders }), created_at: new Date().toISOString() };
         try { await supabase.from('orphaned_payments').insert([underpaid]); } catch (_) { saveOrphanedPayment(underpaid); }
         return null;
       }
@@ -2822,7 +2837,7 @@ app.post('/api/stripe/verify-session', async (req, res) => {
         });
       } else if (orderId) {
         console.log(`[Stripe Verification Proxy] Session paid! Finalizing order inside database securely: ${orderId}`);
-        await creerCommandeApresPaiement(orderId, 'stripe', session.id, null, { usdRate: Number(session.metadata?.usdRate) || null });
+        await creerCommandeApresPaiement(orderId, 'stripe', session.id, null, { usdRate: Number(session.metadata?.usdRate) || null, paidUsdCents: Number.isFinite(Number(session.amount_total)) ? Number(session.amount_total) : null });
       }
     }
 
@@ -2886,7 +2901,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
       console.log(`[Stripe Webhook] Verified success for order ${orderId}. Session ID: ${session.id}`);
       // Commande créée seulement si Stripe confirme que la carte a bien été débitée
       if (session.payment_status === 'paid') {
-        await creerCommandeApresPaiement(orderId, 'stripe', session.id, null, { usdRate: Number(session.metadata?.usdRate) || null });
+        await creerCommandeApresPaiement(orderId, 'stripe', session.id, null, { usdRate: Number(session.metadata?.usdRate) || null, paidUsdCents: Number.isFinite(Number(session.amount_total)) ? Number(session.amount_total) : null });
       } else {
         console.warn(`[Stripe Webhook] Session ${session.id} non payée (${session.payment_status}) : commande non créée.`);
       }
