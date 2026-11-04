@@ -143,15 +143,17 @@ export async function confirmDelivery(
     return { status: 409, body: { error: `Cette commande n'est pas en attente de livraison (statut : ${order.status}).` } };
   }
 
-  // 3) Code du vendeur (preuve de présence à la livraison) : facultatif pour le bouton, vérifié s'il est fourni
-  if (input.code != null && String(input.code).trim() !== '') {
-    const { data: codeRow } = await db.from('order_delivery_codes').select('code').eq('order_id', orderId).maybeSingle();
-    if (!codeRow?.code) {
-      return { status: 409, body: { error: "Le vendeur n'a pas encore affiché son code de livraison." } };
-    }
-    if (!safeEqual(normalizeCode(codeRow.code), normalizeCode(input.code))) {
-      return { status: 403, body: { error: 'Code de livraison invalide.' } };
-    }
+  // 3) Code du vendeur (preuve de présence à la livraison) : OBLIGATOIRE. Sans lui, personne (pas même l'acheteur par un appel direct)
+  //    ne peut libérer les fonds : il faut avoir vu le QR du vendeur, donc le colis.
+  if (!normalizeCode(input.code)) {
+    return { status: 400, body: { error: "Le code de livraison du vendeur est requis : scannez le QR de son ticket ou saisissez son code." } };
+  }
+  const { data: codeRow } = await db.from('order_delivery_codes').select('code').eq('order_id', orderId).maybeSingle();
+  if (!codeRow?.code) {
+    return { status: 409, body: { error: "Le vendeur n'a pas encore affiché son code de livraison." } };
+  }
+  if (!safeEqual(normalizeCode(codeRow.code), normalizeCode(input.code))) {
+    return { status: 403, body: { error: 'Code de livraison invalide.' } };
   }
 
   // 4) L'argent doit être réellement entré

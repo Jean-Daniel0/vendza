@@ -52,9 +52,11 @@ class FakeDb {
 }
 
 const BUYER = 'buyer-1', VENDOR = 'vendor-1', STRANGER = 'stranger-1';
-function world(over: any = {}) {
+const CODE = 'ABCD2345';
+function world(over: any = {}, seedCode = true) {
   const db = new FakeDb();
   db.tables.orders = [{ id: 'A', buyer_id: BUYER, client_id: BUYER, vendor_id: VENDOR, status: 'payee', total_price: 1000, qr_token: 'MC-1', vendor_credited: false, items: [{ productId: 'P1', qte: 2 }], ...over }];
+  if (seedCode) db.tables.order_delivery_codes = [{ order_id: 'A', code: CODE }];
   db.tables.verified_payments = [{ reference: 'MC-1', amount: 1000, payment_method: 'moncash' }];
   const payouts: any[] = [];
   const payout = async (o: any) => { payouts.push(o.id); return { status: 200, body: { success: true } }; };
@@ -80,18 +82,18 @@ let n = 0; const t = async (name: string, fn: () => Promise<void> | void) => { a
     assert.equal(r.status, 403); assert.equal(w.payouts.length, 0);
   });
   await t('commande introuvable (404)', async () => {
-    const w = world(); assert.equal((await confirmDelivery(w.deps, { orderId: 'ZZZ', callerId: BUYER })).status, 404);
+    const w = world(); assert.equal((await confirmDelivery(w.deps, { orderId: 'ZZZ', callerId: BUYER, code: CODE })).status, 404);
   });
 
   console.log('confirmDelivery — « pas d\'argent sorti sans argent entré »');
   await t('fausse commande « payee » SANS paiement vérifié : versement bloqué (409)', async () => {
     const w = world(); w.db.tables.verified_payments = [];
-    const r = await confirmDelivery(w.deps, { orderId: 'A', callerId: BUYER });
+    const r = await confirmDelivery(w.deps, { orderId: 'A', callerId: BUYER, code: CODE });
     assert.equal(r.status, 409); assert.equal(w.payouts.length, 0); assert.equal(w.db.tables.orders[0].status, 'payee');
   });
   await t('montant payé (100) inférieur au total (1000) : bloqué', async () => {
     const w = world(); w.db.tables.verified_payments = [{ reference: 'MC-1', amount: 100 }];
-    const r = await confirmDelivery(w.deps, { orderId: 'A', callerId: BUYER });
+    const r = await confirmDelivery(w.deps, { orderId: 'A', callerId: BUYER, code: CODE });
     assert.equal(r.status, 409); assert.equal(w.payouts.length, 0);
   });
   await t('panier multi-vendeurs : somme des commandes comparée au paiement', async () => {
@@ -109,33 +111,33 @@ let n = 0; const t = async (name: string, fn: () => Promise<void> | void) => { a
 
   console.log('confirmDelivery — transition');
   await t('acheteur : succès, statut completed, 1 virement, stock décrémenté une fois', async () => {
-    const w = world(); const r = await confirmDelivery(w.deps, { orderId: 'A', callerId: BUYER });
+    const w = world(); const r = await confirmDelivery(w.deps, { orderId: 'A', callerId: BUYER, code: CODE });
     assert.equal(r.status, 200); assert.equal(r.body.delivery, 'confirmed'); assert.equal(r.body.payout.ok, true);
     const o = w.db.tables.orders[0]; assert.equal(o.status, 'completed'); assert.equal(o.reception_confirmed, true); assert.equal(o.is_validated, true);
     assert.equal(w.payouts.length, 1); assert.deepEqual(w.db.rpcCalls, [{ name: 'decrement_product_stock', args: { p_product_id: 'P1', p_qty: 2 } }]);
   });
   await t('double clic simultané : UNE seule transition, UN seul décrément de stock', async () => {
     const w = world(); const [a, b] = await Promise.all([
-      confirmDelivery(w.deps, { orderId: 'A', callerId: BUYER }), confirmDelivery(w.deps, { orderId: 'A', callerId: BUYER })]);
+      confirmDelivery(w.deps, { orderId: 'A', callerId: BUYER, code: CODE }), confirmDelivery(w.deps, { orderId: 'A', callerId: BUYER, code: CODE })]);
     assert.equal(w.db.rpcCalls.length, 1);
     assert.deepEqual([a.status, b.status].sort(), [200, 409].sort());
   });
   await t('virement échoué : livraison confirmée, virement signalé « en attente »', async () => {
     const w = world(); const deps = { db: w.db, payout: async () => ({ status: 400, body: { error: "Le vendeur n'a pas configuré son numéro MonCash." } }) };
-    const r = await confirmDelivery(deps, { orderId: 'A', callerId: BUYER });
+    const r = await confirmDelivery(deps, { orderId: 'A', callerId: BUYER, code: CODE });
     assert.equal(r.status, 200); assert.equal(r.body.payout.ok, false); assert.equal(w.db.tables.orders[0].status, 'completed');
   });
   await t('commande déjà confirmée mais non versée : nouvel essai du virement (retried)', async () => {
-    const w = world({ status: 'completed', vendor_credited: false }); const r = await confirmDelivery(w.deps, { orderId: 'A', callerId: BUYER });
+    const w = world({ status: 'completed', vendor_credited: false }); const r = await confirmDelivery(w.deps, { orderId: 'A', callerId: BUYER, code: CODE });
     assert.equal(r.status, 200); assert.equal(r.body.retried, true); assert.equal(w.payouts.length, 1); assert.equal(w.db.rpcCalls.length, 0);
   });
   await t('commande déjà versée (vendor_credited) : 409', async () => {
     const w = world({ status: 'completed', vendor_credited: true });
-    assert.equal((await confirmDelivery(w.deps, { orderId: 'A', callerId: BUYER })).status, 409); assert.equal(w.payouts.length, 0);
+    assert.equal((await confirmDelivery(w.deps, { orderId: 'A', callerId: BUYER, code: CODE })).status, 409); assert.equal(w.payouts.length, 0);
   });
   for (const s of ['annulee', 'disputed', 'attente']) {
     await t(`statut « ${s} » : pas de libération (409)`, async () => {
-      const w = world({ status: s }); assert.equal((await confirmDelivery(w.deps, { orderId: 'A', callerId: BUYER })).status, 409); assert.equal(w.payouts.length, 0);
+      const w = world({ status: s }); assert.equal((await confirmDelivery(w.deps, { orderId: 'A', callerId: BUYER, code: CODE })).status, 409); assert.equal(w.payouts.length, 0);
     });
   }
 
@@ -157,7 +159,24 @@ let n = 0; const t = async (name: string, fn: () => Promise<void> | void) => { a
     assert.equal(ok.status, 200); assert.equal(w.payouts.length, 1);
   });
   await t("code fourni mais le vendeur n'en a pas affiché : 409", async () => {
-    const w = world(); assert.equal((await confirmDelivery(w.deps, { orderId: 'A', callerId: BUYER, code: 'ABCDEFGH' })).status, 409);
+    const w = world({}, false); assert.equal((await confirmDelivery(w.deps, { orderId: 'A', callerId: BUYER, code: 'ABCDEFGH' })).status, 409);
+  });
+
+  await t('SANS CODE : refusé (400), commande inchangée, aucun virement', async () => {
+    for (const code of [undefined, null, '', '   ', '--', ' - ']) {
+      const w = world();
+      const r = await confirmDelivery(w.deps, { orderId: 'A', callerId: BUYER, code: code as any });
+      assert.equal(r.status, 400, String(code)); assert.match(r.body.error, /code de livraison/i);
+      assert.equal(w.db.tables.orders[0].status, 'payee'); assert.equal(w.payouts.length, 0);
+    }
+  });
+  await t("sans code, un non-acheteur reste refusé en 403 (l'autorisation passe avant)", async () => {
+    const w = world(); assert.equal((await confirmDelivery(w.deps, { orderId: 'A', callerId: VENDOR })).status, 403);
+    assert.equal((await confirmDelivery(w.deps, { orderId: 'A', callerId: STRANGER })).status, 403);
+  });
+  await t('relance du virement d\'une commande DÉJÀ confirmée : pas besoin de code', async () => {
+    const w = world({ status: 'completed', vendor_credited: false });
+    const r = await confirmDelivery(w.deps, { orderId: 'A', callerId: BUYER }); assert.equal(r.status, 200); assert.equal(w.payouts.length, 1);
   });
 
   console.log(`\n${n} tests OK`);

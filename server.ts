@@ -2221,7 +2221,7 @@ app.get('/api/orders/:orderId/delivery-code', async (req, res) => {
   return res.status(r.status).json(r.body);
 });
 
-// L'ACHETEUR confirme la réception (bouton ou scan du QR du vendeur) : transition atomique + virement au vendeur.
+// L'ACHETEUR confirme la réception en scannant le QR du vendeur (code de livraison obligatoire) : transition atomique + virement au vendeur.
 app.post('/api/orders/confirm-delivery', async (req, res) => {
   const { orderId, code } = req.body || {};
   if (!orderId || !isValidUuid(orderId)) return res.status(400).json({ error: "orderId invalide." });
