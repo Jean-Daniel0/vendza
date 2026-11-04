@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Video, Check, Key } from 'lucide-react';
-import { Order } from '../types';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ArrowLeft, ScanQrCode, Flashlight, FlashlightOff, ImagePlus, Keyboard, ShieldCheck, CheckCircle2, AlertTriangle, Package, MapPin, RefreshCw, Camera } from 'lucide-react';
 import jsQR from 'jsqr';
+import { Order } from '../types';
+import { precheckScan, cleanCode } from '../lib/scanParse';
 
-import { EIcon } from './EIcon';
 interface ScannerViewProps {
   orders: Order[];
   // Résultat renvoyé par le serveur : seul l'ACHETEUR peut confirmer la réception
@@ -14,349 +14,312 @@ interface ScannerViewProps {
   initialScan?: string;
 }
 
-export const ScannerView: React.FC<ScannerViewProps> = ({
-  orders,
-  onConfirmDelivery,
-  onNavigate,
-  currentUserId,
-  initialScan
-}) => {
-  const [cameraActive, setCameraActive] = useState<boolean>(false);
-  const [manualId, setManualId] = useState<string>('');
-  const [manualCode, setManualCode] = useState<string>('');
-  const [scannedCode, setScannedCode] = useState<string>('');
-  const [isConfirming, setIsConfirming] = useState<boolean>(false);
-  
-  // States of detected order
-  const [scannedOrder, setScannedOrder] = useState<Order | null>(null);
-  const [scanError, setScanError] = useState<string>('');
-  const [scanSuccess, setScanSuccess] = useState<boolean>(false);
+type Step = 'scan' | 'review' | 'success';
+type CamState = 'starting' | 'on' | 'denied' | 'unsupported';
+
+const gdes = (n: number) => `${Math.round(Number(n) || 0).toLocaleString('fr-FR')} Gdes`;
+const shortId = (id: string) => id.slice(0, 8).toUpperCase();
+
+export const ScannerView: React.FC<ScannerViewProps> = ({ orders, onConfirmDelivery, onNavigate, currentUserId, initialScan }) => {
+  const [step, setStep] = useState<Step>('scan');
+  const [manual, setManual] = useState(false);
+  const [camState, setCamState] = useState<CamState>('starting');
+  const [torchAvailable, setTorchAvailable] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+  const [error, setError] = useState('');
+  const [found, setFound] = useState<{ order: Order; code: string } | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
+  const [pickId, setPickId] = useState('');
+  const [pickCode, setPickCode] = useState('');
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const lastErrorAt = useRef(0);
 
-  // Extrait l'identifiant de commande et le code de livraison d'un QR (lien ?confirm=<id>&code=<code>, ancien ?id=<id>, ou texte brut)
-  const parseScan = (text: string): { id: string; code: string } => {
-    const raw = text.trim();
-    try {
-      if (raw.startsWith('http://') || raw.startsWith('https://')) {
-        const url = new URL(raw);
-        const id = url.searchParams.get('confirm') || url.searchParams.get('id') || '';
-        const code = url.searchParams.get('code') || '';
-        if (id) return { id, code };
-      }
-    } catch (_) {}
-    const m = raw.match(/[?&](?:confirm|id)=([^&\s]+)(?:.*[?&]code=([^&\s]+))?/i);
-    if (m) return { id: m[1], code: m[2] || '' };
-    return { id: raw, code: '' };
-  };
+  const pending = orders.filter(o => o.clientId === currentUserId && o.status === 'payee');
 
-  // Recherche EXACTE parmi les achats de l'utilisateur connecté (plus de correspondance partielle)
-  const handleSimulateScan = (scannedText: string, extraCode?: string) => {
-    setScanError('');
-    setScanSuccess(false);
+  const handleText = useCallback((text: string, extraCode?: string): boolean => {
+    const r = precheckScan(orders, currentUserId, text, extraCode);
+    if (r.ok === false) { setError(r.message); lastErrorAt.current = Date.now(); return false; }
+    setError('');
+    setFound({ order: r.order, code: r.code });
+    setStep('review');
+    return true;
+  }, [orders, currentUserId]);
 
-    const parsed = parseScan(scannedText);
-    const searchId = parsed.id;
-    const code = (extraCode || parsed.code || '').trim();
-    if (!searchId) return;
-
-    const found = orders.find(o => o.id.toLowerCase() === searchId.toLowerCase());
-    if (!found) {
-      setScanError(`Commande introuvable pour la référence "${searchId}".`);
-      setScannedOrder(null);
-      return;
-    }
-    if (currentUserId && found.clientId !== currentUserId) {
-      setScanError("Seul l'acheteur de cette commande peut confirmer la réception.");
-      setScannedOrder(null);
-      return;
-    }
-    setScannedCode(code);
-    setScannedOrder(found);
-  };
-
-  // QR ouvert avec l'appareil photo du téléphone : on pré-remplit la validation
+  // QR ouvert avec l'appareil photo du téléphone : on passe directement à la vérification
   useEffect(() => {
-    if (initialScan) handleSimulateScan(initialScan);
+    if (initialScan && step === 'scan') handleText(initialScan);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialScan, orders.length]);
 
-  // Setup actual web camera streaming and interval scanning
+  // Caméra : démarre toute seule sur l'écran de scan, s'arrête dès qu'on le quitte
   useEffect(() => {
-    let intervalId: any = null;
+    if (step !== 'scan' || manual) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true }) as CanvasRenderingContext2D | null;
 
-    const startCamera = async () => {
-      setScanError('');
+    const stop = () => {
+      if (timer) clearTimeout(timer);
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+      setTorchOn(false); setTorchAvailable(false);
+    };
+
+    (async () => {
+      if (!navigator.mediaDevices?.getUserMedia) { setCamState('unsupported'); return; }
+      setCamState('starting');
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-        });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+        if (stopped) { stream.getTracks().forEach(t => t.stop()); return; }
         streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.setAttribute('playsinline', 'true');
-          videoRef.current.play().catch(e => console.error("Error playing stream:", e));
-        }
+        const v = videoRef.current;
+        if (v) { v.srcObject = stream; v.setAttribute('playsinline', 'true'); await v.play().catch(() => {}); }
+        const caps: any = stream.getVideoTracks()[0]?.getCapabilities?.() || {};
+        setTorchAvailable(!!caps.torch);
+        setCamState('on');
 
-        intervalId = setInterval(() => {
-          if (!videoRef.current) return;
+        const tick = () => {
+          if (stopped) return;
           const video = videoRef.current;
-          if (video.readyState === video.HAVE_ENOUGH_DATA) {
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              const qrCodeResult = jsQR(imageData.data, imageData.width, imageData.height, {
-                inversionAttempts: 'dontInvert',
-              });
-              if (qrCodeResult && qrCodeResult.data) {
-                handleSimulateScan(qrCodeResult.data);
-                setCameraActive(false);
-              }
+          if (video && ctx && video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth) {
+            const scale = Math.min(1, 640 / video.videoWidth);
+            canvas.width = Math.round(video.videoWidth * scale);
+            canvas.height = Math.round(video.videoHeight * scale);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const res = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+            // un QR invalide ne doit pas déclencher une rafale d'erreurs : une toutes les 2 secondes au plus
+            if (res?.data && (Date.now() - lastErrorAt.current > 2000)) {
+              if (handleText(res.data)) { stop(); return; }
             }
           }
-        }, 350);
-
-      } catch (err) {
-        console.error('Camera access error:', err);
-        setScanError("Impossible d'accéder à la caméra ou permission refusée. Veuillez utiliser la saisie manuelle.");
-        setCameraActive(false);
+          timer = setTimeout(tick, 140);
+        };
+        tick();
+      } catch (e: any) {
+        if (!stopped) setCamState(e?.name === 'NotAllowedError' || e?.name === 'SecurityError' ? 'denied' : 'unsupported');
       }
-    };
+    })();
 
-    if (cameraActive) {
-      startCamera();
-    } else {
-      stopCamera();
-    }
+    return () => { stopped = true; stop(); };
+  }, [step, manual, handleText]);
 
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-      stopCamera();
-    };
-  }, [cameraActive]);
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
+  const toggleTorch = async () => {
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    try { await track.applyConstraints({ advanced: [{ torch: !torchOn } as any] }); setTorchOn(!torchOn); } catch { setError("La lampe n'est pas disponible sur cet appareil."); }
   };
 
-  // Validate transaction
-  const executeValidation = async () => {
-    if (!scannedOrder || isConfirming) return;
-    setIsConfirming(true);
-    setScanError('');
+  // Photo du QR depuis la galerie (si la caméra est refusée ou difficile à cadrer)
+  const onPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, 1200 / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+      const cx = c.getContext('2d');
+      cx?.drawImage(img, 0, 0, c.width, c.height);
+      const d = cx?.getImageData(0, 0, c.width, c.height);
+      const res = d ? jsQR(d.data, d.width, d.height, { inversionAttempts: 'attemptBoth' }) : null;
+      URL.revokeObjectURL(url);
+      if (res?.data) handleText(res.data); else setError('Aucun QR trouvé sur cette photo. Rapprochez-vous et réessayez.');
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); setError("Impossible de lire cette image."); };
+    img.src = url;
+  };
+
+  const verifyManual = () => {
+    setError('');
+    if (!pickId) { setError('Choisissez la commande à confirmer.'); return; }
+    const order = pending.find(o => o.id === pickId);
+    if (!order) { setError('Cette commande n’est plus en attente de livraison.'); return; }
+    handleText(order.id, pickCode);
+  };
+
+  const confirm = async () => {
+    if (!found || isConfirming) return;
+    setIsConfirming(true); setError('');
     try {
-      const result = await onConfirmDelivery(scannedOrder.id, scannedCode || undefined);
-      if (result && result.success === false) {
-        // refus du serveur (pas l'acheteur, code invalide, paiement non vérifié, déjà confirmé...)
-        setScanError(`${result.message}`);
-        return;
-      }
-      setScanSuccess(true);
-      setScannedOrder(null);
-      setCameraActive(false);
-      setManualId('');
-      setManualCode('');
-      setScannedCode('');
-    } finally {
-      setIsConfirming(false);
-    }
+      const result = await onConfirmDelivery(found.order.id, found.code);
+      if (result && result.success === false) { setError(result.message); return; }
+      setSuccessMsg((result && result.message) || 'Le paiement est libéré au vendeur.');
+      setStep('success'); setFound(null);
+    } catch (e: any) {
+      setError(e?.message || 'Validation impossible. Réessayez.');
+    } finally { setIsConfirming(false); }
   };
+
+  const backToScan = () => { setFound(null); setError(''); setManual(false); setPickCode(''); setStep('scan'); };
 
   return (
-    <div className="space-y-6">
-      {/* Title */}
-      <div className="text-center space-y-1.5">
-        <h1 className="font-serif text-lg font-bold tracking-tight text-slate-800 flex items-center justify-center gap-1.5">
-          <EIcon name="Zap" /> Validation de Livraison Vendza
-        </h1>
-        <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
-          Scannez le QR Code affiché par le vendeur (ou saisissez l'identifiant et son code) pour confirmer la réception : le versement est alors libéré au vendeur.
-        </p>
+    <div className="mx-auto w-full max-w-md px-4 py-4 space-y-4 font-sans">
+      <style>{`@keyframes vz-scan{0%{top:8%}50%{top:88%}100%{top:8%}}@media (prefers-reduced-motion:reduce){.vz-line{animation:none!important}}`}</style>
+
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={() => onNavigate('client-dashboard')} aria-label="Retour au tableau de bord"
+          className="h-9 w-9 shrink-0 rounded-full border border-slate-200 bg-white flex items-center justify-center text-slate-600 hover:bg-slate-50 cursor-pointer">
+          <ArrowLeft size={18} />
+        </button>
+        <div className="min-w-0">
+          <h1 className="text-base font-extrabold text-slate-900 leading-tight">Scanner le code QR</h1>
+          <p className="text-[11px] text-slate-500 leading-tight">Confirmez la réception de votre colis</p>
+        </div>
       </div>
 
-      {scanSuccess ? (
-        /* Success animation card */
-        <div className="bg-white border-2 border-emerald-500 rounded-3xl p-6 text-center space-y-4 max-w-md mx-auto shadow-lg animate-fade-in">
-          <div className="w-16 h-16 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-3xl mx-auto shadow-md animate-bounce">
-            <Check size={32} />
+      <div aria-live="polite">
+        {error && step !== 'success' && (
+          <div role="alert" className="flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-600">
+            <AlertTriangle size={15} className="mt-0.5 shrink-0" /><span>{error}</span>
           </div>
-          <h2 className="font-serif text-[#0d9488] text-base font-black uppercase">Livraison validée avec succès !</h2>
-          <p className="text-xs text-slate-600 leading-relaxed font-medium">
-            Le reçu est bien enregistré. Les Gourdes de la commande ont été débloquées et automatiquement créditées sur le compte mobile du vendeur.
-          </p>
-          <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl max-w-xs mx-auto text-[10.5px] font-bold text-slate-500">
-            <EIcon name="Check" /> Garantie libérée · Statut mis à jour
-          </div>
-          <button
-            onClick={() => {
-              setScanSuccess(false);
-              onNavigate('client-dashboard');
-            }}
-            className="w-full max-w-xs py-2.5 bg-[#0c1445] text-white hover:bg-slate-800 text-xs font-bold rounded-xl transition cursor-pointer"
-          >
-            Retourner au Tableau de Bord
-          </button>
-        </div>
-      ) : scannedOrder ? (
-        /* Detected Order Card for confirmation */
-        <div className="bg-white border-2 border-blue-400 rounded-3xl p-6 text-center space-y-4 max-w-md mx-auto shadow-lg animate-scale-up">
-          <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-serif text-xl mx-auto border-2 border-blue-200">
-            VZ
-          </div>
-          <h2 className="font-serif text-[#0c1445] text-base font-extrabold">Commande Détectée !</h2>
-          
-          <div className="bg-slate-50 border rounded-xl p-3 text-left space-y-2 text-xs">
-            <p className="text-slate-500 font-mono text-[9px] truncate">ID: {scannedOrder.id}</p>
-            <p><strong>Acheteur :</strong> {scannedOrder.clientNom}</p>
-            <p><strong>Zone de colis :</strong> {scannedOrder.commune} ({scannedOrder.departement})</p>
-            <p><strong>Total Commande :</strong> <span className="font-mono font-bold text-blue-600">{scannedOrder.total} Gdes</span></p>
-            <p><strong>Statut :</strong> <span className="text-amber-500 font-bold uppercase tracking-wider">{scannedOrder.status}</span></p>
-          </div>
+        )}
+      </div>
 
-          {scanError && (
-            <p className="p-2 bg-red-50 text-red-600 text-[10px] font-bold rounded-lg border border-red-100">{scanError}</p>
-          )}
+      {step === 'scan' && !manual && (
+        <section className="space-y-3">
+          <div className="relative aspect-[3/4] w-full overflow-hidden rounded-3xl bg-slate-950 shadow-lg">
+            <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover" playsInline muted />
 
-          <div className="flex gap-2">
-            <button
-              onClick={() => setScannedOrder(null)}
-              className="flex-1 py-2 border border-slate-200 hover:bg-slate-50 rounded-lg text-xs font-bold text-slate-500 cursor-pointer"
-            >
-              Réessayer
-            </button>
-            <button
-              onClick={executeValidation}
-              disabled={isConfirming}
-              className="flex-2 py-2 bg-gradient-to-r from-emerald-600 to-teal-500 text-white font-extrabold text-xs tracking-wider uppercase rounded-lg shadow-md cursor-pointer"
-            >
-              {isConfirming ? 'Validation…' : <><EIcon name="CheckCircle2" /> Confirmer Réception</>}
-            </button>
-          </div>
-        </div>
-      ) : (
-        /* Standard scanning interface */
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-5 max-w-4xl mx-auto">
-          {/* Left panel: Camera block */}
-          <div className="md:col-span-7 bg-white border border-slate-100 rounded-3xl p-4 shadow-xs space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase">
-                <Video size={14} className="text-blue-500" /> Caméra de scan
-              </span>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cameraActive ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                {cameraActive ? '● Active' : 'Inactive'}
-              </span>
-            </div>
-
-            {/* Hidden Canvas to capture frame data */}
-            <canvas id="hidden-scan-canvas" className="hidden" />
-
-            {/* Video Box */}
-            <div className="relative w-full aspect-video bg-slate-950 rounded-2xl overflow-hidden flex flex-col justify-between items-center p-3 select-none">
-              {cameraActive ? (
-                <>
-                  <video 
-                    ref={videoRef} 
-                    className="absolute inset-0 w-full h-full object-cover"
-                    playsInline 
-                    muted
-                  />
-                  <div className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-cyan-500 to-transparent shadow-md animate-bounce top-1/4 z-10" />
-                  <div className="absolute border-4 border-[#0d9488] border-dashed w-36 h-36 rounded-xl animate-pulse opacity-90 inset-auto top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none">
-                    <span className="text-[10px] text-cyan-300 font-extrabold uppercase tracking-widest bg-slate-900/60 p-1.5 rounded">VENDZA SCAN</span>
-                  </div>
-                  <span className="absolute bottom-3 bg-slate-900/80 text-white text-[9.5px] px-3 py-1 rounded-full border border-white/10 flex items-center gap-1 z-10 font-sans">
-                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
-                    Pointez sur le QR proposé par le vendeur
-                  </span>
-                </>
-              ) : (
-                <div className="my-auto text-center space-y-2">
-                  <span className="text-3xl"><EIcon name="Camera" /></span>
-                  <p className="text-slate-400 text-xs font-bold">Caméra désactivée</p>
-                  <p className="text-[10px] text-slate-500 max-w-xs">Appuyez sur démarrer pour activer votre caméra et scanner la livraison.</p>
+            {camState === 'on' && (
+              <>
+                <div className="absolute left-1/2 top-1/2 aspect-square w-[68%] -translate-x-1/2 -translate-y-1/2 rounded-3xl shadow-[0_0_0_999px_rgba(2,6,23,0.58)]">
+                  {['left-0 top-0 border-l-4 border-t-4 rounded-tl-3xl', 'right-0 top-0 border-r-4 border-t-4 rounded-tr-3xl', 'left-0 bottom-0 border-l-4 border-b-4 rounded-bl-3xl', 'right-0 bottom-0 border-r-4 border-b-4 rounded-br-3xl'].map(c => (
+                    <span key={c} className={`absolute h-9 w-9 border-teal-400 ${c}`} />
+                  ))}
+                  <span className="vz-line absolute inset-x-3 h-0.5 rounded-full bg-gradient-to-r from-transparent via-teal-300 to-transparent" style={{ animation: 'vz-scan 2.4s ease-in-out infinite' }} />
                 </div>
-              )}
-            </div>
+                <p className="absolute inset-x-0 bottom-5 px-6 text-center text-xs font-bold text-white drop-shadow">Placez le QR du vendeur dans le cadre</p>
+              </>
+            )}
 
-            <div className="flex gap-2">
-              <button
-                onClick={() => setCameraActive(!cameraActive)}
-                className={`w-full py-2.5 rounded-xl font-bold text-xs transition cursor-pointer ${
-                  cameraActive 
-                    ? 'bg-rose-50 text-rose-600 border border-rose-200' 
-                    : 'bg-[#0d9488] hover:bg-teal-700 text-white shadow-md'
-                }`}
-              >
-                {cameraActive ? 'Arrêter la caméra' : 'Démarrer la caméra de scan'}
-              </button>
-            </div>
-            
-
-          </div>
-
-          {/* Right panel: Saisie manuelle section */}
-          <div className="md:col-span-5 space-y-4">
-            <div className="bg-white border border-slate-100 p-4 rounded-3xl shadow-xs space-y-3">
-              <div className="text-xs font-bold text-[#0c1445] flex items-center gap-1.5 uppercase tracking-wide">
-                <Key size={13} className="text-blue-500" /> Saisie de l'ID colis
+            {camState === 'starting' && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-slate-300">
+                <RefreshCw size={22} className="animate-spin" />
+                <p className="text-xs font-bold">Ouverture de la caméra…</p>
               </div>
-              
-              <p className="text-[10.5px] text-slate-400 leading-normal">
-                Saisissez ou collez simplement l'identifiant pour valider la livraison :
-              </p>
+            )}
 
-              <div className="space-y-2.5">
-                <input
-                  type="text"
-                  placeholder="Coller l'identifiant de commande ici..."
-                  className="w-full py-2.5 px-3 rounded-lg border border-slate-200 text-xs font-mono focus:outline-none focus:border-blue-600"
-                  value={manualId}
-                  onChange={e => setManualId(e.target.value)}
-                />
-                <input
-                  type="text"
-                  placeholder="Code de livraison du vendeur (8 caractères)"
-                  maxLength={12}
-                  className="w-full py-2.5 px-3 rounded-lg border border-slate-200 text-xs font-mono uppercase tracking-widest focus:outline-none focus:border-blue-600"
-                  value={manualCode}
-                  onChange={e => setManualCode(e.target.value)}
-                />
-                
-                <button
-                  type="button"
-                  onClick={() => handleSimulateScan(manualId, manualCode)}
-                  className="w-full py-2 bg-blue-50 text-[#0d9488] hover:bg-[#0d9488] hover:text-white rounded-lg text-xs font-bold transition cursor-pointer"
-                >
-                  Vérifier la livraison de conformité
-                </button>
-              </div>
-
-              {scanError && (
-                <p className="p-2 bg-red-50 text-red-600 text-[10px] font-bold rounded-lg border border-red-100">
-                  {scanError}
+            {(camState === 'denied' || camState === 'unsupported') && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center text-slate-200">
+                <Camera size={30} className="text-slate-400" />
+                <p className="text-sm font-extrabold">{camState === 'denied' ? 'Accès à la caméra refusé' : 'Caméra indisponible'}</p>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  {camState === 'denied' ? 'Autorisez la caméra dans les réglages du navigateur, ou utilisez une des options ci-dessous.' : 'Utilisez une photo du QR ou saisissez le code du vendeur.'}
                 </p>
-              )}
-            </div>
-
-            {/* Instruction block */}
-            <div className="bg-white border border-slate-100 p-4 rounded-3xl shadow-xs space-y-2.5">
-              <span className="text-xs font-bold text-slate-700 uppercase tracking-widest block pb-1 border-b border-slate-50">Instructions</span>
-              <div className="space-y-2 text-[10.5px] text-slate-500 leading-normal font-medium">
-                <p>1. Le vendeur présente le colis avec son QR code imprimé ou affiché.</p>
-                <p>2. L'acheteur scanne le QR code à l'aide de sa caméra ou saisit l'identifiant.</p>
-                <p>3. Les fonds de la commande sont instantanément reversés au vendeur.</p>
               </div>
+            )}
+
+            {torchAvailable && camState === 'on' && (
+              <button type="button" onClick={toggleTorch} aria-label={torchOn ? 'Éteindre la lampe' : 'Allumer la lampe'} aria-pressed={torchOn}
+                className="absolute right-3 top-3 h-10 w-10 rounded-full bg-black/50 text-white flex items-center justify-center backdrop-blur cursor-pointer">
+                {torchOn ? <FlashlightOff size={18} /> : <Flashlight size={18} />}
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-3 text-xs font-bold text-slate-700 hover:bg-slate-50">
+              <ImagePlus size={16} /> Choisir une photo
+              <input type="file" accept="image/*" className="sr-only" onChange={onPhoto} />
+            </label>
+            <button type="button" onClick={() => { setError(''); setManual(true); }}
+              className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white py-3 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer">
+              <Keyboard size={16} /> Saisir le code
+            </button>
+          </div>
+
+          <p className="flex items-start gap-2 rounded-2xl bg-slate-50 p-3 text-[11px] leading-snug text-slate-500">
+            <ShieldCheck size={15} className="mt-0.5 shrink-0 text-teal-600" />
+            Le vendeur vous montre le QR de son ticket à la livraison. Vos Gourdes ne lui sont versées qu'après votre confirmation.
+          </p>
+        </section>
+      )}
+
+      {step === 'scan' && manual && (
+        <section className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h2 className="text-sm font-extrabold text-slate-900">Saisir le code du vendeur</h2>
+          {pending.length === 0 ? (
+            <p className="rounded-2xl bg-slate-50 p-3 text-xs text-slate-500">Aucune commande n'est en attente de livraison sur votre compte.</p>
+          ) : (
+            <>
+              <fieldset className="space-y-2">
+                <legend className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">1. Choisissez la commande</legend>
+                {pending.map(o => (
+                  <label key={o.id} className={`flex cursor-pointer items-center gap-3 rounded-2xl border p-3 text-xs ${pickId === o.id ? 'border-teal-500 bg-teal-50' : 'border-slate-200'}`}>
+                    <input type="radio" name="pick-order" className="accent-teal-600" checked={pickId === o.id} onChange={() => setPickId(o.id)} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-bold text-slate-800">{o.items.map(i => i.productNom).join(', ')}</span>
+                      <span className="font-mono text-[10px] text-slate-400">#{shortId(o.id)} · {gdes(o.total)}</span>
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+              <label className="block space-y-1">
+                <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">2. Code affiché sous le QR du vendeur</span>
+                <input value={pickCode} onChange={e => setPickCode(cleanCode(e.target.value))} inputMode="text" autoCapitalize="characters" autoComplete="off" maxLength={12} placeholder="ABCD EFGH"
+                  className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-center font-mono text-lg font-black uppercase tracking-[0.3em] text-slate-800 focus:border-teal-500 focus:outline-none" />
+              </label>
+              <button type="button" onClick={verifyManual} disabled={!pickId || pickCode.length < 6}
+                className="w-full rounded-2xl bg-teal-600 py-3 text-xs font-extrabold uppercase tracking-wide text-white disabled:opacity-40 cursor-pointer">Vérifier</button>
+            </>
+          )}
+          <button type="button" onClick={backToScan} className="flex w-full items-center justify-center gap-2 rounded-2xl py-2 text-xs font-bold text-slate-500 hover:bg-slate-50 cursor-pointer">
+            <ScanQrCode size={15} /> Revenir au scan
+          </button>
+        </section>
+      )}
+
+      {step === 'review' && found && (
+        <section className="space-y-3">
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center gap-2 bg-teal-50 px-4 py-3 text-xs font-extrabold text-teal-700">
+              <CheckCircle2 size={16} /> QR reconnu : commande #{shortId(found.order.id)}
+            </div>
+            <div className="space-y-3 p-4 text-xs">
+              <ul className="space-y-1.5">
+                {found.order.items.map((it, i) => (
+                  <li key={i} className="flex items-start justify-between gap-3">
+                    <span className="flex min-w-0 items-start gap-2 text-slate-800"><Package size={14} className="mt-0.5 shrink-0 text-slate-400" /><span className="font-bold">{it.productNom}{it.qte > 1 ? ` x${it.qte}` : ''}</span></span>
+                    <span className="shrink-0 font-mono text-slate-600">{gdes(it.prix * it.qte)}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="flex items-center justify-between border-t border-dashed border-slate-300 pt-3 text-sm font-black text-slate-900">
+                <span>Total</span><span>{gdes(found.order.total)}</span>
+              </div>
+              <p className="flex items-center gap-1.5 text-[11px] text-slate-500"><MapPin size={13} /> {found.order.commune}{found.order.departement ? `, ${found.order.departement}` : ''}</p>
             </div>
           </div>
-        </div>
+
+          <p className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold leading-snug text-amber-800">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" /> Ne confirmez que si vous avez le colis en main et l'avez vérifié. Le paiement sera libéré au vendeur.
+          </p>
+
+          <button type="button" onClick={confirm} disabled={isConfirming}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-teal-500 to-emerald-600 py-3.5 text-xs font-extrabold uppercase tracking-wide text-white shadow-lg disabled:opacity-50 cursor-pointer">
+            {isConfirming ? <RefreshCw size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+            {isConfirming ? 'Validation…' : 'Confirmer la réception'}
+          </button>
+          <button type="button" onClick={backToScan} disabled={isConfirming} className="w-full rounded-2xl border border-slate-200 bg-white py-3 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 cursor-pointer">
+            Ce n'est pas la bonne commande
+          </button>
+        </section>
+      )}
+
+      {step === 'success' && (
+        <section className="space-y-4 rounded-3xl border-2 border-emerald-500 bg-white p-6 text-center shadow-lg">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500 text-white"><CheckCircle2 size={34} /></div>
+          <h2 className="text-base font-black uppercase text-teal-700">Réception confirmée</h2>
+          <p className="text-xs leading-relaxed text-slate-600">{successMsg}</p>
+          <button type="button" onClick={() => onNavigate('client-dashboard')} className="w-full rounded-2xl bg-[#0c1445] py-3 text-xs font-bold text-white hover:bg-slate-800 cursor-pointer">Retour à mes commandes</button>
+        </section>
       )}
     </div>
   );
