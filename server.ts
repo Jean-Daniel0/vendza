@@ -2948,6 +2948,16 @@ if (supabase) registerAdminPaymentsRoutes(app, {
     } catch { return { ok: false as const, status: 0 }; }
   },
   getLiveRate: () => getUsdRate(),
+  getStripeBalance: async () => {
+    const key = process.env.STRIPE_SECRET_KEY || '';
+    if (!key) return { ok: false as const };
+    try {
+      const stripe = new Stripe(key, { apiVersion: '2026-05-27.dahlia' as any });
+      const b = await stripe.balance.retrieve();
+      const usd = (arr: any[]) => (arr || []).filter(x => x.currency === 'usd').reduce((t, x) => t + (Number(x.amount) || 0), 0) / 100;
+      return { ok: true as const, available_usd: usd(b.available as any[]), pending_usd: usd(b.pending as any[]) };
+    } catch (e: any) { console.error('[Stripe Balance]', e?.message); return { ok: false as const }; }
+  },
   refundCard: async ({ stripeSessionId, cents, refundId, orderId }: { stripeSessionId: string; cents: number; refundId: string; orderId: string }) => {
     const key = process.env.STRIPE_SECRET_KEY || '';
     if (!key) return { ok: false as const, error: 'Clé Stripe manquante sur le serveur.' };

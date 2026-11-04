@@ -63,6 +63,20 @@ export function cardRefundCents(order: any, refundHtg: number, liveRate: number)
   return { cents: Math.round((refund / rate) * 100), exact: storedRate > 0 };
 }
 
+/** Trésorerie : ce qu'il faut avoir côté Bazik (gourdes) pour payer les vendeurs, et ce qui manque. Fonction pure, testée. */
+export function treasurySummary(a: { bazikHtg: number | null; stripeAvailableUsd: number | null; stripePendingUsd: number | null; owedHtg: number; upcomingHtg: number; rate: number }) {
+  const rate = a.rate > 0 ? a.rate : 130;
+  const needNowHtg = Math.max(0, a.owedHtg);
+  const needSoonHtg = Math.max(0, a.owedHtg + a.upcomingHtg);
+  const bazik = a.bazikHtg;
+  const shortNowHtg = bazik === null ? null : Math.max(0, needNowHtg - bazik);
+  const shortSoonHtg = bazik === null ? null : Math.max(0, needSoonHtg - bazik);
+  const stripeAvailableHtg = a.stripeAvailableUsd === null ? null : Math.round(a.stripeAvailableUsd * rate);
+  return { rate, needNowHtg, needSoonHtg, shortNowHtg, shortSoonHtg, stripeAvailableHtg,
+    // dollars à transférer de Stripe vers Bazik (via ta banque) pour couvrir le manque à court terme
+    usdToMove: shortSoonHtg === null ? null : Math.ceil((shortSoonHtg / rate) * 100) / 100 };
+}
+
 export type QueueInput = { refunds: any[]; orders: any[]; profiles: any[]; vendorPrivate: any[]; payouts: any[] };
 
 /** Assemble les files « à rembourser » et « à verser » à partir des lignes brutes (fonction pure, testée). */
@@ -129,10 +143,12 @@ type Deps = {
   /** Remboursement sur la carte via Stripe (clé d'idempotence = identifiant du remboursement : un seul remboursement possible par demande). */
   refundCard?: (a: { stripeSessionId: string; cents: number; refundId: string; orderId: string }) => Promise<{ ok: true; id: string; cents: number } | { ok: false; error: string }>;
   getLiveRate?: () => Promise<number>;
+  /** Solde Stripe en dollars (lecture seule). */
+  getStripeBalance?: () => Promise<{ ok: true; available_usd: number; pending_usd: number } | { ok: false }>;
 };
 
 export function registerAdminPaymentsRoutes(app: Express, deps: Deps) {
-  const { supabase, getAuthedUser, makeUserClient, getBazikBalance, reconcilePayments, getTransfer, refundCard, getLiveRate } = deps;
+  const { supabase, getAuthedUser, makeUserClient, getBazikBalance, reconcilePayments, getTransfer, refundCard, getLiveRate, getStripeBalance } = deps;
   const base = '/api/admin/payments';
 
   // Une seule source de vérité pour « qui est admin » : la fonction public.is_admin() de la base (la même que pour les règles RLS).
@@ -196,6 +212,25 @@ export function registerAdminPaymentsRoutes(app: Express, deps: Deps) {
     const info = extractBalanceInfo(r.data);
     // Format inattendu : court extrait brut pour que l'admin voie ce que Bazik répond (lecture seule, aucune clé).
     res.json({ ...info, raw: info.balance === null ? JSON.stringify(r.data).slice(0, 300) : undefined });
+  });
+
+  // Tableau de trésorerie : Stripe (dollars) et Bazik (gourdes) face à ce qu'il faut verser aux vendeurs
+  app.get(`${base}/treasury`, async (req, res) => {
+    const user = await needAdmin(req, res); if (!user) return;
+    try {
+      const rate = getLiveRate ? await getLiveRate().catch(() => 130) : 130;
+      const sum = (rows: any[] | null) => (rows || []).reduce((t, o) => t + (Number(o.total_price) || 0), 0);
+      const { data: done } = await supabase.from('orders').select('total_price').eq('status', 'completed').or('vendor_credited.is.null,vendor_credited.eq.false').limit(2000);
+      const { data: held } = await supabase.from('orders').select('total_price').eq('status', 'payee').or('vendor_credited.is.null,vendor_credited.eq.false').limit(2000);
+      let bazikHtg: number | null = null;
+      if (getBazikBalance) { const b = await getBazikBalance(); if (b.ok) bazikHtg = extractBalance(b.data); }
+      const st = getStripeBalance ? await getStripeBalance() : ({ ok: false } as const);
+      // Montant brut des commandes : le virement réel est un peu plus bas (commission retenue), c'est donc une estimation prudente
+      const t = treasurySummary({ bazikHtg, stripeAvailableUsd: st.ok ? st.available_usd : null, stripePendingUsd: st.ok ? st.pending_usd : null,
+        owedHtg: sum(done), upcomingHtg: sum(held), rate });
+      res.json({ ...t, bazik_htg: bazikHtg, stripe_available_usd: st.ok ? st.available_usd : null, stripe_pending_usd: st.ok ? st.pending_usd : null,
+        owed_count: (done || []).length, upcoming_count: (held || []).length });
+    } catch { res.status(500).json({ error: 'Trésorerie indisponible.' }); }
   });
 
   app.post(`${base}/reconcile`, async (req, res) => {

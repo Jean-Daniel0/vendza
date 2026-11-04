@@ -13,9 +13,11 @@ type Payout = {
   payout_amount: number | null; state: string; created_at: string | null;
 };
 type Queue = { refunds: Refund[]; payouts: Payout[]; totals: { refunds_pending_count: number; refunds_pending_amount: number; payouts_open_count: number } };
+type Treasury = { rate: number; bazik_htg: number | null; stripe_available_usd: number | null; stripe_pending_usd: number | null; needNowHtg: number; needSoonHtg: number; shortNowHtg: number | null; shortSoonHtg: number | null; usdToMove: number | null; owed_count: number; upcoming_count: number };
 type LogRow = { id: string; created_at: string; admin_email: string | null; action: string; order_id: string | null; amount: number | null; reference: string | null; note: string | null };
 
 const htg = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} HTG`;
+const usd = (n: number) => `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $ USD`;
 const day = (d: string | null) => (d ? new Date(d).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '');
 
 export default function AdminPaymentsPage() {
@@ -27,6 +29,7 @@ export default function AdminPaymentsPage() {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [bazik, setBazik] = useState<{ balance: number | null; reserved?: number | null; environment?: string | null; raw?: string; error?: string } | null>(null);
+  const [treasury, setTreasury] = useState<Treasury | null>(null);
   const [transfer, setTransfer] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -44,6 +47,7 @@ export default function AdminPaymentsPage() {
         const b = await apiFetchAuthed('/api/admin/payments/bazik-balance');
         setBazik(b.ok ? await b.json() : { balance: null, error: 'Solde Bazik indisponible.' });
       } catch { setBazik({ balance: null, error: 'Solde Bazik indisponible.' }); }
+      try { const t = await apiFetchAuthed('/api/admin/payments/treasury'); setTreasury(t.ok ? await t.json() : null); } catch { setTreasury(null); }
       setState('ok');
     } catch { setError('Impossible de charger les paiements.'); setState('ok'); }
   }, []);
@@ -138,6 +142,18 @@ export default function AdminPaymentsPage() {
           </p>
         );
       })()}
+      {treasury && (
+        <section aria-label="Trésorerie" className={`space-y-1 rounded-2xl border p-4 text-sm ${treasury.shortSoonHtg ? 'border-amber-300 bg-amber-50 text-amber-950' : 'border-slate-200 bg-white text-slate-800'}`}>
+          <h2 className="text-base font-bold">Trésorerie</h2>
+          <p>Stripe (dollars) : <b>{treasury.stripe_available_usd !== null ? usd(treasury.stripe_available_usd) : 'non lu'}</b>{treasury.stripe_pending_usd ? ` · en attente ${usd(treasury.stripe_pending_usd)}` : ''}</p>
+          <p>Bazik (gourdes) : <b>{treasury.bazik_htg !== null ? htg(treasury.bazik_htg) : 'non lu'}</b></p>
+          <p>À verser aux vendeurs : <b>{htg(treasury.needNowHtg)}</b> maintenant ({treasury.owed_count} commande{treasury.owed_count > 1 ? 's' : ''} livrée{treasury.owed_count > 1 ? 's' : ''}) · jusqu’à <b>{htg(treasury.needSoonHtg)}</b> avec les commandes encore en séquestre ({treasury.upcoming_count})</p>
+          {treasury.shortSoonHtg ? (
+            <p className="font-semibold">Il manque environ {htg(treasury.shortSoonHtg)} dans Bazik{treasury.usdToMove ? ` : prévoyez de transférer environ ${usd(treasury.usdToMove)} de Stripe (taux 1 USD = ${treasury.rate.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} HTG)` : ''}.</p>
+          ) : treasury.bazik_htg !== null ? <p className="text-emerald-700">Le solde Bazik couvre les virements prévus.</p> : null}
+          <p className="text-xs text-slate-500">Montants bruts des commandes (la commission retenue réduit le virement réel) : estimation prudente.</p>
+        </section>
+      )}
       {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {notice && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
       <nav className="flex flex-wrap gap-2 text-sm" aria-label="Sections">

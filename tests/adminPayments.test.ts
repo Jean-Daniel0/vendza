@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { csvCell, toCsv, parseDecision, buildQueue, cardRefundCents, isUuid, extractBalance, extractBalanceInfo } from '../server/adminPayments';
+import { csvCell, toCsv, parseDecision, buildQueue, cardRefundCents, treasurySummary, isUuid, extractBalance, extractBalanceInfo } from '../server/adminPayments';
 import { normalizeMoncashNumber as nm } from '../server/moncash';
 
 // CSV : guillemets doublés, séparateurs protégés, formules Excel neutralisées
@@ -98,3 +98,14 @@ assert.equal(cardRefundCents({ total_price: 1300 }, 0, 130).cents, 0);
   assert.equal(q2.refunds[0].is_card, false); assert.equal(q2.refunds[0].card_refund_usd, null);
 }
 console.log('  ✓ adminPayments: remboursement par carte (montant en dollars, jamais plus que payé)');
+
+// Trésorerie
+{
+  const t = treasurySummary({ bazikHtg: 50000, stripeAvailableUsd: 800, stripePendingUsd: 100, owedHtg: 30000, upcomingHtg: 70000, rate: 130 });
+  assert.equal(t.shortNowHtg, 0); assert.equal(t.shortSoonHtg, 50000); assert.equal(t.usdToMove, 384.62); assert.equal(t.stripeAvailableHtg, 104000);
+  const ok = treasurySummary({ bazikHtg: 200000, stripeAvailableUsd: 0, stripePendingUsd: 0, owedHtg: 30000, upcomingHtg: 70000, rate: 130 });
+  assert.equal(ok.shortSoonHtg, 0); assert.equal(ok.usdToMove, 0);
+  const unknown = treasurySummary({ bazikHtg: null, stripeAvailableUsd: null, stripePendingUsd: null, owedHtg: 1, upcomingHtg: 1, rate: 0 });
+  assert.equal(unknown.shortNowHtg, null); assert.equal(unknown.usdToMove, null); assert.equal(unknown.rate, 130); assert.equal(unknown.stripeAvailableHtg, null);
+}
+console.log('  ✓ adminPayments: trésorerie (manque dans Bazik, dollars à transférer)');
