@@ -6,6 +6,7 @@ type Refund = {
   id: string; order_id: string; status: 'pending' | 'paid' | 'rejected'; created_at: string; paid_at: string | null; note: string;
   amount: number; fee: number; buyer_name: string; buyer_moncash: string; buyer_phone: string;
   product_name: string; payment_method: string; payment_reference: string;
+  is_card: boolean; card_refund_usd: number | null;
 };
 type Payout = {
   order_id: string; shop: string; moncash: string; moncash_name: string; total_price: number;
@@ -59,6 +60,19 @@ export default function AdminPaymentsPage() {
       if (!r.ok) setError(j.error || 'Opération impossible.');
       else { setNotice(j.logged === false ? 'Enregistré, mais le journal n’a pas pu être écrit : prévenez le développeur.' : kind === 'paid' ? 'Remboursement marqué payé.' : 'Remboursement refusé.'); await load(); }
     } catch { setError('Erreur réseau. Réessayez.'); }
+    setBusy(null);
+  };
+
+  const refundCard = async (r: Refund) => {
+    const usdTxt = r.card_refund_usd != null ? `${r.card_refund_usd.toFixed(2)} $ USD` : 'le montant converti au taux du jour';
+    if (!window.confirm(`Rembourser ${usdTxt} sur la carte du client via Stripe ?\nCette action est définitive.`)) return;
+    setBusy(r.id); setError(''); setNotice('');
+    try {
+      const res = await apiFetchAuthed(`/api/admin/payments/refunds/${r.id}/card`, { method: 'POST' });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) setError(j.error || 'Remboursement impossible.');
+      else { setNotice(`Carte remboursée : ${Number(j.usd).toFixed(2)} $ USD (${j.stripe_refund_id}).${j.logged === false ? ' Le journal n’a pas pu être écrit : prévenez le développeur.' : ''}`); await load(); }
+    } catch { setError('Erreur réseau. Vérifiez dans le tableau de bord Stripe avant de réessayer.'); }
     setBusy(null);
   };
 
@@ -145,7 +159,13 @@ export default function AdminPaymentsPage() {
                 <span className="shrink-0 text-xs text-slate-400">{day(r.created_at)}</span>
               </div>
               <p>{r.buyer_name || 'Acheteur'} · MonCash <b>{r.buyer_moncash || 'non renseigné'}</b>{r.buyer_phone ? ` · tél. ${r.buyer_phone}` : ''}</p>
-              <p className="text-slate-500">{r.product_name} · payé par {r.payment_method || '—'} · frais retenus {htg(r.fee)}</p>
+              <p className="text-slate-500">{r.product_name} · payé par {r.payment_method === 'stripe' ? 'carte (USD)' : r.payment_method || '—'} · frais retenus {htg(r.fee)}</p>
+              {r.is_card && (
+                <div className="rounded-xl bg-blue-50 p-3 text-blue-900">
+                  <p>Payé par carte : le remboursement se fait sur la carte du client{r.card_refund_usd != null ? ` (${r.card_refund_usd.toFixed(2)} $ USD)` : ''}, pas par MonCash.</p>
+                  <button disabled={busy === r.id} onClick={() => refundCard(r)} className="mt-2 rounded-xl bg-blue-700 px-3 py-2 font-semibold text-white disabled:opacity-50">Rembourser par carte (Stripe)</button>
+                </div>
+              )}
               <input value={refs[r.id] || ''} onChange={e => setRefs({ ...refs, [r.id]: e.target.value })} placeholder="Référence MonCash du remboursement"
                 className="w-full rounded-xl border border-slate-300 p-2" aria-label="Référence MonCash du remboursement" />
               <input value={notes[r.id] || ''} onChange={e => setNotes({ ...notes, [r.id]: e.target.value })} placeholder="Note ou motif (obligatoire pour refuser)"
@@ -193,7 +213,7 @@ export default function AdminPaymentsPage() {
           {log.length === 0 && <p className="text-sm text-slate-500">Journal vide.</p>}
           {log.map(l => (
             <p key={l.id} className="rounded-xl bg-slate-50 p-3 text-xs text-slate-700">
-              {day(l.created_at)} · {l.admin_email || 'admin'} · <b>{l.action === 'refund_paid' ? 'remboursement payé' : l.action === 'refund_rejected' ? 'remboursement refusé' : 'vérification des paiements MonCash'}</b>
+              {day(l.created_at)} · {l.admin_email || 'admin'} · <b>{l.action === 'refund_paid' ? 'remboursement payé' : l.action === 'refund_rejected' ? 'remboursement refusé' : l.action === 'refund_card' ? 'remboursement carte (Stripe)' : l.action === 'refund_card_failed' ? 'remboursement carte refusé' : 'vérification des paiements MonCash'}</b>
               {l.amount != null ? ` · ${htg(l.amount)}` : ''}{l.reference ? ` · réf. ${l.reference}` : ''}{l.note ? ` · ${l.note}` : ''}
             </p>
           ))}

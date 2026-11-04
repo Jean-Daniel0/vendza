@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { csvCell, toCsv, parseDecision, buildQueue, isUuid, extractBalance, extractBalanceInfo } from '../server/adminPayments';
+import { csvCell, toCsv, parseDecision, buildQueue, cardRefundCents, isUuid, extractBalance, extractBalanceInfo } from '../server/adminPayments';
 import { normalizeMoncashNumber as nm } from '../server/moncash';
 
 // CSV : guillemets doublés, séparateurs protégés, formules Excel neutralisées
@@ -80,3 +80,21 @@ assert.deepEqual(info, { balance: 440, reserved: 60, environment: 'production', 
 assert.equal(extractBalanceInfo({ available: 1, environment: 'n importe quoi' }).environment, null);
 assert.equal(extractBalanceInfo({}).balance, null);
 console.log('  ✓ adminPayments: solde Bazik au format documenté (available / reserved / environment)');
+
+// Remboursement carte : part proportionnelle de ce qui a été payé en dollars
+assert.deepEqual(cardRefundCents({ total_price: 13150, amount_usd: 100 }, 13150, 130), { cents: 10000, exact: true });   // remboursement total
+assert.deepEqual(cardRefundCents({ total_price: 13150, amount_usd: 100 }, 6575, 130), { cents: 5000, exact: true });     // moitié
+assert.equal(cardRefundCents({ total_price: 1000, amount_usd: 10 }, 5000, 130).cents, 1000);                              // jamais plus que payé
+assert.deepEqual(cardRefundCents({ total_price: 1310, usd_rate: 131 }, 1310, 130), { cents: 1000, exact: true });         // taux enregistré
+assert.deepEqual(cardRefundCents({ total_price: 1300 }, 1300, 130), { cents: 1000, exact: false });                       // taux du jour
+assert.equal(cardRefundCents({ total_price: 1300 }, 0, 130).cents, 0);
+// la file indique les commandes payées par carte
+{
+  const q = buildQueue({ refunds: [{ id: 'r1', order_id: 'o1', buyer_id: 'b', status: 'pending', amount: 6575, fee: 0, created_at: '2026-11-01' }],
+    orders: [{ id: 'o1', payment_method: 'stripe', stripe_session_id: 'cs_live_123', total_price: 13150, amount_usd: 100 }], profiles: [], vendorPrivate: [], payouts: [] });
+  assert.equal(q.refunds[0].is_card, true); assert.equal(q.refunds[0].card_refund_usd, 50);
+  const q2 = buildQueue({ refunds: [{ id: 'r2', order_id: 'o2', status: 'pending', amount: 100, created_at: '2026-11-01' }],
+    orders: [{ id: 'o2', payment_method: 'moncash', total_price: 100 }], profiles: [], vendorPrivate: [], payouts: [] });
+  assert.equal(q2.refunds[0].is_card, false); assert.equal(q2.refunds[0].card_refund_usd, null);
+}
+console.log('  ✓ adminPayments: remboursement par carte (montant en dollars, jamais plus que payé)');

@@ -2947,6 +2947,26 @@ if (supabase) registerAdminPaymentsRoutes(app, {
       return { ok: true as const, data: await r.json() };
     } catch { return { ok: false as const, status: 0 }; }
   },
+  getLiveRate: () => getUsdRate(),
+  refundCard: async ({ stripeSessionId, cents, refundId, orderId }: { stripeSessionId: string; cents: number; refundId: string; orderId: string }) => {
+    const key = process.env.STRIPE_SECRET_KEY || '';
+    if (!key) return { ok: false as const, error: 'Clé Stripe manquante sur le serveur.' };
+    try {
+      const stripe = new Stripe(key, { apiVersion: '2026-05-27.dahlia' as any });
+      const session: any = await stripe.checkout.sessions.retrieve(stripeSessionId);
+      const pi = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id;
+      if (!pi) return { ok: false as const, error: 'Paiement Stripe introuvable pour cette commande.' };
+      const refund = await stripe.refunds.create(
+        { payment_intent: pi, amount: cents, reason: 'requested_by_customer', metadata: { refund_id: refundId, order_id: orderId, source: 'vendza' } },
+        { idempotencyKey: `vendza_refund_${refundId}` }
+      );
+      return { ok: true as const, id: refund.id, cents: refund.amount };
+    } catch (e: any) {
+      console.error('[Stripe Refund] échec:', e?.code || '', e?.message);
+      if (e?.code === 'charge_already_refunded') return { ok: false as const, error: 'Cette carte a déjà été remboursée chez Stripe.' };
+      return { ok: false as const, error: `Stripe a refusé le remboursement : ${String(e?.message || 'erreur inconnue').slice(0, 160)}` };
+    }
+  },
   getBazikBalance: async () => {
     try {
       const token = await getBazikToken();

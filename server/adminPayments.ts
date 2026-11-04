@@ -48,6 +48,21 @@ export function extractBalanceInfo(data: any) {
   return { balance: extractBalance(data), reserved: num(data?.reserved), environment: env, last_updated: typeof data?.last_updated === 'string' ? data.last_updated : null };
 }
 
+/**
+ * Montant à rembourser sur la carte, en centimes de dollar.
+ * Priorité : part proportionnelle de ce que le client a réellement payé (amount_usd enregistré) ;
+ * sinon conversion au taux enregistré, sinon au taux du jour. Jamais plus que le montant payé.
+ */
+export function cardRefundCents(order: any, refundHtg: number, liveRate: number): { cents: number; exact: boolean } {
+  const total = Number(order?.total_price) || 0;
+  const refund = Math.max(0, Math.min(Number(refundHtg) || 0, total || Number(refundHtg) || 0));
+  const paidCents = Number(order?.amount_usd) > 0 ? Math.round(Number(order.amount_usd) * 100) : 0;
+  if (paidCents > 0 && total > 0) return { cents: Math.min(paidCents, Math.round(paidCents * refund / total)), exact: true };
+  const storedRate = Number(order?.usd_rate) > 0 ? Number(order.usd_rate) : 0;
+  const rate = storedRate || (Number(liveRate) > 0 ? Number(liveRate) : 130);
+  return { cents: Math.round((refund / rate) * 100), exact: storedRate > 0 };
+}
+
 export type QueueInput = { refunds: any[]; orders: any[]; profiles: any[]; vendorPrivate: any[]; payouts: any[] };
 
 /** Assemble les files « à rembourser » et « à verser » à partir des lignes brutes (fonction pure, testée). */
@@ -66,6 +81,9 @@ export function buildQueue(input: QueueInput) {
       amount: Number(r.amount) || 0, fee: Number(r.fee) || 0,
       buyer_name: fullName(b) || o.client_name || '', buyer_moncash: b.numero_moncash || '', buyer_phone: b.telephone || o.client_tel || '',
       product_name: o.product_name || '', payment_method: o.payment_method || '', payment_reference: o.payment_reference || '',
+      is_card: o.payment_method === 'stripe' && !!o.stripe_session_id && !String(o.stripe_session_id).startsWith('stripe-sim-'),
+      card_refund_usd: o.payment_method === 'stripe' && (Number(o.amount_usd) > 0 || Number(o.usd_rate) > 0)
+        ? cardRefundCents(o, Number(r.amount) || 0, 130).cents / 100 : null,
     };
   });
 
@@ -108,10 +126,13 @@ type Deps = {
   reconcilePayments?: () => Promise<Record<string, unknown> & { fulfilled: string[] }>;
   /** GET /transfers/{id} de Bazik (lecture seule). */
   getTransfer?: (transactionId: string) => Promise<{ ok: true; data: any } | { ok: false; status: number }>;
+  /** Remboursement sur la carte via Stripe (clé d'idempotence = identifiant du remboursement : un seul remboursement possible par demande). */
+  refundCard?: (a: { stripeSessionId: string; cents: number; refundId: string; orderId: string }) => Promise<{ ok: true; id: string; cents: number } | { ok: false; error: string }>;
+  getLiveRate?: () => Promise<number>;
 };
 
 export function registerAdminPaymentsRoutes(app: Express, deps: Deps) {
-  const { supabase, getAuthedUser, makeUserClient, getBazikBalance, reconcilePayments, getTransfer } = deps;
+  const { supabase, getAuthedUser, makeUserClient, getBazikBalance, reconcilePayments, getTransfer, refundCard, getLiveRate } = deps;
   const base = '/api/admin/payments';
 
   // Une seule source de vérité pour « qui est admin » : la fonction public.is_admin() de la base (la même que pour les règles RLS).
@@ -271,6 +292,36 @@ export function registerAdminPaymentsRoutes(app: Express, deps: Deps) {
     if (logErr) console.error('[AdminPayments] journal non écrit pour le remboursement', row.id, logErr.message);
     res.json({ ok: true, logged: !logErr });
   };
+  // Remboursement sur la carte du client (commandes payées par Stripe)
+  app.post(`${base}/refunds/:id/card`, async (req, res) => {
+    const admin = await needAdmin(req, res); if (!admin) return;
+    const id = String(req.params.id);
+    if (!isUuid(id)) return res.status(400).json({ error: 'Identifiant invalide.' });
+    if (!refundCard) return res.status(501).json({ error: 'Remboursement par carte indisponible.' });
+    const { data: refund, error: e1 } = await supabase.from('refunds').select('id, order_id, amount, status').eq('id', id).maybeSingle();
+    if (e1 || !refund) return res.status(404).json({ error: 'Demande de remboursement introuvable.' });
+    if (refund.status !== 'pending') return res.status(409).json({ error: 'Cette demande a déjà été traitée.' });
+    const { data: order } = await supabase.from('orders').select('*').eq('id', refund.order_id).maybeSingle();
+    if (!order || order.payment_method !== 'stripe' || !order.stripe_session_id) return res.status(400).json({ error: "Cette commande n'a pas été payée par carte." });
+    if (String(order.stripe_session_id).startsWith('stripe-sim-')) return res.status(400).json({ error: 'Paiement simulé : rien à rembourser chez Stripe.' });
+    const live = getLiveRate ? await getLiveRate().catch(() => 130) : 130;
+    const { cents } = cardRefundCents(order, Number(refund.amount) || 0, live);
+    if (cents < 1) return res.status(400).json({ error: 'Montant à rembourser nul.' });
+    const r = await refundCard({ stripeSessionId: String(order.stripe_session_id), cents, refundId: String(refund.id), orderId: String(order.id) });
+    if (r.ok === false) {
+      try { await supabase.from('admin_payment_log').insert({ admin_id: admin.id, admin_email: admin.email || null, action: 'refund_card_failed', refund_id: refund.id, order_id: refund.order_id, amount: refund.amount, note: String(r.error).slice(0, 300) }); } catch (_) {}
+      return res.status(502).json({ error: r.error });
+    }
+    const usd = (r.cents / 100).toFixed(2);
+    const note = `Carte : remboursé ${usd} USD via Stripe (${r.id})`;
+    const { data: row } = await supabase.from('refunds').update({ status: 'paid', paid_at: new Date().toISOString(), note }).eq('id', id).eq('status', 'pending').select('id').maybeSingle();
+    const logRow = { admin_id: admin.id, admin_email: admin.email || null, refund_id: refund.id, order_id: refund.order_id, amount: refund.amount, reference: r.id, note: `${usd} USD (Stripe)` };
+    let { error: logErr } = await supabase.from('admin_payment_log').insert({ ...logRow, action: 'refund_card' });
+    // Tant que la migration 20261104 n'est pas appliquée, la base refuse la nouvelle action : on journalise comme « remboursement payé »
+    if (logErr) ({ error: logErr } = await supabase.from('admin_payment_log').insert({ ...logRow, action: 'refund_paid' }));
+    if (logErr) console.error('[AdminPayments] journal non écrit pour le remboursement carte', refund.id, logErr.message);
+    res.json({ ok: true, usd: Number(usd), stripe_refund_id: r.id, already: !row, logged: !logErr });
+  });
   app.post(`${base}/refunds/:id/paid`, decide('paid'));
   app.post(`${base}/refunds/:id/reject`, decide('reject'));
 }
