@@ -2,10 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import PodSection from './PodSection';
 import WholesalerSection from './WholesalerSection';
-import AdminSection from './AdminSection';
-import { apiFetchAuthed } from '../lib/api';
 
-type Tab = 'pod' | 'wholesaler' | 'admin';
+type Tab = 'pod' | 'wholesaler';
 const MAIN_SITE = 'https://www.vendza.store';
 
 function LoginForm() {
@@ -44,8 +42,6 @@ export default function SellerexApp() {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const [tab, setTab] = useState<Tab>('pod');
-  const [admin, setAdmin] = useState(false);
-  const [adminChecked, setAdminChecked] = useState(false);
 
   useEffect(() => {
     document.title = 'Sellerex | Vendza';
@@ -58,15 +54,6 @@ export default function SellerexApp() {
     const { data: sub } = auth.onAuthStateChange((_e: string, session: any) => setSignedIn(!!session));
     return () => sub?.subscription?.unsubscribe?.();
   }, []);
-
-  useEffect(() => {
-    if (!enabled || !signedIn) { setAdmin(false); setAdminChecked(false); setTab('pod'); return; }
-    // Un compte administrateur arrive directement sur l'écran admin après sa connexion ; les autres sur les fournisseurs POD.
-    apiFetchAuthed('/api/sellerex/me').then(r => r.json())
-      .then(j => { const isAdmin = j.isAdmin === true; setAdmin(isAdmin); if (isAdmin) setTab('admin'); })
-      .catch(() => setAdmin(false))
-      .finally(() => setAdminChecked(true));
-  }, [enabled, signedIn]);
 
   const tabBtn = (id: Tab, label: string) => (
     <button onClick={() => setTab(id)} aria-pressed={tab === id}
@@ -88,7 +75,7 @@ export default function SellerexApp() {
       </header>
 
       <main className="mx-auto max-w-3xl px-4 py-6">
-        {enabled === null || signedIn === null || (enabled && signedIn && !adminChecked) ? (
+        {enabled === null || signedIn === null ? (
           <p className="py-16 text-center text-sm text-slate-500">Chargement…</p>
         ) : !enabled ? (
           <div className="mx-auto mt-10 max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-center">
@@ -102,9 +89,8 @@ export default function SellerexApp() {
             <div className="mb-5 flex flex-wrap gap-2" role="group" aria-label="Sections">
               {tabBtn('pod', 'Fournisseurs POD')}
               {tabBtn('wholesaler', 'Devenir grossiste')}
-              {admin && tabBtn('admin', 'Admin : demandes')}
             </div>
-            {tab === 'pod' ? <PodSection /> : tab === 'wholesaler' ? <WholesalerSection /> : admin ? <AdminSection /> : null}
+            {tab === 'pod' ? <PodSection /> : <WholesalerSection />}
           </>
         )}
       </main>

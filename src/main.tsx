@@ -8,11 +8,12 @@ import { isSellerexHost } from './lib/host';
 async function init() {
   await initializeSupabaseConfig();
   // Sous-domaine Sellerex : code chargé à part (chunk séparé), les autres noms d'hôte restent inchangés.
-  // Page admin des paiements : /admin/paiements (chunk séparé, aucun impact sur le reste du site ; l'accès est vérifié par le serveur).
-  const isAdminPayments = window.location.pathname.replace(/\/+$/, '') === '/admin/paiements';
+  // Page d'administration unique : adresse secrète « /gestion-… » (chunk séparé). Le serveur ne sert cette adresse qu'avec la bonne valeur secrète
+  // et vérifie ensuite l'identité de l'admin et sa double authentification pour chaque donnée.
+  const isAdmin = /^\/gestion-[a-z0-9]+\/?$/i.test(window.location.pathname);
   const Root = isSellerexHost()
     ? (await import('./sellerex/SellerexApp')).default
-    : isAdminPayments ? (await import('./components/AdminPaymentsPage')).default : App;
+    : isAdmin ? (await import('./admin/AdminApp')).default : App;
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <Root />

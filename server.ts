@@ -17,6 +17,8 @@ import { resolveShippingFee } from './src/lib/shipping';
 import { registerSeoRoutes, runIndexNow } from './server/seoRoutes';
 import { registerSellerexRoutes, sellerexHostMiddleware } from './server/sellerexRoutes';
 import { registerAdminPaymentsRoutes } from './server/adminPayments';
+import { createAdminGuard, auditMiddleware, classifyAdminPath, adminHeaders, isValidAdminSlug } from './server/adminSecurity';
+import { registerAdminRoutes } from './server/adminRoutes';
 import { normalizeMoncashNumber } from './server/moncash';
 import { reconcileMoncashPayments } from './server/bazikReconcile';
 import { isSellerexHostname, sellerexHtml } from './server/sellerexCore';
@@ -2918,10 +2920,28 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
 });
 
 const SITE_ORIGIN = (process.env.SITE_URL || 'https://www.vendza.store').replace(/\/$/, '');
-if (supabase) registerSellerexRoutes(app, { supabase, getAuthedUser });
+// ---------- Administration : une seule page, adresse secrète, double authentification ----------
+const adminMakeUserClient = (token: string) => createClient(supabaseUrl, supabaseAnonKey, {
+  global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false },
+});
+const adminGuard = createAdminGuard({ getAuthedUser, makeUserClient: adminMakeUserClient });
+// Adresse de la page : /gestion-<suite secrète> (variable ADMIN_SECRET_PATH). Tout autre chemin « admin » ou « gestion-… » répond comme une page inexistante.
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  const kind = classifyAdminPath(req.path, process.env.ADMIN_SECRET_PATH);
+  if (kind === 'other') return next();
+  if (kind === 'hidden') return res.status(404).type('text/plain; charset=utf-8').send('Not found');
+  adminHeaders(res);
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
+  req.url = '/'; req.originalUrl = '/'; // la page admin est servie par la même application, uniquement sur l'adresse secrète
+  next();
+});
+app.use(['/api/admin', '/api/sellerex/admin'], auditMiddleware(async (row) => { if (supabase) await supabase.from('admin_audit_log').insert([row]); }));
+if (supabase) registerSellerexRoutes(app, { supabase, getAuthedUser, adminGuard });
+if (supabase) registerAdminRoutes(app, { supabase, guard: adminGuard });
 // Page admin « Paiements » (remboursements, virements en attente, export, journal) : réservée à public.is_admin().
 if (supabase) registerAdminPaymentsRoutes(app, {
-  supabase, getAuthedUser,
+  supabase, getAuthedUser, guard: adminGuard,
   makeUserClient: (token: string) => createClient(supabaseUrl, supabaseAnonKey, {
     global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false },
   }),

@@ -10,7 +10,7 @@ import { getPodAdapter } from './pod/registry';
 import { PodNotImplementedError } from './pod/types';
 
 type AuthedUser = { id: string; email?: string };
-type Deps = { supabase: any; getAuthedUser: (req: Request) => Promise<AuthedUser | null> };
+type Deps = { supabase: any; getAuthedUser: (req: Request) => Promise<AuthedUser | null>; adminGuard?: (req: Request, res: Response) => Promise<AuthedUser | null> };
 
 const applyLimited = createRateLimiter(5, 60 * 60 * 1000);       // 5 inscriptions grossiste / heure / utilisateur
 const connectLimited = createRateLimiter(10, 10 * 60 * 1000);    // 10 tentatives de connexion fournisseur / 10 min / utilisateur
@@ -39,7 +39,7 @@ export function sellerexHostMiddleware(req: Request, res: Response, next: NextFu
   next();
 }
 
-export function registerSellerexRoutes(app: Express, { supabase, getAuthedUser }: Deps) {
+export function registerSellerexRoutes(app: Express, { supabase, getAuthedUser, adminGuard }: Deps) {
   const base = '/api/sellerex';
 
   // Lu par le front pour savoir s'il affiche l'écran ou « bientôt disponible ».
@@ -138,6 +138,7 @@ export function registerSellerexRoutes(app: Express, { supabase, getAuthedUser }
 
   // ---------- Administration (e-mails de SELLEREX_ADMIN_EMAILS uniquement) ----------
   const needAdmin = async (req: Request, res: Response): Promise<AuthedUser | null> => {
+    if (adminGuard) return adminGuard(req, res);
     const user = await needUser(req, res); if (!user) return null;
     if (!isAdminEmail(user.email)) { res.status(403).json({ error: 'Accès réservé aux administrateurs.' }); return null; }
     return user;

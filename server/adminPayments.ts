@@ -144,15 +144,18 @@ type Deps = {
   refundCard?: (a: { stripeSessionId: string; cents: number; refundId: string; orderId: string }) => Promise<{ ok: true; id: string; cents: number } | { ok: false; error: string }>;
   getLiveRate?: () => Promise<number>;
   /** Solde Stripe en dollars (lecture seule). */
+  /** Gardien commun (admin + double authentification). S'il est fourni, il remplace la vérification locale. */
+  guard?: (req: Request, res: Response) => Promise<AuthedUser | null>;
   getStripeBalance?: () => Promise<{ ok: true; available_usd: number; pending_usd: number } | { ok: false }>;
 };
 
 export function registerAdminPaymentsRoutes(app: Express, deps: Deps) {
-  const { supabase, getAuthedUser, makeUserClient, getBazikBalance, reconcilePayments, getTransfer, refundCard, getLiveRate, getStripeBalance } = deps;
+  const { supabase, getAuthedUser, makeUserClient, getBazikBalance, reconcilePayments, getTransfer, refundCard, getLiveRate, getStripeBalance, guard } = deps;
   const base = '/api/admin/payments';
 
   // Une seule source de vérité pour « qui est admin » : la fonction public.is_admin() de la base (la même que pour les règles RLS).
   const needAdmin = async (req: Request, res: Response): Promise<AuthedUser | null> => {
+    if (guard) return guard(req, res);
     const user = await getAuthedUser(req);
     if (!user) { res.status(401).json({ error: 'Authentification requise.' }); return null; }
     const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
