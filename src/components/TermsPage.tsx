@@ -279,7 +279,7 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onBack }) => {
 
             <h4 className="font-bold text-slate-800 text-xs sm:text-sm mt-4">Commissions Vendza</h4>
             <p>
-              Vendza prélève une commission sur le <strong>montant total de chaque commande</strong> (prix du produit + frais de livraison). Cette commission varie selon le plan d'abonnement du vendeur :
+              Vendza prélève une commission sur le <strong>montant total de chaque commande</strong> (prix du produit + frais de livraison). Cette commission varie selon le plan d'abonnement du vendeur et selon le moyen de paiement utilisé par le client (MonCash ou carte bancaire) :
             </p>
 
             <div className="overflow-x-auto border border-slate-150 rounded-xl">
@@ -288,7 +288,8 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onBack }) => {
                   <tr className="bg-slate-50 text-slate-500 uppercase tracking-wider text-[10px] font-bold border-b border-slate-150">
                     <th className="p-3">Plan</th>
                     <th className="p-3">Abonnement</th>
-                    <th className="p-3 text-center">Commission par vente</th>
+                    <th className="p-3 text-center">Commission MonCash</th>
+                    <th className="p-3 text-center">Commission carte bancaire</th>
                     <th className="p-3 text-right">Exemple (1 000 Gdes)</th>
                   </tr>
                 </thead>
@@ -297,22 +298,35 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onBack }) => {
                     <td className="p-3 font-bold text-slate-800">Plan Gratuit</td>
                     <td className="p-3">0 Gdes</td>
                     <td className="p-3 text-center text-blue-600 font-mono font-bold">20%</td>
-                    <td className="p-3 text-right font-mono">Le vendeur reçoit 800 Gdes</td>
+                    <td className="p-3 text-center text-slate-800 font-mono font-bold">12%</td>
+                    <td className="p-3 text-right font-mono">MonCash : 800 Gdes · Carte : 880 Gdes</td>
                   </tr>
                   <tr>
                     <td className="p-3 font-bold text-slate-800">Pro Local</td>
                     <td className="p-3 text-blue-600">350 Gdes/mois</td>
                     <td className="p-3 text-center text-blue-600 font-mono font-bold">15%</td>
-                    <td className="p-3 text-right font-mono">Le vendeur reçoit 850 Gdes</td>
+                    <td className="p-3 text-center text-slate-800 font-mono font-bold">9,5%</td>
+                    <td className="p-3 text-right font-mono">MonCash : 850 Gdes · Carte : 905 Gdes</td>
                   </tr>
                   <tr>
                     <td className="p-3 font-bold text-slate-800">Pro National</td>
                     <td className="p-3 text-emerald-600">499 Gdes/mois</td>
                     <td className="p-3 text-center text-emerald-600 font-mono font-bold">10%</td>
-                    <td className="p-3 text-right font-mono">Le vendeur reçoit 900 Gdes</td>
+                    <td className="p-3 text-center text-slate-800 font-mono font-bold">5%</td>
+                    <td className="p-3 text-right font-mono">MonCash : 900 Gdes · Carte : 950 Gdes</td>
                   </tr>
                 </tbody>
               </table>
+            </div>
+
+            <div className="p-3.5 bg-slate-50 border border-slate-150 rounded-xl mt-3 text-[11px] sm:text-xs text-slate-600 leading-relaxed space-y-1.5">
+              <p><strong>Paiement par carte bancaire (dollars américains).</strong></p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Le prix en gourdes est converti en dollars américains au taux de change de la plateforme, diminué d'une marge de change de <strong>3%</strong> destinée à couvrir les variations du taux. Le taux appliqué est figé au moment du paiement et indiqué sur le ticket.</li>
+                <li>Des <strong>frais de paiement par carte</strong> (environ 2,9% + 0,30 $ US) sont ajoutés au montant payé par le client et affichés sur la page de paiement. Ils ne sont pas prélevés sur le vendeur.</li>
+                <li>Le paiement par carte exige un achat d'au moins <strong>5 $ US</strong>. En dessous, le client peut payer avec MonCash.</li>
+                <li>En cas de remboursement par carte, seul le prix de la commande est remboursé en dollars ; les frais de paiement par carte ne sont pas remboursables.</li>
+              </ul>
             </div>
 
             <p className="text-[11px] sm:text-xs text-slate-500 italic mt-1.5 bg-slate-50 p-3 rounded-xl border border-slate-100 leading-relaxed">
@@ -322,7 +336,7 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onBack }) => {
             <div className="p-3.5 bg-indigo-50/50 border border-indigo-150/60 rounded-xl mt-3 flex gap-2.5">
               <span className="text-indigo-600 shrink-0 mt-0.5 font-bold"><EIcon name="Lightbulb" /></span>
               <p className="text-[11px] sm:text-xs text-indigo-800 leading-normal">
-                <strong>Conseil.</strong> Un vendeur Pro National qui réalise des ventes régulières rentabilisera rapidement son abonnement grâce à la commission réduite à 10%. Pour une vente de 10 000 Gdes, la différence entre le plan Gratuit (20%) et le plan Pro National (10%) représente une économie de 1 000 Gdes sur une seule transaction.
+                <strong>Conseil.</strong> Un vendeur Pro National qui réalise des ventes régulières rentabilisera rapidement son abonnement grâce à la commission réduite à 10% (5% sur les paiements par carte). Pour une vente de 10 000 Gdes payée par MonCash, la différence entre le plan Gratuit (20%) et le plan Pro National (10%) représente une économie de 1 000 Gdes sur une seule transaction.
               </p>
             </div>
 

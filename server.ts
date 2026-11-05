@@ -10,6 +10,7 @@ import crypto from 'crypto';
 import { runFlashSale, runRecommendations } from './server/campaigns';
 import { haitiClock } from './server/marketing';
 import { runCartReminders, runLowStockAlerts } from './server/cartAlerts';
+import { commissionRate } from './src/lib/commission';
 import { priceVendorOrder, promoPercent, isUnderpaid, isUnderpaidUsd, usdCents, cardFeeCents, belowCardMinimum, applyFxMargin, DbProduct } from './server/pricing';
 import { normalizePlan, normalizeBilling, planPriceHtg, decideActivation, stripePaidHtg, newSubscriptionRef, isUuid, isSubscriptionRef } from './server/subscriptions';
 import { resolveShippingFee } from './src/lib/shipping';
@@ -1153,14 +1154,8 @@ const creerCommandeApresPaiement = async (
         console.warn('[Webhook] Error fetching shop plan, defaulting to gratuit:', shopErr.message);
       }
 
-      const commissions: Record<string, number> = {
-        'gratuit':      0.20,
-        'pro_local':    0.15,
-        'pro_national': 0.10
-      };
-
       const plan = (shop?.plan || 'gratuit').toLowerCase();
-      const rate = commissions[plan] !== undefined ? commissions[plan] : 0.20;
+      const rate = commissionRate(plan, paymentMethod);
       const total_price = Number(pendingOrder.total_price) || 0;
       const commission = total_price * rate;
       const montantVendeur = total_price - commission;
@@ -1454,7 +1449,7 @@ const creerCommandeApresPaiement = async (
           order_id: subRefId,
           amount: montantVendeur,
           type: 'pending_escrow',
-          description: `Paiement ${paymentMethod} — en séquestre (commission ${rate * 100}% pour forfait ${plan} déduite)`
+          description: `Paiement ${paymentMethod} — en séquestre (commission ${Math.round(rate * 1000) / 10}% pour forfait ${plan} déduite)`
         });
 
       // 7. Supprimer la commande pending
@@ -1800,13 +1795,7 @@ async function getMontantVendeurForOrder(order: any): Promise<number> {
     console.error('Error fetching shop plan for vendor payout:', err);
   }
 
-  const commissions: Record<string, number> = {
-    'gratuit':      0.20,
-    'pro_local':    0.15,
-    'pro_national': 0.10
-  };
-
-  const rate = commissions[plan] !== undefined ? commissions[plan] : 0.20;
+  const rate = commissionRate(plan, order.payment_method);
   const totalPrice = Number(order.total_price || order.total || 0);
   const commission = totalPrice * rate;
   return totalPrice - commission;

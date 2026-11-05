@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { commissionPercent } from '../lib/commission';
 import { 
   Plus, Package, ShoppingCart, DollarSign, Star, 
   MapPin, Clock, Eye, AlertCircle, RefreshCw,
@@ -3010,9 +3011,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
         // Fee calculations based on subscription plan
         const planName = user.plan || 'Gratuit';
         const planStrLocal = planName.toLowerCase();
-        const feePercent = planStrLocal === 'pro_national' || planStrLocal === 'pro national' 
-          ? 10 
-          : (planStrLocal === 'pro_local' || planStrLocal === 'pro local' ? 15 : 20);
+        const feePercent = commissionPercent(planStrLocal, (selectedOrderDetails as any).paymentMethod);
         const planLabel = planName;
 
         // Subtotal for merchant items

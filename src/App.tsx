@@ -34,6 +34,7 @@ import { InstallBanner } from './components/InstallBanner';
 import { PWAUpdater } from './components/PWAUpdater';
 
 import { Product, CartItem, Order, Review, Message, UserProfile } from './types';
+import { commissionRate } from './lib/commission';
 import { INITIAL_PRODUCTS, INITIAL_REVIEWS } from './data';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 import { apiFetchAuthed } from './lib/api';
@@ -2804,13 +2805,7 @@ export default function App() {
         }
       }
 
-      const commissions: Record<string, number> = {
-        'gratuit':      0.20,
-        'pro_local':    0.15,
-        'pro_national': 0.10
-      };
-      
-      const rate = commissions[planStr] !== undefined ? commissions[planStr] : 0.20;
+      const rate = commissionRate(planStr, order.payment_method);
       const amountToPay = Number(order.total_price) || 0;
       const commission = amountToPay * rate;
       const montantVendeur = amountToPay - commission;
