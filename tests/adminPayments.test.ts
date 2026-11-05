@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { csvCell, toCsv, parseDecision, buildQueue, cardRefundCents, treasurySummary, isUuid, extractBalance, extractBalanceInfo } from '../server/adminPayments';
+import { csvCell, toCsv, parseDecision, buildQueue, cardRefundCents, treasurySummary, withTimeout, isUuid, extractBalance, extractBalanceInfo } from '../server/adminPayments';
 import { normalizeMoncashNumber as nm } from '../server/moncash';
 
 // CSV : guillemets doublés, séparateurs protégés, formules Excel neutralisées
@@ -109,3 +109,12 @@ console.log('  ✓ adminPayments: remboursement par carte (montant en dollars, j
   assert.equal(unknown.shortNowHtg, null); assert.equal(unknown.usdToMove, null); assert.equal(unknown.rate, 130); assert.equal(unknown.stripeAvailableHtg, null);
 }
 console.log('  ✓ adminPayments: trésorerie (manque dans Bazik, dollars à transférer)');
+
+// Un service externe qui ne répond pas ne bloque pas la page
+(async () => {
+  const slow = await withTimeout(new Promise<string>(() => {}), 'repli', 30);
+  const fast = await withTimeout(Promise.resolve('ok'), 'repli', 30);
+  const boom = await withTimeout(Promise.reject(new Error('x')), 'repli', 30);
+  assert.equal(slow, 'repli'); assert.equal(fast, 'ok'); assert.equal(boom, 'repli');
+  console.log('  ✓ adminPayments: délai maximum sur les services externes');
+})();

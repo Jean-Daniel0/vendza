@@ -259,7 +259,8 @@ async function getBazikToken(): Promise<string> {
     const response = await fetch('https://api.bazik.io/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userID, secretKey })
+      body: JSON.stringify({ userID, secretKey }),
+      signal: AbortSignal.timeout(10000)
     });
 
     if (!response.ok) {
@@ -3006,7 +3007,7 @@ if (supabase) registerAdminPaymentsRoutes(app, {
   getBazikBalance: async () => {
     try {
       const token = await getBazikToken();
-      const r = await fetch('https://api.bazik.io/balance', { headers: { Authorization: `Bearer ${token}` } });
+      const r = await fetch('https://api.bazik.io/balance', { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(8000) });
       if (!r.ok) return { ok: false as const, status: r.status };
       return { ok: true as const, data: await r.json() };
     } catch { return { ok: false as const, status: 0 }; }

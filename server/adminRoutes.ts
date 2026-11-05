@@ -23,15 +23,24 @@ export function registerAdminRoutes(app: Express, { supabase, guard }: Deps) {
     const user = await guard(req, res); if (!user) return;
     try {
       const { data: orders } = await supabase.from('orders').select('status, total_price, created_at').order('created_at', { ascending: false }).limit(5000);
-      const [clients, vendeurs, shops, openDisputes, pendingIds] = await Promise.all([
+      const [users, clients, vendeurs, shops, openDisputes, pendingIds] = await Promise.all([
+        supabase.from('profiles').select('id', { count: 'exact', head: true }),
         supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('type', 'client'),
         supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('type', 'vendeur'),
         supabase.from('shops').select('id', { count: 'exact', head: true }),
         supabase.from('disputes').select('id', { count: 'exact', head: true }).eq('status', 'open'),
         supabase.from('shops').select('id', { count: 'exact', head: true }).eq('statut_verification', 'en_verification'),
       ]);
+      // Boutiques tenues par un compte qui n'est pas de type « vendeur » (explique l'écart entre vendeurs et boutiques)
+      const { data: shopRows } = await supabase.from('shops').select('vendor_id').limit(2000);
+      const shopOwners = Array.from(new Set((shopRows || []).map((r: any) => r.vendor_id).filter(Boolean)));
+      let ownersNotVendor = 0;
+      if (shopOwners.length) {
+        const { data: ps } = await supabase.from('profiles').select('id, type').in('id', shopOwners);
+        ownersNotVendor = (ps || []).filter((p: any) => p.type !== 'vendeur').length;
+      }
       const o = summarizeOrders(orders || []);
-      res.json({ orders: o, clients: clients.count ?? 0, vendors: vendeurs.count ?? 0, shops: shops.count ?? 0,
+      res.json({ orders: o, users: users.count ?? 0, shops_by_non_vendor: ownersNotVendor, clients: clients.count ?? 0, vendors: vendeurs.count ?? 0, shops: shops.count ?? 0,
         open_disputes: openDisputes.count ?? 0, pending_identities: pendingIds.count ?? 0, truncated: (orders || []).length >= 5000 });
     } catch { fail(res); }
   });

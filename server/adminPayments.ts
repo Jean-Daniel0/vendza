@@ -64,6 +64,10 @@ export function cardRefundCents(order: any, refundHtg: number, liveRate: number)
 }
 
 /** Trésorerie : ce qu'il faut avoir côté Bazik (gourdes) pour payer les vendeurs, et ce qui manque. Fonction pure, testée. */
+/** Un service externe lent (Bazik, Stripe) ne doit jamais bloquer la page : au-delà de ms, on abandonne. */
+export const withTimeout = <T,>(p: Promise<T>, fallback: T, ms = 8000): Promise<T> =>
+  Promise.race([p.catch(() => fallback), new Promise<T>(r => setTimeout(() => r(fallback), ms))]);
+
 export function treasurySummary(a: { bazikHtg: number | null; stripeAvailableUsd: number | null; stripePendingUsd: number | null; owedHtg: number; upcomingHtg: number; rate: number }) {
   const rate = a.rate > 0 ? a.rate : 130;
   const needNowHtg = Math.max(0, a.owedHtg);
@@ -210,7 +214,7 @@ export function registerAdminPaymentsRoutes(app: Express, deps: Deps) {
   app.get(`${base}/bazik-balance`, async (req, res) => {
     const user = await needAdmin(req, res); if (!user) return;
     if (!getBazikBalance) return res.status(501).json({ error: 'Solde Bazik non disponible.' });
-    const r = await getBazikBalance();
+    const r = await withTimeout(getBazikBalance(), { ok: false as const, status: 0 });
     if (r.ok === false) return res.status(502).json({ error: 'Bazik ne répond pas (clés ou service).' });
     const info = extractBalanceInfo(r.data);
     // Format inattendu : court extrait brut pour que l'admin voie ce que Bazik répond (lecture seule, aucune clé).
@@ -221,13 +225,13 @@ export function registerAdminPaymentsRoutes(app: Express, deps: Deps) {
   app.get(`${base}/treasury`, async (req, res) => {
     const user = await needAdmin(req, res); if (!user) return;
     try {
-      const rate = getLiveRate ? await getLiveRate().catch(() => 130) : 130;
+      const rate = getLiveRate ? await withTimeout(getLiveRate(), 130, 4000) : 130;
       const sum = (rows: any[] | null) => (rows || []).reduce((t, o) => t + (Number(o.total_price) || 0), 0);
       const { data: done } = await supabase.from('orders').select('total_price').eq('status', 'completed').or('vendor_credited.is.null,vendor_credited.eq.false').limit(2000);
       const { data: held } = await supabase.from('orders').select('total_price').eq('status', 'payee').or('vendor_credited.is.null,vendor_credited.eq.false').limit(2000);
       let bazikHtg: number | null = null;
-      if (getBazikBalance) { const b = await getBazikBalance(); if (b.ok) bazikHtg = extractBalance(b.data); }
-      const st = getStripeBalance ? await getStripeBalance() : ({ ok: false } as const);
+      if (getBazikBalance) { const b = await withTimeout(getBazikBalance(), { ok: false as const, status: 0 }); if (b.ok) bazikHtg = extractBalance(b.data); }
+      const st = getStripeBalance ? await withTimeout(getStripeBalance(), { ok: false as const }) : ({ ok: false } as const);
       // Montant brut des commandes : le virement réel est un peu plus bas (commission retenue), c'est donc une estimation prudente
       const t = treasurySummary({ bazikHtg, stripeAvailableUsd: st.ok ? st.available_usd : null, stripePendingUsd: st.ok ? st.pending_usd : null,
         owedHtg: sum(done), upcomingHtg: sum(held), rate });

@@ -37,18 +37,17 @@ export default function AdminPaymentsPage() {
   const load = useCallback(async () => {
     setError('');
     try {
-      const me = await apiFetchAuthed('/api/admin/payments/me');
+      const T = () => ({ signal: AbortSignal.timeout(15000) });
+      const me = await apiFetchAuthed('/api/admin/payments/me', T());
       if (!me.ok) { setState('denied'); return; }
-      const [q, l] = await Promise.all([apiFetchAuthed('/api/admin/payments/queue'), apiFetchAuthed('/api/admin/payments/log')]);
+      const [q, l] = await Promise.all([apiFetchAuthed('/api/admin/payments/queue', T()), apiFetchAuthed('/api/admin/payments/log', T())]);
       if (!q.ok) throw new Error();
       setQueue(await q.json());
       setLog(l.ok ? (await l.json()).log || [] : []);
-      try {
-        const b = await apiFetchAuthed('/api/admin/payments/bazik-balance');
-        setBazik(b.ok ? await b.json() : { balance: null, error: 'Solde Bazik indisponible.' });
-      } catch { setBazik({ balance: null, error: 'Solde Bazik indisponible.' }); }
-      try { const t = await apiFetchAuthed('/api/admin/payments/treasury'); setTreasury(t.ok ? await t.json() : null); } catch { setTreasury(null); }
       setState('ok');
+      // Soldes (services externes, parfois lents) : chargés en arrière-plan, la page s'affiche sans les attendre
+      apiFetchAuthed('/api/admin/payments/bazik-balance').then(async b => setBazik(b.ok ? await b.json() : { balance: null, error: 'Solde Bazik indisponible.' })).catch(() => setBazik({ balance: null, error: 'Solde Bazik indisponible.' }));
+      apiFetchAuthed('/api/admin/payments/treasury').then(async t => setTreasury(t.ok ? await t.json() : null)).catch(() => setTreasury(null));
     } catch { setError('Impossible de charger les paiements.'); setState('ok'); }
   }, []);
   useEffect(() => { load(); }, [load]);

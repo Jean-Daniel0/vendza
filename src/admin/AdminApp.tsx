@@ -102,12 +102,16 @@ function Overview() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Card title="Ventes payées (30 jours)" value={htg(d.orders.sales30)} />
         <Card title="Commandes (30 jours)" value={d.orders.count30} />
-        <Card title="Boutiques" value={d.shops} />
+        <Card title="Utilisateurs (total)" value={d.users} />
         <Card title="Clients" value={d.clients} />
         <Card title="Vendeurs" value={d.vendors} />
+        <Card title="Boutiques" value={d.shops} />
         <Card title="Litiges ouverts" value={d.open_disputes} tone={d.open_disputes ? 'warn' : undefined} />
         <Card title="Identités à vérifier" value={d.pending_identities} tone={d.pending_identities ? 'warn' : undefined} />
       </div>
+      <p className="rounded-2xl border border-slate-200 bg-white p-4 text-xs text-slate-500">
+        Utilisateurs = clients + vendeurs ({d.clients} + {d.vendors} = {d.clients + d.vendors}{d.users !== d.clients + d.vendors ? `, soit ${d.users - d.clients - d.vendors} autre(s) type(s)` : ''}). Les boutiques sont comptées séparément : une boutique est rattachée à un compte{d.shops_by_non_vendor ? `, et ${d.shops_by_non_vendor} boutique${d.shops_by_non_vendor > 1 ? 's sont tenues' : ' est tenue'} par un compte de type « client »` : ''}, d’où l’écart possible entre vendeurs et boutiques.
+      </p>
       <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm">
         <p className="mb-2 font-bold">Commandes par statut</p>
         <ul className="grid grid-cols-2 gap-1 text-slate-600">{Object.entries(st).map(([k, v]) => <li key={k}>{k} : <b>{v}</b></li>)}</ul>
