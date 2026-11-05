@@ -56,3 +56,9 @@ export const cardFeeCents = (subtotalCents: number, percent = 2.9, fixedCents = 
 
 /** Achat par carte trop petit (les frais fixes mangeraient la vente) ? */
 export const belowCardMinimum = (subtotalCents: number, minUsd = 5): boolean => Number(minUsd) > 0 && subtotalCents < Math.round(Number(minUsd) * 100);
+
+/** Marge de change : le client paie un peu plus de dollars (taux réduit de pct %), ce qui couvre les variations du taux. */
+export const applyFxMargin = (htgPerUsd: number, pct = 3): number => {
+  const m = Math.min(Math.max(Number(pct) || 0, 0), 20) / 100;
+  return Math.round((Number(htgPerUsd) || 130) * (1 - m) * 100) / 100;
+};

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { priceVendorOrder, promoPercent, isUnderpaid, isUnderpaidUsd, usdCents, cardFeeCents, belowCardMinimum, DbProduct } from '../server/pricing';
+import { priceVendorOrder, promoPercent, isUnderpaid, isUnderpaidUsd, usdCents, cardFeeCents, belowCardMinimum, applyFxMargin, DbProduct } from '../server/pricing';
 import { resolveShippingFee, sanitizeFees, legacyShippingFee } from '../src/lib/shipping';
 
 const P = (id: string, price: number, o: Partial<DbProduct> = {}): [string, DbProduct] => [id, { id, name: 'Prod ' + id, price, stock: 10, vendor_id: 'V1', is_active: true, status: 'published', ...o }];
@@ -54,3 +54,6 @@ console.log('  ✓ pricing: 30 assertions OK');
   assert.ok(belowCardMinimum(499, 5)); assert.ok(!belowCardMinimum(500, 5)); assert.ok(!belowCardMinimum(1, 0));
 }
 console.log('  ✓ pricing: frais de carte et minimum d\'achat');
+
+assert.equal(applyFxMargin(130, 3), 126.1); assert.equal(applyFxMargin(130, 0), 130); assert.equal(applyFxMargin(0, 3), 126.1);
+console.log('  ✓ pricing: marge de change');

@@ -10,7 +10,7 @@ import crypto from 'crypto';
 import { runFlashSale, runRecommendations } from './server/campaigns';
 import { haitiClock } from './server/marketing';
 import { runCartReminders, runLowStockAlerts } from './server/cartAlerts';
-import { priceVendorOrder, promoPercent, isUnderpaid, isUnderpaidUsd, usdCents, cardFeeCents, belowCardMinimum, DbProduct } from './server/pricing';
+import { priceVendorOrder, promoPercent, isUnderpaid, isUnderpaidUsd, usdCents, cardFeeCents, belowCardMinimum, applyFxMargin, DbProduct } from './server/pricing';
 import { normalizePlan, normalizeBilling, planPriceHtg, decideActivation, stripePaidHtg, newSubscriptionRef, isUuid, isSubscriptionRef } from './server/subscriptions';
 import { resolveShippingFee } from './src/lib/shipping';
 import { registerSeoRoutes, runIndexNow } from './server/seoRoutes';
@@ -673,7 +673,8 @@ const activerAbonnement = async (
 };
 
 
-// Taux courant USD -> HTG (même source que la création de session Stripe)
+const fxRate = (rate: number) => applyFxMargin(rate, process.env.FX_MARGIN_PERCENT !== undefined ? Number(process.env.FX_MARGIN_PERCENT) : 3);
+// Taux courant USD -> HTG avec marge de change (même source que la création de session Stripe)
 const getUsdRate = async (): Promise<number> => {
   let rate = 130;
   if (isSupabaseConfigured && supabase) {
@@ -682,7 +683,7 @@ const getUsdRate = async (): Promise<number> => {
       if (data && Number(data.usd_to_htg) > 0) rate = Number(data.usd_to_htg);
     } catch (_) {}
   }
-  return rate;
+  return fxRate(rate);
 };
 
 // Active un abonnement APRÈS un paiement confirmé : le montant payé doit couvrir le prix du forfait,
@@ -2668,6 +2669,7 @@ app.post('/api/stripe/create-checkout-session', async (req, res) => {
       if (data && data.usd_to_htg) {
         currentRate = Number(data.usd_to_htg);
       }
+      currentRate = fxRate(currentRate);
     } catch (rateErr) {
       console.warn('[Stripe Backend] Could not read exchange rate from DB, using fallback of 130:', rateErr);
     }
