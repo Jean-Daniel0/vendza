@@ -10,7 +10,7 @@ import crypto from 'crypto';
 import { runFlashSale, runRecommendations } from './server/campaigns';
 import { haitiClock } from './server/marketing';
 import { runCartReminders, runLowStockAlerts } from './server/cartAlerts';
-import { priceVendorOrder, promoPercent, isUnderpaid, isUnderpaidUsd, usdCents, DbProduct } from './server/pricing';
+import { priceVendorOrder, promoPercent, isUnderpaid, isUnderpaidUsd, usdCents, cardFeeCents, belowCardMinimum, DbProduct } from './server/pricing';
 import { normalizePlan, normalizeBilling, planPriceHtg, decideActivation, stripePaidHtg, newSubscriptionRef, isUuid, isSubscriptionRef } from './server/subscriptions';
 import { resolveShippingFee } from './src/lib/shipping';
 import { registerSeoRoutes, runIndexNow } from './server/seoRoutes';
@@ -2688,6 +2688,20 @@ app.post('/api/stripe/create-checkout-session', async (req, res) => {
     serverLines = group.map((g: any) => ({ name: `Commande Vendza — ${names.get(String(g.vendor_id)) || 'Boutique'}`, cents: usdCents(Number(g.total_price) || 0, currentRate) }));
   }
 
+  // Commandes par carte : minimum d'achat, puis frais de paiement répercutés au client (réglables par variables d'environnement)
+  let cardFee = 0;
+  if (serverLines && !subServer) {
+    const subtotal = serverLines.reduce((t, l) => t + l.cents, 0);
+    const minUsd = process.env.CARD_MIN_USD !== undefined ? Number(process.env.CARD_MIN_USD) : 5;
+    if (belowCardMinimum(subtotal, minUsd)) {
+      return res.status(400).json({ error: `Le paiement par carte demande un achat d'au moins ${minUsd.toFixed(2)} $ US. Ajoutez un article ou payez avec MonCash.` });
+    }
+    const pct = process.env.CARD_FEE_PERCENT !== undefined ? Number(process.env.CARD_FEE_PERCENT) : 2.9;
+    const fixed = process.env.CARD_FEE_FIXED_USD !== undefined ? Number(process.env.CARD_FEE_FIXED_USD) * 100 : 30;
+    cardFee = cardFeeCents(subtotal, pct, fixed);
+    if (cardFee > 0) serverLines = [...serverLines, { name: 'Frais de paiement par carte', cents: cardFee }];
+  }
+
   // Calculate order total in USD
   let totalUSD = itemsSafe.reduce((acc, item) => {
     const price = item.product ? Number(item.product.prix) : Number(item.price);
@@ -2772,7 +2786,8 @@ app.post('/api/stripe/create-checkout-session', async (req, res) => {
         planCode: planCode || '',
         billing: billing || '',
         userId: userId || '',
-        usdRate: String(currentRate)
+        usdRate: String(currentRate),
+        cardFeeCents: String(cardFee)
       },
       success_url: actualSuccessUrl,
       cancel_url: actualCancelUrl,

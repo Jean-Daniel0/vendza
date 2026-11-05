@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { priceVendorOrder, promoPercent, isUnderpaid, isUnderpaidUsd, usdCents, DbProduct } from '../server/pricing';
+import { priceVendorOrder, promoPercent, isUnderpaid, isUnderpaidUsd, usdCents, cardFeeCents, belowCardMinimum, DbProduct } from '../server/pricing';
 import { resolveShippingFee, sanitizeFees, legacyShippingFee } from '../src/lib/shipping';
 
 const P = (id: string, price: number, o: Partial<DbProduct> = {}): [string, DbProduct] => [id, { id, name: 'Prod ' + id, price, stock: 10, vendor_id: 'V1', is_active: true, status: 'published', ...o }];
@@ -43,3 +43,14 @@ assert.equal(resolveShippingFee({ shipping_fee_default: -5, shipping_fees: { Oue
 assert.deepEqual(sanitizeFees({ Ouest: '150', Nord: -1, Sud: 'abc', '': 5, Centre: 99999999 }), { Ouest: 150 });
 assert.equal(legacyShippingFee('Jacmel'), 200);
 console.log('  ✓ pricing: 30 assertions OK');
+
+// Frais de carte répercutés : la plateforme encaisse net le sous-total
+{
+  const sub = 1000; const fee = cardFeeCents(sub, 2.9, 30);
+  assert.equal(fee, 61); // (29 + 30) / 0,971 arrondi au-dessus
+  const net = (sub + fee) - Math.round((sub + fee) * 0.029 + 30);
+  assert.ok(net >= sub - 1);
+  assert.equal(cardFeeCents(0), 0); assert.equal(cardFeeCents(1000, 0, 0), 0);
+  assert.ok(belowCardMinimum(499, 5)); assert.ok(!belowCardMinimum(500, 5)); assert.ok(!belowCardMinimum(1, 0));
+}
+console.log('  ✓ pricing: frais de carte et minimum d\'achat');

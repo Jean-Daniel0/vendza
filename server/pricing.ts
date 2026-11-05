@@ -45,3 +45,14 @@ export const usdCents = (totalHtg: number, htgPerUsd: number): number => Math.ma
 // (mêmes arrondis, taux enregistré). Tolérance : 1 centime par ligne. Retourne true si le montant encaissé est insuffisant.
 export const isUnderpaidUsd = (paidCents: number | null | undefined, expectedCents: number, lines = 1): boolean =>
   Number(paidCents) >= 0 && paidCents != null && expectedCents > 0 && Number(paidCents) < expectedCents - Math.max(1, Math.floor(lines));
+
+/** Frais de carte répercutés au client : le montant est majoré pour que la plateforme encaisse net le sous-total (pourcentage + frais fixe Stripe). */
+export const cardFeeCents = (subtotalCents: number, percent = 2.9, fixedCents = 30): number => {
+  const p = Math.min(Math.max(Number(percent) || 0, 0), 20) / 100;
+  const f = Math.max(Number(fixedCents) || 0, 0);
+  if (!(subtotalCents > 0) || (p === 0 && f === 0)) return 0;
+  return Math.max(0, Math.ceil((subtotalCents * p + f) / (1 - p)));
+};
+
+/** Achat par carte trop petit (les frais fixes mangeraient la vente) ? */
+export const belowCardMinimum = (subtotalCents: number, minUsd = 5): boolean => Number(minUsd) > 0 && subtotalCents < Math.round(Number(minUsd) * 100);
