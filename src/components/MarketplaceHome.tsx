@@ -30,6 +30,7 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
   tauxUSD = 130
 }) => {
   const [selectedCat, setSelectedCat] = useState<string>('');
+  const [homeTab, setHomeTab] = useState<'tous' | 'populaires'>('tous');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedDept, setSelectedDept] = useState<string>('');
   const [selectedCommune, setSelectedCommune] = useState<string>('');
@@ -204,6 +205,9 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
   const popularProducts = filteredProducts.filter(p => getProductRating(p) >= 4.7);
   const trendsProducts = filteredProducts.filter(p => p.tags.includes('tech') || p.tags.includes('mode'));
   const discountProducts = filteredProducts.filter(p => p.oldPrice && p.oldPrice > p.prix);
+  // Onglet « Populaires & Vérifiés » : retombe sur « Tous » s'il n'y a plus de produit populaire (filtres changés)
+  const activeTab: 'tous' | 'populaires' = homeTab === 'populaires' && popularProducts.length > 0 ? 'populaires' : 'tous';
+  const gridProducts = activeTab === 'populaires' ? popularProducts : filteredProducts;
   const newProducts = filteredProducts.slice().reverse().slice(0, 3);
 
   const viewProduct = (p: Product) => {
@@ -345,41 +349,6 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
           {loading ? (
             <section className="space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="font-serif text-sm font-bold tracking-tight text-slate-800">Populaires & Vérifiés</h2>
-                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full uppercase tracking-wider">Premium</span>
-              </div>
-              <div className="flex gap-4 overflow-x-auto pb-3 pl-1 -ml-1 scrollbar-none">
-                {[1, 2, 3, 4, 5].map(i => (
-                  <div key={i} className="min-w-[145px] w-[145px] skeleton-card animate-pulse">
-                    <div className="skeleton-image h-[100px] rounded-t-lg"></div>
-                    <div className="skeleton-body gap-1.5 p-2.5">
-                      <div className="skeleton-category h-[8px] w-1/2"></div>
-                      <div className="skeleton-title h-[12px] w-[85%]"></div>
-                      <div className="skeleton-price h-[10px] w-2/3 pb-1"></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ) : (
-            popularProducts.length > 0 && (
-              <section className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="font-serif text-sm font-bold tracking-tight text-slate-800">Populaires & Vérifiés</h2>
-                  <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full uppercase tracking-wider">Premium</span>
-                </div>
-                <div className="flex gap-4 overflow-x-auto pb-3 pl-1 -ml-1 scrollbar-none">
-                  {popularProducts.map(p => (
-                    <ProductScrollCard key={p.id} product={p} rating={getProductRating(p)} onView={() => viewProduct(p)} onAdd={() => onAddToCart(p)} tauxUSD={tauxUSD} />
-                  ))}
-                </div>
-              </section>
-            )
-          )}
-
-          {loading ? (
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
                 <h2 className="font-serif text-sm font-bold tracking-tight text-slate-800">Tendances & Mode</h2>
                 <span className="text-[10px] font-bold text-teal-600 bg-teal-50 px-2.5 py-1 rounded-full uppercase tracking-wider">Mode</span>
               </div>
@@ -412,41 +381,6 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
             )
           )}
 
-          {loading ? (
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="font-serif text-sm font-bold tracking-tight text-slate-800">Super Aubaines (Promos)</h2>
-                <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2.5 py-1 rounded-full uppercase tracking-wider">Rabais</span>
-              </div>
-              <div className="flex gap-4 overflow-x-auto pb-3 pl-1 -ml-1 scrollbar-none">
-                {[1, 2, 3, 4, 5].map(i => (
-                  <div key={i} className="min-w-[145px] w-[145px] skeleton-card animate-pulse">
-                    <div className="skeleton-image h-[100px] rounded-t-lg"></div>
-                    <div className="skeleton-body gap-1.5 p-2.5">
-                      <div className="skeleton-category h-[8px] w-1/2"></div>
-                      <div className="skeleton-title h-[12px] w-[85%]"></div>
-                      <div className="skeleton-price h-[10px] w-2/3 pb-1"></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ) : (
-            discountProducts.length > 0 && (
-              <section className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="font-serif text-sm font-bold tracking-tight text-slate-800">Super Aubaines (Promos)</h2>
-                  <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2.5 py-1 rounded-full uppercase tracking-wider">Rabais</span>
-                </div>
-                <div className="flex gap-4 overflow-x-auto pb-3 pl-1 -ml-1 scrollbar-none">
-                  {discountProducts.map(p => (
-                    <ProductScrollCard key={p.id} product={p} rating={getProductRating(p)} onView={() => viewProduct(p)} onAdd={() => onAddToCart(p)} tauxUSD={tauxUSD} />
-                  ))}
-                </div>
-              </section>
-            )
-          )}
-
           {/* Main Grid Catalogue Products */}
           <section className="space-y-3">
             <div className="flex items-center justify-between pb-1 border-b border-slate-100">
@@ -454,9 +388,20 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
                 {selectedCat ? `${selectedCat} - Catalogue` : 'Tous les produits disponibles'}
               </h2>
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest font-mono">
-                {loading ? 'Chargement...' : `${filteredProducts.length} articles`}
+                {loading ? 'Chargement...' : `${gridProducts.length} articles`}
               </span>
             </div>
+
+            {!loading && popularProducts.length > 0 && (
+              <div role="tablist" aria-label="Affichage du catalogue" className="flex gap-1.5 overflow-x-auto scrollbar-none">
+                {([['tous', 'Tous les produits'], ['populaires', 'Populaires & Vérifiés']] as const).map(([id, label]) => (
+                  <button key={id} role="tab" aria-selected={activeTab === id} onClick={() => setHomeTab(id)}
+                    className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap cursor-pointer border transition-all ${activeTab === id ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-[#e2e8f0] hover:bg-slate-50'}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {loading ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
@@ -472,11 +417,20 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
                   </div>
                 ))}
               </div>
-            ) : filteredProducts.length > 0 ? (
+            ) : gridProducts.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
-                {filteredProducts.map(p => (
-                  <ProductGridCard key={p.id} product={p} rating={getProductRating(p)} onView={() => viewProduct(p)} onAdd={() => onAddToCart(p)} tauxUSD={tauxUSD} />
+                {gridProducts.map((p, i) => (
+                  <React.Fragment key={p.id}>
+                    <ProductGridCard product={p} rating={getProductRating(p)} onView={() => viewProduct(p)} onAdd={() => onAddToCart(p)} tauxUSD={tauxUSD} />
+                    {/* Mini carrousel « Super aubaines » glissé parmi les produits, après le 3e */}
+                    {i === 2 && activeTab === 'tous' && discountProducts.length > 0 && (
+                      <PromoCarouselCard products={discountProducts.slice(0, 6)} onView={viewProduct} tauxUSD={tauxUSD} />
+                    )}
+                  </React.Fragment>
                 ))}
+                {activeTab === 'tous' && gridProducts.length < 3 && discountProducts.length > 0 && (
+                  <PromoCarouselCard products={discountProducts.slice(0, 6)} onView={viewProduct} tauxUSD={tauxUSD} />
+                )}
               </div>
             ) : (
               <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
@@ -486,7 +440,7 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
               </div>
             )}
 
-            {hasMore && !loading && (
+            {hasMore && !loading && activeTab === 'tous' && (
               <div className="flex justify-center pt-4">
                 <button
                   onClick={onLoadMore}
@@ -626,6 +580,74 @@ const ProductScrollCard: React.FC<{ product: Product; rating: number; onView: ()
     </div>
   );
 };
+
+// Mini carrousel de promotions, présenté comme une carte du catalogue (défilement automatique, points, glisser du doigt)
+const PromoCarouselCard: React.FC<{ products: Product[]; onView: (p: Product) => void; tauxUSD: number }> = ({ products, onView, tauxUSD }) => {
+  const [idx, setIdx] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const touchX = React.useRef<number | null>(null);
+  const n = products.length;
+  const reduce = typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+  useEffect(() => {
+    if (n < 2 || paused || reduce) return;
+    const t = window.setInterval(() => setIdx(i => (i + 1) % n), 4000);
+    return () => window.clearInterval(t);
+  }, [n, paused, reduce]);
+  useEffect(() => { if (idx >= n) setIdx(0); }, [n, idx]);
+
+  const go = (d: number) => setIdx(i => (i + d + n) % n);
+  return (
+    <div
+      className="relative flex flex-col overflow-hidden rounded-xl border border-red-100 bg-gradient-to-b from-red-50 to-white shadow-xs"
+      role="region" aria-roledescription="carrousel" aria-label="Super aubaines"
+      onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
+      onTouchStart={e => { touchX.current = e.touches[0].clientX; setPaused(true); }}
+      onTouchEnd={e => { const x = touchX.current; touchX.current = null; setPaused(false); if (x !== null && n > 1) { const dx = e.changedTouches[0].clientX - x; if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1); } }}
+    >
+      <div className="flex items-center justify-between px-3 pt-2.5">
+        <span className="text-[10px] font-black uppercase tracking-wider text-red-600">Super aubaines</span>
+        <span className="text-[9px] font-bold text-slate-400">{idx + 1}/{n}</span>
+      </div>
+      <div className="flex-1 overflow-hidden">
+        <div className="flex h-full transition-transform duration-500 ease-out" style={{ transform: `translateX(-${idx * 100}%)` }}>
+          {products.map((p, i) => {
+            const isColor = !!p.image_url && p.image_url.startsWith('#');
+            const pct = p.oldPrice && p.oldPrice > p.prix ? Math.round((1 - p.prix / p.oldPrice) * 100) : 0;
+            return (
+              <button key={p.id} type="button" onClick={() => onView(p)} aria-hidden={i !== idx} tabIndex={i === idx ? 0 : -1}
+                className="flex w-full shrink-0 cursor-pointer flex-col text-left" aria-label={`${p.nom}, ${p.prix.toLocaleString('fr-FR')} HTG`}>
+                <div className="relative mx-2 mt-1.5 aspect-square overflow-hidden rounded-lg bg-slate-100">
+                  {isColor ? <div className="h-full w-full" style={{ backgroundColor: p.image_url }} />
+                    : p.image_url ? <img src={p.image_url} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
+                    : <span className="flex h-full w-full items-center justify-center text-3xl"><EIcon name="Shirt" /></span>}
+                  {pct > 0 && <span className="absolute left-1.5 top-1.5 rounded-md bg-red-600 px-1.5 py-0.5 text-[9px] font-extrabold text-white">-{pct}%</span>}
+                </div>
+                <div className="px-3 pb-2 pt-1.5">
+                  <h4 className="line-clamp-1 text-xs font-bold text-slate-800">{p.nom}</h4>
+                  <div className="mt-0.5 flex items-baseline gap-1.5">
+                    <span className="font-mono text-sm font-black text-[#2563eb]">{p.prix.toLocaleString('fr-FR')} <span className="font-sans text-[9px] font-medium text-slate-400">HTG</span></span>
+                    {pct > 0 && <span className="font-mono text-[10px] text-slate-400 line-through">{(p.oldPrice as number).toLocaleString('fr-FR')}</span>}
+                  </div>
+                  <span className="font-mono text-[10px] font-extrabold text-emerald-600">${(p.prix / tauxUSD).toFixed(2)} <span className="font-sans font-medium text-slate-400">USD</span></span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {n > 1 && (
+        <div className="flex justify-center gap-1.5 pb-2.5" role="tablist" aria-label="Choisir une aubaine">
+          {products.map((p, i) => (
+            <button key={p.id} role="tab" aria-selected={i === idx} aria-label={`Aubaine ${i + 1}`} onClick={() => setIdx(i)}
+              className={`h-1.5 rounded-full transition-all ${i === idx ? 'w-4 bg-red-600' : 'w-1.5 bg-slate-300'}`} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 /* Grid Card Inner Component */
 export const ProductGridCard: React.FC<{ product: Product; rating: number; onView: () => void; onAdd: () => void; tauxUSD?: number }> = ({ product, rating, onView, onAdd, tauxUSD = 130 }) => {
