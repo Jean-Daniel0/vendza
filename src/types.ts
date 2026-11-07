@@ -19,6 +19,7 @@ export interface Product {
   statut: 'actif' | 'brouillon';
   dateCreation: string;
   vendeurPlan?: string;
+  vendeurVerifie?: boolean;
   vendeurPremiumDepts?: string[];
   departement?: string;
   commune?: string;

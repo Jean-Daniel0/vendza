@@ -4,6 +4,7 @@ import { Product, UserProfile, Review } from '../types';
 import { HAITIAN_ZONES } from '../data';
 
 import { EIcon, RichText } from './EIcon';
+import { ratingInfo, isPopularVerified, byPopularity } from '../lib/popularity';
 interface MarketplaceHomeProps {
   products: Product[];
   reviews?: Review[];
@@ -193,16 +194,13 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
     return dateB - dateA;
   });
 
-  const getProductRating = (p: Product) => {
-    const subset = reviews.filter(r => r.productId === p.id);
-    if (subset.length > 0) {
-      const sum = subset.reduce((acc, r) => acc + r.note, 0);
-      return Number((sum / subset.length).toFixed(1));
-    }
-    return p.rating || 5.0;
-  };
+  // Note moyenne issue des vrais avis ; null = pas encore noté
+  const getProductRating = (p: Product): number | null => ratingInfo(reviews, p.id).avg;
 
-  const popularProducts = filteredProducts.filter(p => getProductRating(p) >= 4.7);
+  // Populaires & Vérifiés : vendeur vérifié, au moins 10 avis, note moyenne d'au moins 4,5 (classés par nombre d'avis puis note)
+  const popularProducts = filteredProducts
+    .filter(p => isPopularVerified(ratingInfo(reviews, p.id), p))
+    .sort((a, b) => byPopularity(ratingInfo(reviews, a.id), ratingInfo(reviews, b.id)));
   const trendsProducts = filteredProducts.filter(p => p.tags.includes('tech') || p.tags.includes('mode'));
   const discountProducts = filteredProducts.filter(p => p.oldPrice && p.oldPrice > p.prix);
   // Onglet « Populaires & Vérifiés » : retombe sur « Tous » s'il n'y a plus de produit populaire (filtres changés)
@@ -477,7 +475,7 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
 };
 
 /* Mini Scroll Card Inner Component */
-const ProductScrollCard: React.FC<{ product: Product; rating: number; onView: () => void; onAdd: () => void; tauxUSD?: number }> = ({ product, rating, onView, onAdd, tauxUSD = 130 }) => {
+const ProductScrollCard: React.FC<{ product: Product; rating: number | null; onView: () => void; onAdd: () => void; tauxUSD?: number }> = ({ product, rating, onView, onAdd, tauxUSD = 130 }) => {
   const isColor = product.image_url && product.image_url.startsWith('#') && product.image_url.length <= 7;
   return (
     <div className="flex-none w-[140px] bg-white border border-slate-100 rounded-xl overflow-hidden shadow-xs hover:border-blue-400 transition-all group flex flex-col justify-between">
@@ -518,8 +516,8 @@ const ProductScrollCard: React.FC<{ product: Product; rating: number; onView: ()
           </h4>
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             <div className="flex items-center gap-0.5 bg-amber-50 px-1 py-0.5 rounded text-[9px] text-amber-500 font-extrabold leading-none">
-              <Star size={9} fill="currentColor" />
-              <span>{rating}</span>
+              <Star size={9} fill={rating === null ? 'none' : 'currentColor'} aria-label={rating === null ? 'Pas encore noté' : undefined} />
+              {rating !== null && <span>{rating}</span>}
             </div>
             <div className="flex items-center gap-0.5 text-[9.5px] text-[#0d9488] font-bold truncate max-w-[85px]" title={product.vendeur}>
               <Store size={9} className="text-teal-600 shrink-0" />
@@ -650,7 +648,7 @@ const PromoCarouselCard: React.FC<{ products: Product[]; onView: (p: Product) =>
 
 
 /* Grid Card Inner Component */
-export const ProductGridCard: React.FC<{ product: Product; rating: number; onView: () => void; onAdd: () => void; tauxUSD?: number }> = ({ product, rating, onView, onAdd, tauxUSD = 130 }) => {
+export const ProductGridCard: React.FC<{ product: Product; rating: number | null; onView: () => void; onAdd: () => void; tauxUSD?: number }> = ({ product, rating, onView, onAdd, tauxUSD = 130 }) => {
   const isColor = product.image_url && product.image_url.startsWith('#') && product.image_url.length <= 7;
   return (
     <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs hover:shadow-md hover:border-blue-400 transition-all duration-300 group flex flex-col justify-between">
@@ -697,8 +695,8 @@ export const ProductGridCard: React.FC<{ product: Product; rating: number; onVie
 
           <div className="flex items-center gap-1.5 mt-2 text-[10px] text-amber-500 font-bold">
             <div className="flex items-center gap-0.5 bg-amber-50 px-1.5 py-0.5 rounded">
-              <Star size={10} fill="currentColor" />
-              <span>{rating}</span>
+              <Star size={10} fill={rating === null ? 'none' : 'currentColor'} aria-label={rating === null ? 'Pas encore noté' : undefined} />
+              {rating !== null && <span>{rating}</span>}
             </div>
             <div className="flex items-center gap-1">
               <span className="text-slate-400">|</span>

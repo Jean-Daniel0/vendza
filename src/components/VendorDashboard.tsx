@@ -2051,7 +2051,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                             </div>
                             <div className="prod-body">
                               <div className="prod-name">{prod.nom}</div>
-                              <div className="prod-meta"><EIcon name="Folder" /> {prod.categorie} • <EIcon name="Star" /> {prod.rating ? prod.rating.toFixed(1) : '5.0'}</div>
+                              <div className="prod-meta"><EIcon name="Folder" /> {prod.categorie} • <EIcon name="Star" /> {(() => { const rs = reviews.filter(r => r.productId === prod.id); return rs.length ? (rs.reduce((t, r) => t + r.note, 0) / rs.length).toFixed(1) : 'Pas encore noté'; })()}</div>
                             </div>
                             <div className="prod-right">
                               <div className="prod-price">{prod.prix.toLocaleString('fr-FR')} Gdes</div>

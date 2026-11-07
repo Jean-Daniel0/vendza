@@ -231,14 +231,14 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({
   const productReviews = reviews.filter(r => r.productId === product.id);
   const avgRating = productReviews.length > 0 
     ? (productReviews.reduce((sum, r) => sum + r.note, 0) / productReviews.length).toFixed(1)
-    : product.rating;
+    : null; // pas encore noté
 
   // Real vendor computations
   const vendorProducts = products.filter(p => p.vendeurId === product.vendeurId || (p.vendeur === product.vendeur && p.vendeurId === 'v-gen'));
   const vendorReviews = reviews.filter(r => vendorProducts.some(vp => vp.id === r.productId));
   const avgVendorRating = vendorReviews.length > 0 
     ? (vendorReviews.reduce((sum, r) => sum + r.note, 0) / vendorReviews.length).toFixed(1)
-    : "4.8";
+    : "—";
 
   const handleQtyChange = (d: number) => {
     setQuantity(prev => Math.max(1, Math.min(product.stock, prev + d)));
@@ -394,7 +394,7 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] font-bold text-teal-600 bg-teal-50 px-2 py-0.5 rounded uppercase tracking-wider">{product.cat}</span>
               <span className="text-slate-300">•</span>
-              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded uppercase tracking-wider">Note: {avgRating}/5</span>
+              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded uppercase tracking-wider">{avgRating === null ? 'Pas encore noté' : `Note : ${avgRating}/5`}</span>
             </div>
 
             <h1 className="font-serif text-xl sm:text-2xl font-extrabold text-[#0c1445] tracking-tight leading-snug mt-2">

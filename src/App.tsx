@@ -933,7 +933,7 @@ export default function App() {
         const ids = Array.from(new Set(rawProducts.map(p => p.vendor_id || p.vendeur_id || p.user_id).filter(Boolean)));
         
         // Seed with default demo vendors so they always resolve premium plans even if DB is still clean!
-        const map: Record<string, { shopName: string; name: string; departement: string; commune: string; plan?: string; premiumDepts?: string[] }> = {
+        const map: Record<string, { shopName: string; name: string; departement: string; commune: string; plan?: string; premiumDepts?: string[]; verifie?: boolean }> = {
           'v-tph': {
             shopName: 'TechPlus Haïti',
             name: 'Alexandre TechPlus',
@@ -1000,7 +1000,8 @@ export default function App() {
                 departement: row.departement || row.region || '',
                 commune: row.commune || row.location || '',
                 plan: planVal,
-                premiumDepts: parsedDepts
+                premiumDepts: parsedDepts,
+                verifie: String(row.statut_verification || '').toLowerCase() === 'verifie'
               };
             });
           } catch (e) {
@@ -1161,6 +1162,7 @@ export default function App() {
             dateCreation: p.date_creation || p.created_at || new Date().toISOString().split('T')[0],
             cat: p.cat || p.category || p.categorie || 'Électronique',
             vendeurPlan: vPlan,
+            vendeurVerifie: !!vInfo.verifie,
             vendeurPremiumDepts: vInfo.premiumDepts || [],
             departement: finalDept,
             commune: finalCommune
@@ -4427,7 +4429,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
                     const subset = reviews.filter(r => r.productId === p.id);
                     const computedRating = subset.length > 0 
                       ? Number((subset.reduce((acc, r) => acc + r.note, 0) / subset.length).toFixed(1))
-                      : (p.rating || 5.0);
+                      : null; // pas encore noté
 
                     return (
                       <ProductGridCard 
