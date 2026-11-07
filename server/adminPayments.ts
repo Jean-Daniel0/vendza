@@ -81,7 +81,7 @@ export function treasurySummary(a: { bazikHtg: number | null; stripeAvailableUsd
     usdToMove: shortSoonHtg === null ? null : Math.ceil((shortSoonHtg / rate) * 100) / 100 };
 }
 
-export type QueueInput = { refunds: any[]; orders: any[]; profiles: any[]; vendorPrivate: any[]; payouts: any[] };
+export type QueueInput = { refunds: any[]; orders: any[]; profiles: any[]; vendorPrivate: any[]; payouts: any[]; liveRate?: number };
 
 /** Assemble les files « à rembourser » et « à verser » à partir des lignes brutes (fonction pure, testée). */
 export function buildQueue(input: QueueInput) {
@@ -101,7 +101,7 @@ export function buildQueue(input: QueueInput) {
       product_name: o.product_name || '', payment_method: o.payment_method || '', payment_reference: o.payment_reference || '',
       is_card: o.payment_method === 'stripe' && !!o.stripe_session_id && !String(o.stripe_session_id).startsWith('stripe-sim-'),
       card_refund_usd: o.payment_method === 'stripe' && (Number(o.amount_usd) > 0 || Number(o.usd_rate) > 0)
-        ? cardRefundCents(o, Number(r.amount) || 0, 130).cents / 100 : null,
+        ? cardRefundCents(o, Number(r.amount) || 0, input.liveRate || 130).cents / 100 : null,
     };
   });
 
@@ -197,7 +197,8 @@ export function registerAdminPaymentsRoutes(app: Express, deps: Deps) {
     }
     const refs = (toPay || []).map((o: any) => `PAY_VENDOR_${o.id}`);
     const payouts = refs.length ? ((await supabase.from('payouts').select('reference, amount, status').in('reference', refs)).data || []) : [];
-    return buildQueue({ refunds: refunds || [], orders, profiles, vendorPrivate, payouts });
+    const liveRate = getLiveRate ? await withTimeout(getLiveRate(), 0, 4000) : 0;
+    return buildQueue({ refunds: refunds || [], orders, profiles, vendorPrivate, payouts, liveRate });
   };
 
   app.get(`${base}/me`, async (req, res) => {
@@ -235,7 +236,10 @@ export function registerAdminPaymentsRoutes(app: Express, deps: Deps) {
       // Montant brut des commandes : le virement réel est un peu plus bas (commission retenue), c'est donc une estimation prudente
       const t = treasurySummary({ bazikHtg, stripeAvailableUsd: st.ok ? st.available_usd : null, stripePendingUsd: st.ok ? st.pending_usd : null,
         owedHtg: sum(done), upcomingHtg: sum(held), rate });
-      res.json({ ...t, bazik_htg: bazikHtg, stripe_available_usd: st.ok ? st.available_usd : null, stripe_pending_usd: st.ok ? st.pending_usd : null,
+      // Taux du jour : valeur, marge incluse, et ancienneté (alerte si la mise à jour automatique est en panne)
+      let rateUpdatedAt: string | null = null, rateBase: number | null = null;
+      try { const { data: er } = await supabase.from('exchange_rates').select('usd_to_htg, updated_at').maybeSingle(); rateUpdatedAt = er?.updated_at || null; rateBase = er ? Number(er.usd_to_htg) : null; } catch {}
+      res.json({ ...t, rate_base: rateBase, rate_updated_at: rateUpdatedAt, bazik_htg: bazikHtg, stripe_available_usd: st.ok ? st.available_usd : null, stripe_pending_usd: st.ok ? st.pending_usd : null,
         owed_count: (done || []).length, upcoming_count: (held || []).length });
     } catch { res.status(500).json({ error: 'Trésorerie indisponible.' }); }
   });

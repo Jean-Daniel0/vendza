@@ -363,6 +363,9 @@ const getBaseUrl = (req: express.Request) => {
 // AUTOMATED EXCHANGE RATE SYNCHRONIZER
 // ============================================
 
+// Un taux absurde (erreur de l'API) ne doit jamais être enregistré : le gourde vaut aujourd'hui entre ~100 et ~250 pour 1 dollar
+const isPlausibleHtgRate = (r: number) => Number.isFinite(r) && r >= 50 && r <= 400;
+
 const updateTaux = async () => {
   if (!isSupabaseConfigured || !supabase) {
     console.warn('[Exchange Rates] Supabase not configured on server. Skipping exchange rate update.');
@@ -403,7 +406,7 @@ const updateTaux = async () => {
             `https://v6.exchangerate-api.com/v6/${process.env.EXCHANGE_RATE_API_KEY}/latest/USD`
           );
           const data: any = await response.json();
-          if (data && data.conversion_rates && data.conversion_rates.HTG) {
+          if (data && data.conversion_rates && isPlausibleHtgRate(Number(data.conversion_rates.HTG))) {
             nouveauTaux = Number(data.conversion_rates.HTG);
             fetchedSuccessfully = true;
           }
@@ -418,7 +421,7 @@ const updateTaux = async () => {
           console.log('[Exchange Rates] Fetching rate using free exchangerate-api... (no key required)');
           const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
           const data: any = await response.json();
-          if (data && data.rates && data.rates.HTG) {
+          if (data && data.rates && isPlausibleHtgRate(Number(data.rates.HTG))) {
             nouveauTaux = Number(data.rates.HTG);
             fetchedSuccessfully = true;
           }
@@ -2486,7 +2489,8 @@ app.post('/api/orders/pending', async (req, res) => {
 
 
 // Endpoint serving the interactive mock Stripe Simulation screen
-app.get('/stripe-simulation', (req, res) => {
+app.get('/stripe-simulation', async (req, res) => {
+  const simRate = await getUsdRate();
   if (process.env.ALLOW_STRIPE_SIMULATION !== 'true') return res.status(404).send('Not found');
   const { orderId, totalUSD, customerEmail } = req.query;
   const cleanOrderId = String(orderId || 'order-unknown');
@@ -2535,7 +2539,7 @@ app.get('/stripe-simulation', (req, res) => {
                     <span class="text-slate-400 font-bold text-sm">USD</span>
                 </div>
                 <div class="text-[11px] font-medium text-[#10b981] bg-emerald-50 inline-block px-2.5 py-0.5 rounded-full border border-emerald-100 mt-1">
-                    Séquestre Actif • Taux 1 USD ≈ 130 HTG
+                    Séquestre Actif • Taux 1 USD ≈ ${simRate.toFixed(2)} HTG
                 </div>
             </div>
 
@@ -2845,7 +2849,7 @@ app.post('/api/stripe/verify-session', async (req, res) => {
       
       if (type === 'subscription') {
         // Activation seulement si le montant réellement payé couvre le prix du forfait (taux de change : 10 % de tolérance)
-        const paidHtg = stripePaidHtg(session.amount_total, await getUsdRate());
+        const paidHtg = stripePaidHtg(session.amount_total, Number(session.metadata?.usdRate) > 0 ? Number(session.metadata?.usdRate) : await getUsdRate());
         console.log(`[Stripe Verification Proxy Subscription] Session payée, vérification du montant (${paidHtg} HTG)…`);
         await activateSubscriptionFromPayment({
           userId: session.metadata?.userId, planCode: session.metadata?.planCode, billing: session.metadata?.billing,
@@ -2907,7 +2911,7 @@ app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), async
       if (session.payment_status && session.payment_status !== 'paid') {
         console.warn(`[Stripe Webhook Subscription] Session ${session.id} non payée (${session.payment_status}) : rien à activer.`);
       } else {
-        const paidHtg = stripePaidHtg(session.amount_total, await getUsdRate());
+        const paidHtg = stripePaidHtg(session.amount_total, Number(session.metadata?.usdRate) > 0 ? Number(session.metadata?.usdRate) : await getUsdRate());
         await activateSubscriptionFromPayment({
           userId: session.metadata?.userId, planCode: session.metadata?.planCode, billing: session.metadata?.billing,
           method: 'stripe', paidHtg, tolerancePct: 10, reference: session.id
@@ -2947,6 +2951,18 @@ app.use((req, res, next) => {
 app.use(['/api/admin', '/api/sellerex/admin'], auditMiddleware(async (row) => { if (supabase) await supabase.from('admin_audit_log').insert([row]); }));
 if (supabase) registerSellerexRoutes(app, { supabase, getAuthedUser, adminGuard });
 if (supabase) registerAdminRoutes(app, { supabase, guard: adminGuard });
+
+// Taux du jour pour l'affichage des prix en dollars : même taux (marge de change incluse) que celui facturé par Stripe
+app.get('/api/usd-rate', async (_req, res) => {
+  try {
+    let base = 130, updated: string | null = null;
+    if (supabase) {
+      const { data } = await supabase.from('exchange_rates').select('usd_to_htg, updated_at').maybeSingle();
+      if (data && Number(data.usd_to_htg) > 0) { base = Number(data.usd_to_htg); updated = data.updated_at || null; }
+    }
+    res.set('Cache-Control', 'public, max-age=300').json({ htg_per_usd: fxRate(base), base_rate: base, updated_at: updated });
+  } catch { res.status(500).json({ error: 'Taux indisponible.' }); }
+});
 
 // Statistiques publiques d'une boutique, calculées sur les vraies commandes (aucun chiffre inventé). Mises en cache 5 minutes.
 const vendorStatsCache = new Map<string, { t: number; v: any }>();

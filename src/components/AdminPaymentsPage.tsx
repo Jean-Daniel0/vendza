@@ -13,7 +13,7 @@ type Payout = {
   payout_amount: number | null; state: string; created_at: string | null;
 };
 type Queue = { refunds: Refund[]; payouts: Payout[]; totals: { refunds_pending_count: number; refunds_pending_amount: number; payouts_open_count: number } };
-type Treasury = { rate: number; bazik_htg: number | null; stripe_available_usd: number | null; stripe_pending_usd: number | null; needNowHtg: number; needSoonHtg: number; shortNowHtg: number | null; shortSoonHtg: number | null; usdToMove: number | null; owed_count: number; upcoming_count: number };
+type Treasury = { rate: number; bazik_htg: number | null; stripe_available_usd: number | null; stripe_pending_usd: number | null; needNowHtg: number; needSoonHtg: number; shortNowHtg: number | null; shortSoonHtg: number | null; usdToMove: number | null; owed_count: number; upcoming_count: number; rate_base?: number | null; rate_updated_at?: string | null };
 type LogRow = { id: string; created_at: string; admin_email: string | null; action: string; order_id: string | null; amount: number | null; reference: string | null; note: string | null };
 
 const htg = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} HTG`;
@@ -144,6 +144,11 @@ export default function AdminPaymentsPage() {
       {treasury && (
         <section aria-label="Trésorerie" className={`space-y-1 rounded-2xl border p-4 text-sm ${treasury.shortSoonHtg ? 'border-amber-300 bg-amber-50 text-amber-950' : 'border-slate-200 bg-white text-slate-800'}`}>
           <h2 className="text-base font-bold">Trésorerie</h2>
+          {(() => {
+            const age = treasury.rate_updated_at ? (Date.now() - Date.parse(treasury.rate_updated_at)) / 3600000 : null;
+            const stale = age === null || age > 36;
+            return <p className={stale ? 'font-semibold text-red-700' : ''}>Taux du jour : <b>1 $ = {treasury.rate.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} HTG</b> (marge de change incluse{treasury.rate_base ? `, taux de base ${treasury.rate_base.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}` : ''}) · {age === null ? 'jamais mis à jour' : `mis à jour il y a ${age < 1 ? 'moins d’1 h' : `${Math.round(age)} h`}`}{stale ? ' : la mise à jour automatique semble arrêtée' : ''}</p>;
+          })()}
           <p>Stripe (dollars) : <b>{treasury.stripe_available_usd !== null ? usd(treasury.stripe_available_usd) : 'non lu'}</b>{treasury.stripe_pending_usd ? ` · en attente ${usd(treasury.stripe_pending_usd)}` : ''}</p>
           <p>Bazik (gourdes) : <b>{treasury.bazik_htg !== null ? htg(treasury.bazik_htg) : 'non lu'}</b></p>
           <p>À verser aux vendeurs : <b>{htg(treasury.needNowHtg)}</b> maintenant ({treasury.owed_count} commande{treasury.owed_count > 1 ? 's' : ''} livrée{treasury.owed_count > 1 ? 's' : ''}) · jusqu’à <b>{htg(treasury.needSoonHtg)}</b> avec les commandes encore en séquestre ({treasury.upcoming_count})</p>

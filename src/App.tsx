@@ -413,6 +413,15 @@ export default function App() {
     }
   }, [currentUser?.id, oneSignalInitDone]);
 
+  // Taux d'affichage des prix en dollars : celui du serveur (marge de change incluse), donc égal au prix facturé par carte
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/usd-rate').then(r => (r.ok ? r.json() : null)).then(j => {
+      if (alive && j && Number(j.htg_per_usd) > 0) setTauxUSD(Number(j.htg_per_usd));
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
   useEffect(() => {
     if (isSupabaseConfigured && supabase) {
       supabase
@@ -423,7 +432,7 @@ export default function App() {
           if (error) {
             console.warn('[Exchange Rates DB] Error loading from exchange_rates table:', error.message);
           } else if (data && data.usd_to_htg) {
-            setTauxUSD(Number(data.usd_to_htg));
+            setTauxUSD(prev => (prev === 130 ? Number(data.usd_to_htg) : prev));
             console.log('[Exchange Rates DB] Rate loaded successfully:', data.usd_to_htg);
           }
         });
