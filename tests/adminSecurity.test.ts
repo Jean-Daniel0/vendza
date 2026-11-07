@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { isValidAdminSlug, classifyAdminPath, jwtClaims, hasSecondFactor, FailureTracker, maskIdNumber, validateVerification, summarizeOrders, createAdminGuard, clientIp } from '../server/adminSecurity';
+import { isValidAdminSlug, classifyAdminPath, jwtClaims, hasSecondFactor, FailureTracker, maskIdNumber, validateVerification, summarizeOrders, createAdminGuard, clientIp, promoFlags } from '../server/adminSecurity';
 
 const slug = 'gestion-k3j9x2m4p8q1w7z5a6b0c';
 assert.ok(isValidAdminSlug(slug)); assert.ok(!isValidAdminSlug('gestion-court')); assert.ok(!isValidAdminSlug('admin')); assert.ok(!isValidAdminSlug(undefined));
@@ -26,6 +26,11 @@ assert.deepEqual(validateVerification({ decision: 'verifie' }).ok, true); assert
 const now = Date.parse('2026-11-05T00:00:00Z');
 const s = summarizeOrders([{ status: 'payee', total_price: 1000, created_at: '2026-11-01T00:00:00Z' }, { status: "'pending'", total_price: 5, created_at: '2026-11-01T00:00:00Z' }, { status: 'completed', total_price: '500', created_at: '2026-08-01T00:00:00Z' }], now);
 assert.equal(s.sales30, 1000); assert.equal(s.count30, 1); assert.equal(s.byStatus.pending, 1); assert.equal(s.total, 3);
+
+assert.deepEqual(promoFlags({ price: 4000, old_price: 10000 }), { discount: 60, flags: ['remise_elevee'] });
+assert.deepEqual(promoFlags({ price: 5000, old_price: null, old_price_declared: 10000, promo_status: 'refusee' }), { discount: 50, flags: ['refusee'] });
+assert.deepEqual(promoFlags({ price: 100, old_price: 120, promo_status: 'transition' }), { discount: 17, flags: ['transition'] });
+assert.deepEqual(promoFlags({ price: 100 }), { discount: 0, flags: [] });
 
 // Gardien : anonyme, non-admin, admin sans 2e facteur, admin complet
 const mk = (token: string, user: any, isAdmin: boolean, ip = '1.1.1.1') => {

@@ -764,6 +764,13 @@ const verifierExpirationsAbonnements = async () => {
   }
 };
 
+// Promotions arrivées à échéance : le prix barré disparaît (fonction SQL expire_promos, sans effet tant que la migration n'est pas appliquée)
+const expirerPromotions = async () => { try { if (supabase) await supabase.rpc('expire_promos'); } catch { /* migration absente : on ignore */ } };
+if (process.env.NETLIFY !== 'true') {
+  setInterval(expirerPromotions, 6 * 60 * 60 * 1000);
+  setTimeout(expirerPromotions, 15000);
+}
+
 // Start daily check and run on startup only in non-Netlify environments (e.g. local dev)
 if (process.env.NETLIFY !== 'true') {
   setInterval(verifierExpirationsAbonnements, 24 * 60 * 60 * 1000);

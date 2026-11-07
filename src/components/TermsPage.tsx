@@ -320,6 +320,15 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onBack }) => {
             </div>
 
             <div className="p-3.5 bg-slate-50 border border-slate-150 rounded-xl mt-3 text-[11px] sm:text-xs text-slate-600 leading-relaxed space-y-1.5">
+              <p><strong>Prix barrés et promotions.</strong></p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Un « ancien prix » barré n'est affiché que s'il a réellement été le prix du produit sur Vendza pendant au moins <strong>14 jours</strong> au cours des 60 derniers jours. Sinon il n'est pas affiché.</li>
+                <li>Une promotion dure <strong>30 jours</strong> ; ensuite le prix barré disparaît automatiquement. Le vendeur peut relancer une promotion en baissant à nouveau le prix, dans le respect de la règle ci-dessus.</li>
+                <li>Afficher un faux rabais est interdit. Vendza peut retirer un prix barré et, en cas de récidive, suspendre la possibilité d'en afficher.</li>
+              </ul>
+            </div>
+
+            <div className="p-3.5 bg-slate-50 border border-slate-150 rounded-xl mt-3 text-[11px] sm:text-xs text-slate-600 leading-relaxed space-y-1.5">
               <p><strong>Paiement par carte bancaire (dollars américains).</strong></p>
               <ul className="list-disc pl-5 space-y-1">
                 <li>Le prix en gourdes est converti en dollars américains au taux de change de la plateforme, diminué d'une marge de change de <strong>3%</strong> destinée à couvrir les variations du taux. Le taux appliqué est figé au moment du paiement et indiqué sur le ticket.</li>

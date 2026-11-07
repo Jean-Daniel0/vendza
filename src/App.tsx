@@ -1129,7 +1129,12 @@ export default function App() {
             nom: p.nom || p.name || p.title || p.label || 'Produit sans nom',
             desc: p.desc || p.description || p.info || '',
             prix: Number(p.prix !== undefined ? p.prix : (p.price !== undefined ? p.price : 0)),
-            oldPrice: p.old_price ? Number(p.old_price) : (p.oldPrice ? Number(p.oldPrice) : (p.compare_at_price ? Number(p.compare_at_price) : undefined)),
+            // Prix barré : seulement s'il est validé par la plateforme (déjà filtré en base) et que la promotion n'est pas échue
+            oldPrice: (p.promo_expires_at && Date.parse(p.promo_expires_at) < Date.now()) ? undefined
+              : (p.old_price ? Number(p.old_price) : (p.oldPrice ? Number(p.oldPrice) : (p.compare_at_price ? Number(p.compare_at_price) : undefined))),
+            oldPriceDeclared: p.old_price_declared ? Number(p.old_price_declared) : undefined,
+            promoStatus: p.promo_status || null,
+            promoExpiresAt: p.promo_expires_at || undefined,
             stock: Number(p.stock !== undefined ? p.stock : (p.quantity !== undefined ? p.quantity : 0)),
             image_url: galleryUrls[0] || pickImage(p),
             vendeur: shopName,
@@ -3250,7 +3255,9 @@ export default function App() {
           console.log("Successfully created product in Supabase database!");
           const dbProd = data[0];
           // Map DB true uuid back to our local lists
-          setProducts(prev => prev.map(p => p.id === fullProd.id ? { ...p, id: dbProd.id } : p));
+          // La base valide le prix barré : on reprend sa décision (prix barré accepté ou refusé)
+          const promo = { oldPrice: dbProd.old_price ? Number(dbProd.old_price) : undefined, oldPriceDeclared: dbProd.old_price_declared ? Number(dbProd.old_price_declared) : undefined, promoStatus: dbProd.promo_status || null, promoExpiresAt: dbProd.promo_expires_at || undefined };
+          setProducts(prev => prev.map(p => p.id === fullProd.id ? { ...p, id: dbProd.id, ...(dbProd.promo_status !== undefined || dbProd.old_price !== undefined ? promo : {}) } : p));
         }
       } catch (err: any) {
         const errMsg = String(err?.message || '');
@@ -3360,9 +3367,13 @@ export default function App() {
 
       for (let attempt = 0; attempt < 25; attempt++) {
         try {
-          const { error } = await supabase.from('products').update(dbUpdates).eq('id', productId);
+          const { data: updated, error } = await supabase.from('products').update(dbUpdates).eq('id', productId).select();
           if (!error) {
             console.log("Successfully updated product in Supabase!");
+            const u: any = updated && updated[0];
+            if (u && (dbUpdates.old_price !== undefined || dbUpdates.price !== undefined)) {
+              setProducts(prev => prev.map(p => p.id === productId ? { ...p, oldPrice: u.old_price ? Number(u.old_price) : undefined, oldPriceDeclared: u.old_price_declared ? Number(u.old_price_declared) : undefined, promoStatus: u.promo_status || null, promoExpiresAt: u.promo_expires_at || undefined } : p));
+            }
             break;
           }
           const errMsg = String(error.message || '');

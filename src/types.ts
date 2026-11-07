@@ -5,6 +5,10 @@ export interface Product {
   desc: string;
   prix: number;
   oldPrice?: number;
+  /** Prix barré déclaré par le vendeur (peut être refusé par la plateforme : voir promoStatus). */
+  oldPriceDeclared?: number;
+  promoStatus?: 'verifiee' | 'transition' | 'refusee' | 'expiree' | null;
+  promoExpiresAt?: string;
   stock: number;
   image_url: string;
   vendeur: string;

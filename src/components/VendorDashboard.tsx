@@ -2222,6 +2222,14 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                             <span className="text-[10.5px] text-slate-400 line-through pl-1 font-medium">{prod.oldPrice}</span>
                           )}
                         </div>
+                        {(() => {
+                          const left = prod.promoExpiresAt ? Math.max(0, Math.ceil((Date.parse(prod.promoExpiresAt) - Date.now()) / 86400000)) : null;
+                          if (prod.promoStatus === 'refusee') return <p className="mt-1 text-[10px] font-semibold text-amber-700">Prix barré non affiché : ancien prix non pratiqué pendant 14 jours</p>;
+                          if (prod.promoStatus === 'expiree') return <p className="mt-1 text-[10px] font-semibold text-slate-500">Promotion terminée (30 jours)</p>;
+                          if (prod.oldPrice && prod.promoStatus === 'transition' && left !== null) return <p className="mt-1 text-[10px] font-semibold text-amber-700">Promotion de transition : se termine dans {left} jour{left > 1 ? 's' : ''}</p>;
+                          if (prod.oldPrice && prod.promoStatus === 'verifiee' && left !== null) return <p className="mt-1 text-[10px] font-semibold text-emerald-700">Promotion validée : encore {left} jour{left > 1 ? 's' : ''}</p>;
+                          return null;
+                        })()}
                       </div>
 
                       {/* Display / edit stock quantity directly matching original javascript behaviors */}

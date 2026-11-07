@@ -8,7 +8,7 @@ const WholesalersSection = lazy(() => import('../sellerex/AdminSection'));
 
 const IDLE_MS = 30 * 60 * 1000; // déconnexion après 30 minutes sans activité
 type Gate = 'boot' | 'login' | 'checking' | 'denied' | 'enroll' | 'challenge' | 'ready';
-type Tab = 'overview' | 'payments' | 'identities' | 'disputes' | 'wholesalers' | 'audit';
+type Tab = 'overview' | 'payments' | 'identities' | 'disputes' | 'promos' | 'wholesalers' | 'audit';
 const auth = () => (supabase as any).auth;
 const htg = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} HTG`;
 const when = (d: string | null) => (d ? new Date(d).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '');
@@ -183,6 +183,36 @@ function Disputes() {
   );
 }
 
+function Promos() {
+  const [rows, setRows] = useState<any[] | null>(null); const [na, setNa] = useState(false); const [err, setErr] = useState(''); const [busy, setBusy] = useState<string | null>(null);
+  const load = useCallback(async () => { const r = await getJson('/api/admin/promos'); setRows(r.j.promos || []); setNa(!!r.j.unavailable); }, []);
+  useEffect(() => { load(); }, [load]);
+  const remove = async (id: string) => {
+    if (!window.confirm('Retirer le prix barré de ce produit ?')) return;
+    setBusy(id); setErr('');
+    const r = await getJson(`/api/admin/promos/${id}/remove`, { method: 'POST' });
+    setBusy(null); if (r.ok) load(); else setErr(r.j.error || 'Retrait impossible.');
+  };
+  const label: Record<string, string> = { refusee: 'Prix barré refusé', transition: 'Transition (14 jours)', remise_elevee: 'Remise de 60 % ou plus' };
+  if (!rows) return <Loading />;
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-slate-500">Un prix barré s’affiche seulement s’il a été le prix du produit pendant 14 jours (60 derniers jours). Promotion : 30 jours. Les cas à surveiller sont en haut.</p>
+      {na && <p className="text-sm text-slate-500">Promotions indisponibles.</p>}
+      {err && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{err}</p>}
+      {rows.length === 0 && !na && <p className="text-sm text-slate-500">Aucune promotion.</p>}
+      {rows.map(r => (
+        <article key={r.id} className="space-y-1 rounded-2xl border border-slate-200 bg-white p-4 text-sm">
+          <div className="flex justify-between gap-2"><h2 className="font-bold">{r.name}</h2><span className="font-mono text-xs">{r.discount ? `-${r.discount}%` : ''}</span></div>
+          <p className="text-slate-600">Prix {htg(Number(r.price))} · ancien prix {r.old_price ? htg(Number(r.old_price)) : r.old_price_declared ? `${htg(Number(r.old_price_declared))} (non affiché)` : '—'} · {r.promo_status || 'sans statut'}{r.promo_expires_at ? ` · fin le ${when(r.promo_expires_at)}` : ''}</p>
+          {r.flags.length > 0 && <p className="text-xs font-semibold text-amber-700">{r.flags.map((f: string) => label[f] || f).join(' · ')}</p>}
+          {r.old_price && <button disabled={busy === r.id} onClick={() => remove(r.id)} className="rounded-xl border border-slate-300 px-3 py-1.5 text-xs font-semibold disabled:opacity-50">Retirer le prix barré</button>}
+        </article>
+      ))}
+    </div>
+  );
+}
+
 function AuditLog() {
   const [rows, setRows] = useState<any[] | null>(null); const [na, setNa] = useState(false);
   useEffect(() => { getJson('/api/admin/audit').then(r => { setRows(r.j.log || []); setNa(!!r.j.unavailable); }); }, []);
@@ -237,7 +267,7 @@ export default function AdminApp() {
     return () => { evts.forEach(e => window.removeEventListener(e, reset)); window.clearTimeout(timer.current); };
   }, [gate, signOut]);
 
-  const tabs: Array<[Tab, string]> = [['overview', 'Accueil'], ['payments', 'Paiements'], ['identities', 'Identités'], ['disputes', 'Litiges'], ['wholesalers', 'Grossistes Sellerex'], ['audit', 'Journal']];
+  const tabs: Array<[Tab, string]> = [['overview', 'Accueil'], ['payments', 'Paiements'], ['identities', 'Identités'], ['disputes', 'Litiges'], ['promos', 'Promotions'], ['wholesalers', 'Grossistes Sellerex'], ['audit', 'Journal']];
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 pb-10 text-slate-900">
@@ -262,7 +292,7 @@ export default function AdminApp() {
             </nav>
             <Suspense fallback={<Loading />}>
               {tab === 'overview' ? <Overview /> : tab === 'payments' ? <PaymentsPage /> : tab === 'identities' ? <Identities />
-                : tab === 'disputes' ? <Disputes /> : tab === 'wholesalers' ? <WholesalersSection /> : <AuditLog />}
+                : tab === 'disputes' ? <Disputes /> : tab === 'promos' ? <Promos /> : tab === 'wholesalers' ? <WholesalersSection /> : <AuditLog />}
             </Suspense>
           </div>)}
     </div>

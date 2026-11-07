@@ -133,3 +133,15 @@ export function summarizeOrders(rows: Array<{ status?: string | null; total_pric
   }
   return { byStatus, sales30, count30, total: rows.length };
 }
+
+/** Signaux d'alerte sur une promotion : remise très élevée, prix barré refusé, promotion de transition. */
+export function promoFlags(r: { price?: number | string | null; old_price?: number | string | null; old_price_declared?: number | string | null; promo_status?: string | null }) {
+  const price = Number(r.price) || 0;
+  const ref = Number(r.old_price) || Number(r.old_price_declared) || 0;
+  const discount = ref > price && ref > 0 ? Math.round((1 - price / ref) * 100) : 0;
+  const flags: string[] = [];
+  if (r.promo_status === 'refusee') flags.push('refusee');
+  if (r.promo_status === 'transition') flags.push('transition');
+  if (discount >= 60) flags.push('remise_elevee');
+  return { discount, flags };
+}

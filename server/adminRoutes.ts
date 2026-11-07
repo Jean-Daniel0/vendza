@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from 'express';
-import { AdminGuard, isUuid, maskIdNumber, validateVerification, summarizeOrders, hasSecondFactor, AuditRow, clientIp } from './adminSecurity';
+import { AdminGuard, isUuid, maskIdNumber, validateVerification, summarizeOrders, promoFlags, hasSecondFactor, AuditRow, clientIp } from './adminSecurity';
 
 type Deps = { supabase: any; guard: AdminGuard };
 
@@ -116,6 +116,30 @@ export function registerAdminRoutes(app: Express, { supabase, guard }: Deps) {
       await audit({ user_id: user.id, email: user.email || null, action: `verification_${v.decision}`, method: 'POST', path: `${base}/identities/${vendorId}/decision`, status: 200, ip: clientIp(req), detail: v.note || vendorId });
       res.json({ ok: true, status: v.decision });
     } catch { fail(res, 'Décision impossible pour le moment.'); }
+  });
+
+  // Promotions : prix barrés déclarés, validés, refusés ou en transition
+  app.get(`${base}/promos`, async (req, res) => {
+    const user = await guard(req, res); if (!user) return;
+    try {
+      const { data, error } = await supabase.from('products').select('id, name, price, old_price, old_price_declared, promo_status, promo_expires_at, vendor_id')
+        .or('old_price.not.is.null,old_price_declared.not.is.null').limit(500);
+      if (error) throw error;
+      const rows = (data || []).map((r: any) => ({ ...r, ...promoFlags(r) })).sort((a: any, b: any) => (b.flags.length - a.flags.length) || (b.discount - a.discount));
+      res.json({ promos: rows.slice(0, 200) });
+    } catch { res.json({ promos: [], unavailable: true }); }
+  });
+
+  app.post(`${base}/promos/:id/remove`, async (req, res) => {
+    const user = await guard(req, res); if (!user) return;
+    const id = String(req.params.id);
+    if (!isUuid(id)) return res.status(400).json({ error: 'Identifiant invalide.' });
+    try {
+      const { error } = await supabase.from('products').update({ old_price: null }).eq('id', id);
+      if (error) throw error;
+      await audit({ user_id: user.id, email: user.email || null, action: 'promo_retiree', method: 'POST', path: `${base}/promos/${id}/remove`, status: 200, ip: clientIp(req), detail: id });
+      res.json({ ok: true });
+    } catch { fail(res, 'Retrait impossible pour le moment.'); }
   });
 
   app.get(`${base}/audit`, async (req, res) => {

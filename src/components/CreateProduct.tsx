@@ -588,13 +588,17 @@ export const CreateProduct: React.FC<CreateProductProps> = ({
                   <input
                     type="number"
                     min="0"
-                    placeholder="Pour simuler une remise"
+                    placeholder="Prix réellement pratiqué avant"
                     className="w-full py-2.5 pl-3 pr-8 border border-slate-200 rounded-xl text-xs font-mono bg-slate-50 hover:bg-white focus:bg-white focus:border-blue-600 transition outline-none shadow-3xs text-slate-500"
                     value={oldPrice || ''}
                     onChange={e => setOldPrice(Math.max(0, Number(e.target.value)))}
                   />
                   <span className="absolute top-2.5 right-3 font-mono text-[10.5px] text-slate-400">HTG</span>
                 </div>
+                <p className="text-[10.5px] leading-snug text-slate-500">Le prix barré s’affiche seulement si ce prix a réellement été celui du produit sur Vendza pendant au moins 14 jours (dans les 60 derniers jours). Une promotion dure 30 jours.</p>
+                {productToEdit?.promoStatus === 'refusee' && (
+                  <p role="status" className="rounded-lg bg-amber-50 p-2 text-[10.5px] font-semibold text-amber-800">Prix barré non affiché : {productToEdit.oldPriceDeclared ? `${productToEdit.oldPriceDeclared.toLocaleString('fr-FR')} HTG n’a pas été` : 'ce prix n’a pas été'} le prix de ce produit pendant 14 jours.</p>
+                )}
               </div>
             </div>
 
