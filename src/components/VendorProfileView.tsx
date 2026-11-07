@@ -7,6 +7,7 @@ import {
 import { Product, Review, Order, UserProfile } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { cleanPhone } from '../lib/contacts';
+import { useVendorStats } from '../lib/vendorStats';
 
 import { EIcon } from './EIcon';
 interface VendorProfileViewProps {
@@ -50,6 +51,8 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
   } | null>(null);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [notFound, setNotFound] = useState<boolean>(false);
+  const vendorStats = useVendorStats(vendorId); // ventes réelles, calculées par le serveur
 
   // Leave a review local states
   const [showReviewForm, setShowReviewForm] = useState<boolean>(false);
@@ -192,7 +195,7 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
             const lastName = data.nom || data.last_name || data.full_name?.split(' ').slice(1).join(' ') || '';
             const vendorName = [firstName, lastName].filter(Boolean).join(' ') || 'Vendeur Partenaire';
             const shopNameVal = data.boutique_nom || data.shop_name || data.boutique || data.name || (firstName ? `Boutique de ${firstName}` : 'Boutique Partenaire');
-            const shopDescVal = data.boutique_desc || data.shop_desc || data.shop_description || 'Boutique certifiée partenaire Vendza, offrant des produits vérifiés de qualité.';
+            const shopDescVal = data.boutique_desc || data.shop_desc || data.shop_description || 'Cette boutique n\'a pas encore de description.';
             const avatarVal = data.avatar_url || data.avatar || data.photo_url || data.profile_image;
             const bannerVal = data.banner || data.cover_url || data.cover_image || data.banner_url || '';
             const telVal = contactTel || '';
@@ -214,8 +217,8 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
               nom: vendorName,
               shopName: shopNameVal,
               shopDesc: shopDescVal,
-              departement: data.departement || 'Ouest',
-              commune: data.commune || 'Haïti',
+              departement: data.departement || '',
+              commune: data.commune || '',
               createdAt: data.created_at || new Date().toISOString(),
               plan: data.plan || 'Gratuit',
               avatar: avatarVal || undefined,
@@ -233,43 +236,27 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
         console.error("Exception loading vendor profile info from Supabase:", e);
       }
 
-      // Fallback from active products lists
+      // Repli : informations réelles tirées d'un produit de la boutique (rien d'inventé)
       const assocProduct = products.find(p => p.vendeurId === vendorId);
       if (assocProduct) {
         setVendorProfile({
           id: vendorId,
-          nom: assocProduct.vendeur || 'Vendeur Secouru',
-          shopName: assocProduct.vendeur || 'Boutique Authentique',
-          shopDesc: 'Boutique certifiée partenaire Vendza, offrant des produits vérifiés de qualité.',
-          departement: assocProduct.caracteristiques?.['Origine'] || 'Ouest',
-          commune: 'Pétion-Ville',
+          nom: assocProduct.vendeur || 'Vendeur',
+          shopName: assocProduct.vendeur || 'Boutique',
+          shopDesc: 'Cette boutique n\'a pas encore de description.',
+          departement: '',
+          commune: '',
           createdAt: assocProduct.dateCreation || new Date().toISOString(),
-          plan: assocProduct.vendeurPlan || 'Pro National',
+          plan: assocProduct.vendeurPlan || 'Gratuit',
           avatar: undefined,
           banner: undefined,
           tel: undefined,
           email: undefined,
           premiumDepts: assocProduct.vendeurPremiumDepts || [],
-          statutVerification: assocProduct.vendeurPlan === 'Pro Local' || assocProduct.vendeurPlan === 'Pro National' ? 'verifie' : 'non_verifie'
+          statutVerification: assocProduct.vendeurVerifie ? 'verifie' : 'non_verifie'
         });
       } else {
-        // Fallback placeholder
-        setVendorProfile({
-          id: vendorId,
-          nom: 'Boutique Vedette',
-          shopName: 'Boutique Elite Vendza',
-          shopDesc: 'Découvrez les meilleurs articles sélectionnés pour vous par nos vendeurs agréés.',
-          departement: 'Ouest',
-          commune: 'Delmas',
-          createdAt: new Date().toISOString(),
-          plan: 'Pro National',
-          avatar: undefined,
-          banner: undefined,
-          tel: undefined,
-          email: undefined,
-          premiumDepts: ['Ouest', 'Nord', 'Sud', 'Artibonite', 'Centre'],
-          statutVerification: 'verifie'
-        });
+        setNotFound(true); // aucune boutique correspondante : on ne fabrique pas de faux profil
       }
       setIsLoading(false);
     }
@@ -278,6 +265,15 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
       fetchVendor();
     }
   }, [vendorId, products]);
+
+  if (notFound && !vendorProfile) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 rounded-3xl border border-slate-100 bg-white p-10 text-center shadow-xs">
+        <p className="text-sm font-bold text-slate-700">Boutique introuvable</p>
+        <button onClick={() => onNavigate('home')} className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white">Retour à l'accueil</button>
+      </div>
+    );
+  }
 
   if (isLoading || !vendorProfile) {
     return (
@@ -291,11 +287,8 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
   // Live filter variables
   const vendorProducts = products.filter(p => p.vendeurId === vendorId);
   
-  // Real sales computation based on orders with corresponding items matching the vendor
-  const vendorSalesCount = orders.filter(o => {
-    const isMatchedDirect = o.items.some(i => i.vendeurId === vendorId);
-    return isMatchedDirect && (o.status === 'payee' || o.status === 'livree');
-  }).length;
+  // Ventes réelles (commandes terminées), calculées par le serveur pour tous les visiteurs
+  const vendorSalesCount = vendorStats ? vendorStats.completed : null;
 
   // Filter reviews matching the vendor's products or left under the vendor shop placeholder
   const vendorReviews = reviews.filter(r => {
@@ -304,7 +297,7 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
 
   const avgRating = vendorReviews.length > 0
     ? (vendorReviews.reduce((sum, r) => sum + r.note, 0) / vendorReviews.length).toFixed(1)
-    : "4.8";
+    : null; // pas encore noté
 
   const isVerified = vendorProfile.plan === 'Pro Local' || vendorProfile.plan === 'Pro National';
 
@@ -339,8 +332,8 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
 
   // Compute covered areas based on vendor plan
   const plan = vendorProfile.plan;
-  const mainDept = vendorProfile.departement || 'Ouest';
-  const mainCommune = vendorProfile.commune || 'Haïti';
+  const mainDept = vendorProfile.departement || '';
+  const mainCommune = vendorProfile.commune || '';
   const pDepts = vendorProfile.premiumDepts || [];
 
   let coverageType = 'Communal - Local';
@@ -352,17 +345,17 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
     coverageType = 'National - Tous Départements';
     coverageBadgeColor = 'bg-indigo-50 text-indigo-700 border-indigo-200';
     coveredDeptsList = ['Ouest', 'Nord', 'Nord-Ouest', 'Nord-Est', 'Artibonite', 'Centre', 'Sud', 'Grande-Anse', 'Nippes', 'Sud-Est'];
-    coverageDescriptionHtml = "Livraison express garantie sur tout le territoire national haïtien (l'ensemble des 10 départements est couvert).";
+    coverageDescriptionHtml = "Ce vendeur est référencé sur tout le territoire national haïtien (l'ensemble des 10 départements).";
   } else if (plan === 'Pro Local') {
     coverageType = 'Régional - Départements Sélectionnés';
     coverageBadgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
     coveredDeptsList = Array.from(new Set([mainDept, ...pDepts])).filter(Boolean);
-    coverageDescriptionHtml = `Livraison rapide dans le département principal (${mainDept})${pDepts.length > 0 ? ` ainsi que dans les départements secondaires suivants : ${pDepts.join(', ')}` : ''}.`;
+    coverageDescriptionHtml = `Livraison dans le département principal${mainDept ? ` (${mainDept})` : ''}${pDepts.length > 0 ? ` ainsi que dans les départements secondaires suivants : ${pDepts.join(', ')}` : ''}.`;
   } else {
     coverageType = 'Local / Ramassage de proximité';
     coverageBadgeColor = 'bg-amber-50 text-amber-700 border-amber-200';
-    coveredDeptsList = [mainDept];
-    coverageDescriptionHtml = `Ce vendeur livre principalement au niveau local sur la commune de ${mainCommune} (${mainDept}).`;
+    coveredDeptsList = [mainDept].filter(Boolean);
+    coverageDescriptionHtml = (mainCommune || mainDept) ? `Ce vendeur livre principalement au niveau local${mainCommune ? ` sur la commune de ${mainCommune}` : ''}${mainDept ? ` (${mainDept})` : ''}.` : 'Ce vendeur livre au niveau local.';
   }
 
   return (
@@ -521,7 +514,7 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
             </div>
             <div className="p-2.5 bg-slate-50/50 rounded-xl">
               <span className="block text-2xl font-extrabold text-[#0c1445] font-mono leading-none">
-                {vendorSalesCount}
+                {vendorSalesCount ?? '—'}
               </span>
               <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block mt-1">Ventes</span>
             </div>
@@ -529,7 +522,7 @@ export const VendorProfileView: React.FC<VendorProfileViewProps> = ({
               <div className="text-left">
                 <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Note vendeur</span>
                 <span className="text-sm font-bold text-slate-700 flex items-center gap-1 mt-0.5">
-                  {avgRating}/5 <Star size={11} className="fill-amber-400 text-amber-400" />
+                  {avgRating === null ? 'Pas encore noté' : <>{avgRating}/5 <Star size={11} className="fill-amber-400 text-amber-400" /></>}
                 </span>
               </div>
               <div className="text-right">

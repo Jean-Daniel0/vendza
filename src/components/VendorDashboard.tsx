@@ -1226,11 +1226,9 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                     }
                   });
 
-                  const demoNetVals = [1800, 3200, 2400, 5200, 6400, 3100, 1500];
-                  const demoGrossVals = demoNetVals.map(val => Math.round(val / ((100 - feePercent) / 100)));
-
-                  const netVals = hasRealSales ? realNetVals : demoNetVals;
-                  const grossVals = hasRealSales ? realGrossVals : demoGrossVals;
+                  // Données réelles uniquement : sans vente, la courbe reste à zéro (aucune valeur d'exemple)
+                  const netVals = realNetVals;
+                  const grossVals = realGrossVals;
 
                   const maxVal = Math.max(...netVals, 2000);
 
@@ -1258,6 +1256,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
 
                   return (
                     <div className="relative w-full">
+                      {!hasRealSales && <p className="absolute inset-x-0 top-1/3 z-10 text-center text-[11px] font-semibold text-slate-400">Aucune vente enregistrée pour le moment</p>}
                       <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="100%" className="overflow-visible select-none">
                         <defs>
                           <linearGradient id="areaGradBlue" x1="0" y1="0" x2="0" y2="1">
@@ -1474,12 +1473,9 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
                   }
                 });
 
-                // Fallbacks
-                const demoThisWeeks = [18200, 24800, 19100, 22100];
-                const demoLastWeeks = [14500, 19300, 17850, 20850];
-
-                const thisWeeks = hasRealSales ? realThisWeeks : demoThisWeeks;
-                const lastWeeks = hasRealSales ? realLastWeeks : demoLastWeeks;
+                // Données réelles uniquement (aucune valeur d'exemple quand il n'y a pas encore de vente)
+                const thisWeeks = realThisWeeks;
+                const lastWeeks = realLastWeeks;
 
                 const currentMonthNet = thisWeeks.reduce((a, b) => a + b, 0);
                 const lastMonthNet = lastWeeks.reduce((a, b) => a + b, 0);
@@ -1542,6 +1538,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
 
                 return (
                   <>
+                    {!hasRealSales && <p className="mb-2 text-center text-[11px] font-semibold text-slate-400">Aucune vente enregistrée pour le moment</p>}
                     <div className="flex items-center justify-between border-b border-slate-100 pb-3 gap-2">
                       <div>
                         <div className="flex items-center gap-2">

@@ -37,37 +37,6 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
   const [selectedCommune, setSelectedCommune] = useState<string>('');
   const [isSearchFocused, setIsSearchFocused] = useState<boolean>(false);
   
-  // Timer Countdown state for live Flash Sales
-  const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
-  const [isFlashActive, setIsFlashActive] = useState<boolean>(false);
-
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      const currentHour = now.getHours();
-      const currentMinutes = now.getMinutes();
-      const currentSeconds = now.getSeconds();
-
-      // Flash sales starts at 8h00 (8 AM) and ends at 20h00 (8 PM - 12 hours countdown max)
-      // Disappears when countdown reaches 0 (after 20:00), reappears the next morning at 8:00 AM!
-      if (currentHour >= 8 && currentHour < 20) {
-        setIsFlashActive(true);
-        setTimeLeft({
-          hours: 19 - currentHour,
-          minutes: 59 - currentMinutes,
-          seconds: 59 - currentSeconds
-        });
-      } else {
-        setIsFlashActive(false);
-        setTimeLeft({ hours: 0, minutes: 0, seconds: 0 });
-      }
-    };
-
-    updateTime();
-    const timer = setInterval(updateTime, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
   const categories = [
     { value: 'Tout', label: '[[ShoppingBag]] Tout' },
     { value: 'Mode', label: '[[Shirt]] Mode' },
@@ -206,6 +175,8 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
   // Onglet « Populaires & Vérifiés » : retombe sur « Tous » s'il n'y a plus de produit populaire (filtres changés)
   const activeTab: 'tous' | 'populaires' = homeTab === 'populaires' && popularProducts.length > 0 ? 'populaires' : 'tous';
   const gridProducts = activeTab === 'populaires' ? popularProducts : filteredProducts;
+  // Plus forte remise réelle parmi les produits en promotion (prix barré > prix actuel)
+  const maxDiscount = discountProducts.reduce((m, p) => Math.max(m, Math.round((1 - p.prix / (p.oldPrice as number)) * 100)), 0);
   const newProducts = filteredProducts.slice().reverse().slice(0, 3);
 
   const viewProduct = (p: Product) => {
@@ -311,34 +282,17 @@ export const MarketplaceHome: React.FC<MarketplaceHomeProps> = ({
 
       {!hasNoProductsForSelectedLocation ? (
         <>
-          {/* Ventes Flash banner with countdown */}
-          {isFlashActive && (
-            <section 
+          {/* Bannière promotions : calculée sur les vrais prix barrés des produits affichés (aucun chrono ni pourcentage inventé) */}
+          {maxDiscount > 0 && (
+            <section
               onClick={() => onNavigate('flash-sales')}
-              className="cursor-pointer bg-gradient-to-r from-red-600 to-amber-500 rounded-2xl p-5 text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm hover:from-red-700 hover:to-amber-600 transition-all duration-300 transform active:scale-[0.995]"
+              className="cursor-pointer bg-gradient-to-r from-red-600 to-amber-500 rounded-2xl p-5 text-white flex flex-col sm:flex-row items-center justify-between gap-2 shadow-sm hover:from-red-700 hover:to-amber-600 transition-all duration-300 active:scale-[0.995]"
             >
               <div className="space-y-1 text-center sm:text-left">
                 <h3 className="inline-flex items-center gap-1 text-sm font-black tracking-tight uppercase">
-                  <Flame size={16} className="text-yellow-300 animate-pulse animate-bounce" /> Ventes Flash — Jusqu'à -50%
+                  <Flame size={16} className="text-yellow-300" /> Promotions — jusqu'à -{maxDiscount}%
                 </h3>
-                <p className="text-xs text-white/90">Offres limitées sur des dizaines de produits phares (Cliquez pour voir tout à -50%).</p>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <div className="bg-white/20 border border-white/10 rounded-lg p-2 text-center min-w-[50px] shadow-inner">
-                    <span className="block font-mono text-base font-extrabold leading-none">{timeLeft.hours.toString().padStart(2, '0')}</span>
-                    <small className="text-[9px] text-white/70 font-bold uppercase tracking-wider">H</small>
-                  </div>
-                  <div className="bg-white/20 border border-white/10 rounded-lg p-2 text-center min-w-[50px] shadow-inner">
-                    <span className="block font-mono text-base font-extrabold leading-none">{timeLeft.minutes.toString().padStart(2, '0')}</span>
-                    <small className="text-[9px] text-white/70 font-bold uppercase tracking-wider">Min</small>
-                  </div>
-                  <div className="bg-white/20 border border-white/10 rounded-lg p-2 text-center min-w-[50px] shadow-inner">
-                    <span className="block font-mono text-base font-extrabold leading-none">{timeLeft.seconds.toString().padStart(2, '0')}</span>
-                    <small className="text-[9px] text-white/70 font-bold uppercase tracking-wider">Sec</small>
-                  </div>
-                </div>
+                <p className="text-xs text-white/90">{discountProducts.length} produit{discountProducts.length > 1 ? 's' : ''} en promotion en ce moment. Cliquez pour les voir.</p>
               </div>
             </section>
           )}
@@ -672,7 +626,7 @@ export const ProductGridCard: React.FC<{ product: Product; rating: number | null
           )}
           {product.oldPrice && (
             <span className="absolute top-2 left-2 bg-red-600 text-white font-extrabold text-[8px] px-2 py-0.5 rounded-md uppercase tracking-wider shadow-sm">
-              Flash -{Math.round((1 - product.prix / product.oldPrice) * 100)}%
+              -{Math.round((1 - product.prix / product.oldPrice) * 100)}%
             </span>
           )}
           {product.stock <= 0 && (

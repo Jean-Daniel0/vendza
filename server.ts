@@ -2940,6 +2940,28 @@ app.use((req, res, next) => {
 app.use(['/api/admin', '/api/sellerex/admin'], auditMiddleware(async (row) => { if (supabase) await supabase.from('admin_audit_log').insert([row]); }));
 if (supabase) registerSellerexRoutes(app, { supabase, getAuthedUser, adminGuard });
 if (supabase) registerAdminRoutes(app, { supabase, guard: adminGuard });
+
+// Statistiques publiques d'une boutique, calculées sur les vraies commandes (aucun chiffre inventé). Mises en cache 5 minutes.
+const vendorStatsCache = new Map<string, { t: number; v: any }>();
+if (supabase) app.get('/api/public/vendor-stats/:id', async (req, res) => {
+  const id = String(req.params.id);
+  if (!isUuid(id)) return res.status(400).json({ error: 'Identifiant invalide.' });
+  const hit = vendorStatsCache.get(id);
+  if (hit && Date.now() - hit.t < 5 * 60 * 1000) return res.set('Cache-Control', 'public, max-age=120').json(hit.v);
+  try {
+    const count = async (statuses: string[]) => {
+      const r = await supabase!.from('orders').select('id', { count: 'exact', head: true }).eq('vendor_id', id).in('status', statuses);
+      return r.count ?? 0;
+    };
+    const [completed, cancelled] = await Promise.all([count(['completed']), count(['annulee'])]);
+    const closed = completed + cancelled;
+    // Taux de livraison réussie : affiché seulement à partir de 5 commandes clôturées (sinon trop peu de données pour être honnête)
+    const v = { completed, cancelled, delivery_rate: closed >= 5 ? Math.round((completed / closed) * 100) : null };
+    if (vendorStatsCache.size > 2000) vendorStatsCache.clear();
+    vendorStatsCache.set(id, { t: Date.now(), v });
+    res.set('Cache-Control', 'public, max-age=120').json(v);
+  } catch { res.status(500).json({ error: 'Statistiques indisponibles.' }); }
+});
 // Page admin « Paiements » (remboursements, virements en attente, export, journal) : réservée à public.is_admin().
 if (supabase) registerAdminPaymentsRoutes(app, {
   supabase, getAuthedUser, guard: adminGuard,

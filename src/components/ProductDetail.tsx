@@ -7,6 +7,7 @@ import {
 import { Product, Review, UserProfile } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { trackProductInterest } from '../lib/tracking';
+import { useVendorStats } from '../lib/vendorStats';
 
 import { EIcon } from './EIcon';
 interface ProductDetailProps {
@@ -42,6 +43,7 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({
 }) => {
   // Vendor Stats Panel trigger
   const [showVendorStats, setShowVendorStats] = useState<boolean>(false);
+  const vendorStats = useVendorStats(product?.vendeurId); // ventes réelles de la boutique (calculées par le serveur)
   if (!product) {
     return (
       <div className="text-center py-20 bg-white rounded-3xl border border-slate-100 p-8 shadow-xs">
@@ -721,7 +723,7 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({
                            : product.delaiLivraison === 'semaine' ? '1 semaine'
                            : product.delaiLivraison === 'remise' ? 'Remise en main propre'
                            : product.delaiLivraison)
-                        : 'Standard (3-5 jours)'}
+                        : 'Non précisé par le vendeur'}
                     </span>
                   </div>
 
@@ -935,8 +937,8 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({
                   <span className="text-[9.5px] text-slate-400 font-bold uppercase tracking-wider block mt-1">Avis ({vendorReviews.length})</span>
                 </div>
                 <div>
-                  <span className="block text-lg font-extrabold text-emerald-600 font-mono leading-none">99%</span>
-                  <span className="text-[9.5px] text-slate-400 font-bold uppercase tracking-wider block mt-1">Expédition</span>
+                  <span className="block text-lg font-extrabold text-emerald-600 font-mono leading-none">{vendorStats ? vendorStats.completed : '—'}</span>
+                  <span className="text-[9.5px] text-slate-400 font-bold uppercase tracking-wider block mt-1">Ventes</span>
                 </div>
               </div>
 

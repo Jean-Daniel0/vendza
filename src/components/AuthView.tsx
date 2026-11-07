@@ -211,8 +211,8 @@ export const AuthView: React.FC<AuthViewProps> = ({
           // Le type choisi à l'inscription (enregistré dans le compte) prime sur l'onglet de connexion.
           const fbType: 'client' | 'vendeur' = (meta.type === 'vendeur' || meta.type === 'client') ? meta.type : loginType;
           const metaTel = String(meta.tel || '');
-          const metaDept = String(meta.departement || '') || 'Ouest';
-          const metaCommune = String(meta.commune || '') || 'Pétion-Ville';
+          const metaDept = String(meta.departement || '');
+          const metaCommune = String(meta.commune || '');
           const shopNameVal = fbType === 'vendeur' ? (String(meta.shopName || '').trim() || `Boutique de ${prenomText}`) : undefined;
 
           const autoPayload: any = {
@@ -305,7 +305,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
             nom: lastName,
             email: profile.email || authData.user.email || '',
             tel: profile.telephone || profile.tel || profile.phone_number || profile.phone || '',
-            departement: profile.departement || 'Ouest',
+            departement: profile.departement || '',
             commune: profile.commune || '',
             shopName: finalShopName,
             shopDesc: profile.boutique_desc || profile.shop_desc || profile.shop_description || undefined,
@@ -328,8 +328,8 @@ export const AuthView: React.FC<AuthViewProps> = ({
           // Le type choisi à l'inscription (enregistré dans le compte) prime sur l'onglet de connexion.
           const fbType: 'client' | 'vendeur' = (meta.type === 'vendeur' || meta.type === 'client') ? meta.type : loginType;
           const metaTel = String(meta.tel || '');
-          const metaDept = String(meta.departement || '') || 'Ouest';
-          const metaCommune = String(meta.commune || '') || 'Pétion-Ville';
+          const metaDept = String(meta.departement || '');
+          const metaCommune = String(meta.commune || '');
           
           const shopNameVal = fbType === 'vendeur' ? (String(meta.shopName || '').trim() || `Boutique de ${prenomText}`) : undefined;
 

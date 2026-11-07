@@ -932,25 +932,8 @@ export default function App() {
       async function resolveVendorMap(rawProducts: any[]) {
         const ids = Array.from(new Set(rawProducts.map(p => p.vendor_id || p.vendeur_id || p.user_id).filter(Boolean)));
         
-        // Seed with default demo vendors so they always resolve premium plans even if DB is still clean!
-        const map: Record<string, { shopName: string; name: string; departement: string; commune: string; plan?: string; premiumDepts?: string[]; verifie?: boolean }> = {
-          'v-tph': {
-            shopName: 'TechPlus Haïti',
-            name: 'Alexandre TechPlus',
-            departement: 'Ouest',
-            commune: 'Delmas',
-            plan: 'Pro National',
-            premiumDepts: ['Ouest', 'Nord', 'Nord-Ouest', 'Nord-Est', 'Artibonite', 'Centre', 'Sud', 'Grande-Anse', 'Nippes', 'Sud-Est']
-          },
-          'v-bch': {
-            shopName: 'Boutique Confiance',
-            name: 'Boutique Confiance Haïti',
-            departement: 'Nord',
-            commune: 'Cap-Haïtien',
-            plan: 'Pro Local',
-            premiumDepts: ['Nord', 'Nord-Est', 'Nord-Ouest', 'Artibonite', 'Centre']
-          }
-        };
+        // Seuls les vendeurs réellement présents en base sont résolus (aucun vendeur de démonstration)
+        const map: Record<string, { shopName: string; name: string; departement: string; commune: string; plan?: string; premiumDepts?: string[]; verifie?: boolean }> = {};
         if (!ids.length) return map;
 
         const sources = [
@@ -1128,14 +1111,14 @@ export default function App() {
 
           const finalDept = isPaidPlan 
             ? String(originDept || vInfo.departement || '').trim() 
-            : String(vInfo.departement || 'Ouest').trim();
+            : String(vInfo.departement || '').trim();
           const finalCommune = isPaidPlan 
             ? String(originCity || vInfo.commune || '').trim() 
-            : String(vInfo.commune || 'Pétion-Ville').trim();
+            : String(vInfo.commune || '').trim();
 
           const originFeatures = { ...(p.caracteristiques || p.features || {}) };
           if (!isPaidPlan) {
-            originFeatures['Origine'] = `${finalCommune}, ${finalDept}`;
+            originFeatures['Origine'] = (finalCommune && finalDept) ? `${finalCommune}, ${finalDept}` : (finalDept || finalCommune || 'Haïti');
           } else if (!originFeatures['Origine']) {
             originFeatures['Origine'] = (finalCommune && finalDept) ? `${finalCommune}, ${finalDept}` : (finalDept || finalCommune || 'Haïti');
           }
@@ -1147,11 +1130,11 @@ export default function App() {
             desc: p.desc || p.description || p.info || '',
             prix: Number(p.prix !== undefined ? p.prix : (p.price !== undefined ? p.price : 0)),
             oldPrice: p.old_price ? Number(p.old_price) : (p.oldPrice ? Number(p.oldPrice) : (p.compare_at_price ? Number(p.compare_at_price) : undefined)),
-            stock: Number(p.stock !== undefined ? p.stock : (p.quantity !== undefined ? p.quantity : 10)),
+            stock: Number(p.stock !== undefined ? p.stock : (p.quantity !== undefined ? p.quantity : 0)),
             image_url: galleryUrls[0] || pickImage(p),
             vendeur: shopName,
             vendeurId: vId,
-            rating: p.rating ? Number(p.rating) : 5,
+            rating: p.rating ? Number(p.rating) : 0, // la note affichée vient uniquement des vrais avis
             tags: helperParseArray(p.tags || p.keywords),
             couleurs: helperParseArray(p.couleurs || p.colors || ['#000000']),
             tailles: helperParseArray(p.tailles || p.sizes || []),
@@ -3145,8 +3128,8 @@ export default function App() {
   // Add Product logic
   const handleAddProduct = async (newProd: Omit<Product, 'id' | 'vendeur' | 'vendeurId' | 'rating' | 'dateCreation'>) => {
     const isPaidPlan = currentUser?.plan === 'Pro Local' || currentUser?.plan === 'Pro National';
-    const finalDept = isPaidPlan ? (newProd.departement || currentUser?.departement || 'Ouest') : (currentUser?.departement || 'Ouest');
-    const finalCommune = isPaidPlan ? (newProd.commune || currentUser?.commune || 'Pétion-Ville') : (currentUser?.commune || 'Pétion-Ville');
+    const finalDept = isPaidPlan ? (newProd.departement || currentUser?.departement || '') : (currentUser?.departement || '');
+    const finalCommune = isPaidPlan ? (newProd.commune || currentUser?.commune || '') : (currentUser?.commune || '');
 
     // Upload base64 images to Supabase Storage first to keep database updates clean and small
     let uploadedImageUrl = newProd.image_url;
@@ -3183,7 +3166,7 @@ export default function App() {
       id: crypto.randomUUID(),
       vendeur: currentUser?.shopName || `${currentUser?.prenom} Store`,
       vendeurId: currentUser?.id || 'v-gen',
-      rating: 5.0,
+      rating: 0,
       dateCreation: new Date().toISOString().split('T')[0],
       departement: finalDept,
       commune: finalCommune,
@@ -4404,27 +4387,23 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
                     <span>← Retour au marché</span>
                   </button>
                   <h2 className="font-serif text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-                    <span className="p-1 px-2.5 rounded-lg bg-red-600 text-white font-serif font-black animate-pulse text-base">50%</span> 
-                    Ventes Flash Vendza
+                    <span className="p-1 px-2.5 rounded-lg bg-red-600 text-white font-serif font-black text-base">%</span> 
+                    Promotions Vendza
                   </h2>
                   <p className="text-xs text-slate-500 leading-relaxed max-w-xl font-sans">
-                    Articles d’exception bénéficiant d’une réduction de prix de 50%. Profitez de ces opportunités d’achat exclusif en séquestre sécurisé.
+                    Tous les produits dont le vendeur a baissé le prix, classés par plus forte remise. Paiement sécurisé par séquestre.
                   </p>
                 </div>
               </div>
 
               {/* Grid content */}
               {products.filter(p => {
-                if (!p.oldPrice) return false;
-                const discountPercent = Math.round((1 - p.prix / p.oldPrice) * 100);
-                return discountPercent >= 45 && discountPercent <= 55;
+                return !!p.oldPrice && p.oldPrice > p.prix;
               }).length > 0 ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
-                  {products.filter(p => {
-                    if (!p.oldPrice) return false;
-                    const discountPercent = Math.round((1 - p.prix / p.oldPrice) * 100);
-                    return discountPercent >= 45 && discountPercent <= 55;
-                  }).map(p => {
+                  {products.filter(p => !!p.oldPrice && p.oldPrice > p.prix)
+                    .sort((x, y) => (1 - y.prix / (y.oldPrice as number)) - (1 - x.prix / (x.oldPrice as number)))
+                    .map(p => {
                     // Local rating calculation
                     const subset = reviews.filter(r => r.productId === p.id);
                     const computedRating = subset.length > 0 
