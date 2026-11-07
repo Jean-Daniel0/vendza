@@ -8,7 +8,9 @@ import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
 import { EIcon, RichText } from './EIcon';
 interface AuthViewProps {
-  onLogin: (user: UserProfile) => void;
+  // mode = 'signup' : nouvel inscrit (profil à compléter) ; 'login' : connexion normale.
+  // La redirection (tableau de bord ou profil) est faite par l'application, pas ici.
+  onLogin: (user: UserProfile, opts?: { mode: 'login' | 'signup' }) => void;
   onNavigate: (view: string) => void;
 }
 
@@ -193,17 +195,25 @@ export const AuthView: React.FC<AuthViewProps> = ({
           console.error("[Vendza Supabase Profile Error]", profileError);
         }
 
+        let justCreated = false;
         const isNotFound = !profil || (profileError && profileError.code === 'PGRST116');
 
         // Step 3.3 — Si profil est null ou erreur de non-existence -> le créer automatiquement avec tous les champs requis
         if (isNotFound) {
           console.warn("Profil introuvable, création automatique de sécurité...");
           
+          justCreated = true;
+          const meta: any = (authData.user as any).user_metadata || {};
           const emailValue = authData.user.email || '';
           const parts = emailValue.split('@')[0].split('.');
-          const prenomText = parts[0] ? (parts[0].charAt(0).toUpperCase() + parts[0].slice(1)) : 'Acheteur';
-          const nomText = parts[1] ? (parts[1].charAt(0).toUpperCase() + parts[1].slice(1)) : 'Vendza';
-          const shopNameVal = loginType === 'vendeur' ? `Boutique de ${prenomText}` : undefined;
+          const prenomText = String(meta.prenom || '').trim() || (parts[0] ? (parts[0].charAt(0).toUpperCase() + parts[0].slice(1)) : 'Acheteur');
+          const nomText = String(meta.nom || '').trim() || (parts[1] ? (parts[1].charAt(0).toUpperCase() + parts[1].slice(1)) : 'Vendza');
+          // Le type choisi à l'inscription (enregistré dans le compte) prime sur l'onglet de connexion.
+          const fbType: 'client' | 'vendeur' = (meta.type === 'vendeur' || meta.type === 'client') ? meta.type : loginType;
+          const metaTel = String(meta.tel || '');
+          const metaDept = String(meta.departement || '') || 'Ouest';
+          const metaCommune = String(meta.commune || '') || 'Pétion-Ville';
+          const shopNameVal = fbType === 'vendeur' ? (String(meta.shopName || '').trim() || `Boutique de ${prenomText}`) : undefined;
 
           const autoPayload: any = {
             id: authData.user.id,
@@ -213,11 +223,12 @@ export const AuthView: React.FC<AuthViewProps> = ({
             last_name: nomText,
             full_name: `${prenomText} ${nomText}`.trim(),
             email: emailValue,
-            user_type: loginType, // Respect the selected loginType from the form tab!
-            type: loginType,
+            user_type: fbType,
+            type: fbType,
             plan: 'gratuit',
-            departement: 'Ouest',
-            commune: 'Pétion-Ville',
+            telephone: metaTel,
+            departement: metaDept,
+            commune: metaCommune,
             shop_name: shopNameVal || null,
             boutique: shopNameVal || null,
             boutique_nom: shopNameVal || null,
@@ -308,12 +319,19 @@ export const AuthView: React.FC<AuthViewProps> = ({
           };
         } else {
           // Profile fallback
+          justCreated = true;
+          const meta: any = (authData.user as any).user_metadata || {};
           const emailValue = authData.user.email || '';
           const parts = emailValue.split('@')[0].split('.');
-          const prenomText = parts[0] ? (parts[0].charAt(0).toUpperCase() + parts[0].slice(1)) : 'Acheteur';
-          const nomText = parts[1] ? (parts[1].charAt(0).toUpperCase() + parts[1].slice(1)) : 'Vendza';
+          const prenomText = String(meta.prenom || '').trim() || (parts[0] ? (parts[0].charAt(0).toUpperCase() + parts[0].slice(1)) : 'Acheteur');
+          const nomText = String(meta.nom || '').trim() || (parts[1] ? (parts[1].charAt(0).toUpperCase() + parts[1].slice(1)) : 'Vendza');
+          // Le type choisi à l'inscription (enregistré dans le compte) prime sur l'onglet de connexion.
+          const fbType: 'client' | 'vendeur' = (meta.type === 'vendeur' || meta.type === 'client') ? meta.type : loginType;
+          const metaTel = String(meta.tel || '');
+          const metaDept = String(meta.departement || '') || 'Ouest';
+          const metaCommune = String(meta.commune || '') || 'Pétion-Ville';
           
-          const shopNameVal = loginType === 'vendeur' ? `Boutique de ${prenomText}` : undefined;
+          const shopNameVal = fbType === 'vendeur' ? (String(meta.shopName || '').trim() || `Boutique de ${prenomText}`) : undefined;
 
           const autoPayload: any = {
             id: authData.user.id,
@@ -323,11 +341,12 @@ export const AuthView: React.FC<AuthViewProps> = ({
             last_name: nomText,
             full_name: `${prenomText} ${nomText}`.trim(),
             email: emailValue,
-            user_type: loginType, // Respect the selected loginType from the form tab!
-            type: loginType,
+            user_type: fbType,
+            type: fbType,
             plan: 'gratuit',
-            departement: 'Ouest',
-            commune: 'Pétion-Ville',
+            telephone: metaTel,
+            departement: metaDept,
+            commune: metaCommune,
             shop_name: shopNameVal || null,
             boutique: shopNameVal || null,
             boutique_nom: shopNameVal || null
@@ -343,27 +362,19 @@ export const AuthView: React.FC<AuthViewProps> = ({
             prenom: prenomText,
             nom: nomText,
             email: emailValue,
-            tel: '',
-            departement: 'Ouest',
-            commune: 'Pétion-Ville',
+            tel: metaTel,
+            departement: metaDept,
+            commune: metaCommune,
             shopName: shopNameVal,
-            userType: loginType,
+            userType: fbType,
             plan: 'Gratuit',
             premiumDepts: []
           };
         }
 
-        // Step 3.5 — Stocker le profil dans le state global
-        onLogin(loggedUser);
-
-        // Step 3.4 — Redirection selon le type
-        if (loggedUser.userType === 'vendeur') {
-          window.history.pushState({}, '', '/vendeur/tableau-de-bord-vendeur');
-          onNavigate('vendor-dashboard');
-        } else {
-          window.history.pushState({}, '', '/client/tableau-de-bord-client');
-          onNavigate('client-dashboard');
-        }
+        // Step 3.5 — Stocker le profil dans le state global ; l'application choisit la page d'arrivée
+        // (un seul changement de vue : plus de second appel de navigation qui renvoyait vers « auth »).
+        onLogin(loggedUser, { mode: justCreated ? 'signup' : 'login' });
       }
     } catch (err: any) {
       console.error("[Vendza Supabase Login Exception]", err);
@@ -405,7 +416,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
         email,
         password,
         options: {
-          data: { prenom, nom, type: signupType }
+          data: { prenom, nom, type: signupType, tel: tel || '', departement: dept, commune, shopName: signupType === 'vendeur' ? (shopName || '') : '' }
         }
       });
 
@@ -417,6 +428,22 @@ export const AuthView: React.FC<AuthViewProps> = ({
           errorMsg = "[[XCircle]] Cet email est déjà utilisé. Veuillez vous connecter ou utiliser un autre email.";
         }
         showNotice(errorMsg, 'error');
+        return;
+      }
+
+      // E-mail déjà utilisé quand la confirmation e-mail est active : Supabase renvoie un faux utilisateur sans identité.
+      if (authData && authData.user && !authData.session && Array.isArray((authData.user as any).identities) && (authData.user as any).identities.length === 0) {
+        showNotice("[[XCircle]] Cet email est déjà utilisé. Veuillez vous connecter ou utiliser un autre email.", 'error');
+        return;
+      }
+
+      // La confirmation par e-mail est exigée : pas de session tout de suite, donc pas de connexion ni de profil maintenant.
+      // Le profil est créé à la première connexion (avec les informations saisies ici) et mène alors au profil à compléter.
+      if (authData && authData.user && !authData.session) {
+        handleTabChange('login');
+        setLoginEmail(email);
+        setLoginType(signupType);
+        showNotice("[[CheckCircle2]] Compte créé. Un e-mail de confirmation vous a été envoyé : ouvrez-le pour confirmer votre adresse, puis connectez-vous ici.", 'success');
         return;
       }
 
@@ -500,18 +527,8 @@ export const AuthView: React.FC<AuthViewProps> = ({
           revenusBloques: 0
         };
 
-        // Force instant login
-        onLogin(loggedUser);
-
-        // Step 2.4 — Si type === 'vendeur' → rediriger vers /vendeur/onboarding
-        //            Si type === 'client' → rediriger vers le tableau de bord client
-        if (signupType === 'vendeur') {
-          window.history.pushState({}, '', '/vendeur/onboarding');
-          onNavigate('vendor-dashboard');
-        } else {
-          window.history.pushState({}, '', '/client/tableau-de-bord-client');
-          onNavigate('client-dashboard');
-        }
+        // Inscription : l'application envoie vers le profil à compléter.
+        onLogin(loggedUser, { mode: 'signup' });
       }
     } catch (err: any) {
       console.error("[Vendza Supabase SignUp Exception]", err);

@@ -15,6 +15,7 @@ import { MarketplaceHome, ProductGridCard } from './components/MarketplaceHome';
 import { ProductDetail } from './components/ProductDetail';
 import { CartView } from './components/CartView';
 import { ClientDashboard } from './components/ClientDashboard';
+import { postAuthRoute, routeFromPath, pathForView, isRoutedPath } from './lib/postAuthRoute';
 import { VendorDashboard } from './components/VendorDashboard';
 import { CreateProduct } from './components/CreateProduct';
 import { Subscription } from './components/Subscription';
@@ -60,8 +61,22 @@ export default function App() {
       const DEEP: Record<string, string> = { inscription: 'auth', connexion: 'auth', 'devenir-vendeur': 'become-seller', 'ventes-flash': 'flash-sales', conditions: 'terms', confidentialite: 'privacy', 'a-propos': 'about' };
       if (DEEP[page]) return DEEP[page];
     } catch {}
+    // Rechargement sur une adresse de destination (/client/..., /vendeur/...) : on reconnaît la vue,
+    // seulement si le compte enregistré est du bon type ; sinon l'écran de connexion.
+    try {
+      const routed = routeFromPath(window.location.pathname);
+      if (routed) {
+        const saved = JSON.parse(localStorage.getItem('vendza_current_user') || 'null');
+        if (!saved) return 'auth';
+        const wantsVendor = routed.view === 'vendor-dashboard' || routed.view === 'shop-settings';
+        if (wantsVendor === (saved.userType === 'vendeur')) return routed.view;
+      }
+    } catch {}
     return localStorage.getItem('vendza_current_view') || 'home';
   });
+  // Onglet d'arrivée du tableau de bord client (profil juste après l'inscription) et message d'accueil
+  const [dashboardTab, setDashboardTab] = useState<'dashboard' | 'profile'>(() => routeFromPath(window.location.pathname)?.clientTab || 'dashboard');
+  const [welcomeProfile, setWelcomeProfile] = useState<boolean>(false);
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     try {
@@ -1958,17 +1973,59 @@ export default function App() {
   };
 
   // Auth simulators
-  const handleLogin = (user: UserProfile) => {
-    // Determine appropriate dashboard based on user profile type
-    const targetView = user.userType === 'vendeur' ? 'vendor-dashboard' : 'client-dashboard';
-    
+  const handleLogin = (user: UserProfile, opts?: { mode: 'login' | 'signup' }) => {
+    // Un seul changement de vue, décidé ici (jamais via navigateTo : sa copie de currentUser est encore vide
+    // à cet instant et renverrait vers l'écran de connexion).
+    let pending = false;
+    try { pending = !!sessionStorage.getItem('pendingConfirm'); } catch {}
+    const route = postAuthRoute({ userType: user.userType, mode: opts?.mode || 'login', hasPendingConfirm: pending });
+
     // Synchronize to localStorage to make reload persistent
     localStorage.setItem('vendza_current_user', JSON.stringify(user));
-    localStorage.setItem('vendza_current_view', targetView);
-    
+    localStorage.setItem('vendza_current_view', route.view);
+
     setCurrentUser(user);
-    setCurrentView(targetView);
+    setDashboardTab(route.clientTab || 'dashboard');
+    setWelcomeProfile(route.welcome);
+    setCurrentView(route.view);
+    try {
+      window.history.pushState({ view: route.view }, '', route.url);
+      lastPushedViewRef.current = route.view;
+    } catch {}
+    window.scrollTo({ top: 0, behavior: 'instant' });
   };
+
+  // Filet de sécurité : utilisateur connecté mais encore sur l'écran de connexion (retour de Google,
+  // session retrouvée, confirmation e-mail) -> son tableau de bord. Jamais si un QR de livraison attend.
+  useEffect(() => {
+    if (!currentUser || currentView !== 'auth') return;
+    try { if (sessionStorage.getItem('pendingConfirm')) return; } catch {}
+    const route = postAuthRoute({ userType: currentUser.userType, mode: 'login' });
+    setDashboardTab(route.clientTab || 'dashboard');
+    setCurrentView(route.view);
+    try { window.history.replaceState({ view: route.view }, '', route.url); lastPushedViewRef.current = route.view; } catch {}
+  }, [currentUser, currentView]);
+
+  // L'adresse suit la vue pour les destinations connues (rechargement possible), sans toucher aux adresses avec paramètres.
+  const urlSyncFirst = useRef(true);
+  useEffect(() => {
+    if (urlSyncFirst.current) { urlSyncFirst.current = false; return; }
+    try {
+      if (window.location.search || window.location.hash) return;
+      const target = pathForView(currentView, dashboardTab);
+      if (target) {
+        if (window.location.pathname !== target) window.history.replaceState(window.history.state, '', target);
+      } else if (isRoutedPath(window.location.pathname)) {
+        window.history.replaceState(window.history.state, '', '/');
+      }
+    } catch {}
+  }, [currentView, dashboardTab]);
+
+  // Le message d'accueil et l'onglet profil ne durent que le temps de cette arrivée
+  useEffect(() => {
+    if (currentView !== 'client-dashboard' && dashboardTab !== 'dashboard') setDashboardTab('dashboard');
+    if (currentView !== 'client-dashboard' && currentView !== 'shop-settings' && welcomeProfile) setWelcomeProfile(false);
+  }, [currentView]);
 
   const handleLogout = async () => {
     if (isSupabaseConfigured && supabase) {
@@ -4462,8 +4519,24 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
             />
           )}
 
+          {welcomeProfile && currentUser && (currentView === 'shop-settings' || (currentView === 'client-dashboard' && dashboardTab === 'profile')) && (
+            <div className="mb-4 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+              <EIcon name="CheckCircle2" />
+              <div className="flex-1">
+                <p className="font-black">Bienvenue sur Vendza, {currentUser.prenom} !</p>
+                <p className="mt-1 text-xs leading-relaxed">
+                  {currentUser.userType === 'vendeur'
+                    ? "Votre compte est créé. Complétez maintenant votre boutique : photo, description, numéro MonCash et pièce d'identité."
+                    : "Votre compte est créé. Complétez votre profil : numéro de téléphone, commune et photo."}
+                </p>
+              </div>
+              <button onClick={() => setWelcomeProfile(false)} className="cursor-pointer text-xs font-bold text-emerald-700 underline">Fermer</button>
+            </div>
+          )}
+
           {currentView === 'client-dashboard' && (
             <ClientDashboard
+              initialTab={dashboardTab}
               orders={orders}
               user={currentUser}
               onNavigate={navigateTo}

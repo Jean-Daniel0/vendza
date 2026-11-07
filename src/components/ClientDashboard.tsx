@@ -20,6 +20,7 @@ interface ClientDashboardProps {
   cart?: CartItem[];
   onViewTicket?: (order: Order) => void;
   onOpenDispute?: (orderId: string, reason: string) => Promise<{ success: boolean; message: string }>;
+  initialTab?: 'dashboard' | 'profile';
 }
 
 export const ClientDashboard: React.FC<ClientDashboardProps> = ({
@@ -30,9 +31,10 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
   onUpdateProfile,
   cart = [],
   onViewTicket,
-  onOpenDispute
+  onOpenDispute,
+  initialTab = 'dashboard'
 }) => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'profile'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'profile'>(initialTab);
   const [selectedStatusTab, setSelectedStatusTab] = useState<string>('');
   const [viewingTicketOrder, setViewingTicketOrder] = useState<Order | null>(null);
 
