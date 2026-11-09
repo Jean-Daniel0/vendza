@@ -72,6 +72,15 @@
   ]
 }
     </script>
+    <!-- Écran de démarrage : recouvre le texte de secours pour les robots (qui reste dans la page) le temps que l'application se charge.
+         Retiré par src/main.tsx ; se retire seul après 8 s si l'application ne démarre pas ; jamais affiché sans JavaScript. -->
+    <style>
+      #vz-boot{position:fixed;inset:0;z-index:2147483647;background:#fff;display:flex;align-items:center;justify-content:center;animation:vz-boot-out .3s ease 8s forwards}
+      #vz-boot img{width:96px;height:96px;animation:vz-boot-pulse 1.4s ease-in-out infinite}
+      @keyframes vz-boot-pulse{0%,100%{opacity:.55}50%{opacity:1}}
+      @keyframes vz-boot-out{to{opacity:0;visibility:hidden}}
+    </style>
+    <noscript><style>#vz-boot{display:none}</style></noscript>
   </head>
   <body>
     <div id="root">
@@ -82,6 +91,7 @@
         <noscript><p>Activez JavaScript pour parcourir les produits Vendza.</p></noscript>
       </main><!--SEO_FALLBACK_END-->
     </div>
+    <div id="vz-boot" aria-hidden="true"><img src="/images/logo-vendza-loader.png" alt="" width="96" height="96" /></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -19,6 +19,8 @@ async function init() {
       <Root />
     </StrictMode>,
   );
+  // L'application est affichée : on retire l'écran de démarrage (après deux images, pour éviter un blanc).
+  requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById('vz-boot')?.remove()));
 }
 
 init();
