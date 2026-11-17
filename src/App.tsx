@@ -1358,6 +1358,17 @@ export default function App() {
         console.log(`[Payment Success Redirect] Processing callback for path: ${path}`);
         setIsVerifyingPayment(true); // show loading overlay during verification/polling
 
+        // MonCash direct : si MonCash a ajouté le transactionId à l'adresse de retour, le serveur le vérifie auprès de MonCash
+        // (au cas où la notification tarde). Sans effet quand MONCASH_PROVIDER n'est pas « direct ».
+        const moncashTx = urlParams.get('transactionId') || urlParams.get('transaction_id');
+        if (isMonCashSuccess && moncashTx) {
+          fetch('/api/moncash/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transactionId: moncashTx }),
+          }).catch(() => {});
+        }
+
         try {
           // If sessionId is present (Stripe), verify on backend first
           if (isStripeSuccess && sessionId) {
@@ -2295,7 +2306,7 @@ export default function App() {
       setIsRedirectingToMonCash(true);
       setRedirectPaymentMethod('moncash');
       try {
-        const response = await fetch('/api/bazik/create-payment', {
+        const response = await apiFetchAuthed('/api/bazik/create-payment', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -2686,7 +2697,7 @@ export default function App() {
       setIsRedirectingToMonCash(true);
       setRedirectPaymentMethod('moncash');
       try {
-        const response = await fetch('/api/bazik/create-payment', {
+        const response = await apiFetchAuthed('/api/bazik/create-payment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

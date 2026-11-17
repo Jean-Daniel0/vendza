@@ -70,9 +70,13 @@ export async function assertPaymentVerified(db: Db, order: any): Promise<Result 
   if (!ref) {
     return { status: 409, body: { error: 'Référence de paiement introuvable pour cette commande.' } };
   }
-  const { data: vp } = await db.from('verified_payments').select('reference, amount').eq('reference', ref).maybeSingle();
+  const { data: vp } = await db.from('verified_payments').select('reference, amount, payment_method').eq('reference', ref).maybeSingle();
   if (!vp) {
     return { status: 409, body: { error: 'Paiement non vérifié par le serveur pour cette commande : versement bloqué.' } };
+  }
+  // Paiement fait dans le bac à sable MonCash : aucun argent réel n'est entré, donc aucun versement ne doit sortir.
+  if (vp.payment_method === 'moncash_sandbox') {
+    return { status: 409, body: { error: 'Paiement de test (sandbox MonCash) : aucun versement possible.' } };
   }
   const paid = Number(vp.amount) || 0;
   if (paid > 0) {

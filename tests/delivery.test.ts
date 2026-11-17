@@ -103,6 +103,9 @@ let n = 0; const t = async (name: string, fn: () => Promise<void> | void) => { a
     assert.equal((await assertPaymentVerified(w.db, w.db.tables.orders[0]))?.status, 409);
     w.db.tables.verified_payments = [{ reference: 'MC-1', amount: 1200 }];
     assert.equal(await assertPaymentVerified(w.db, w.db.tables.orders[0]), null);
+    // paiement de test (sandbox MonCash) : jamais de versement, même avec le bon montant
+    w.db.tables.verified_payments = [{ reference: 'MC-1', amount: 1200, payment_method: 'moncash_sandbox' }];
+    assert.equal((await assertPaymentVerified(w.db, w.db.tables.orders[0]))?.status, 409);
   });
   await t('recordVerifiedPayment enregistre la référence racine', async () => {
     const db = new FakeDb(); await recordVerifiedPayment(db, { reference: 'MC-9_bz_abc', method: 'moncash', amount: 500 });
