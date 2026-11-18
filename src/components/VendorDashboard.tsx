@@ -14,6 +14,7 @@ import { ShopSettingsView } from './ShopSettingsView';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
 import { EIcon, RichText } from './EIcon';
+import { FounderCard } from './FounderCard';
 interface VendorDashboardProps {
   products: Product[];
   orders: Order[];
@@ -661,6 +662,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
       {/* ==================== 1. TAB: DASHBOARD ==================== */}
       {activeTab === 'dashboard' && (
         <div className="v-dash-container space-y-6">
+          <FounderCard />
           {/* Custom scoped style injector to render the provided mockup design exactly */}
           <style dangerouslySetInnerHTML={{ __html: `
             .v-dash-container {

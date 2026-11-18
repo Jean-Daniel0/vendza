@@ -10,7 +10,7 @@ import crypto from 'crypto';
 import { runFlashSale, runRecommendations } from './server/campaigns';
 import { haitiClock } from './server/marketing';
 import { runCartReminders, runLowStockAlerts } from './server/cartAlerts';
-import { commissionRate } from './src/lib/commission';
+import { effectiveCommissionRate, founderCategory, FOUNDER_TOTAL, FOUNDER_PER_CATEGORY, FOUNDER_MIN_PRODUCTS, FOUNDER_CATEGORIES, FOUNDER_MESSAGES } from './src/lib/founder';
 import { priceVendorOrder, promoPercent, isUnderpaid, isUnderpaidUsd, usdCents, cardFeeCents, belowCardMinimum, applyFxMargin, DbProduct } from './server/pricing';
 import { normalizePlan, normalizeBilling, planPriceHtg, decideActivation, stripePaidHtg, newSubscriptionRef, isUuid, isSubscriptionRef } from './server/subscriptions';
 import { resolveShippingFee } from './src/lib/shipping';
@@ -1168,7 +1168,7 @@ const creerCommandeApresPaiement = async (
       }
 
       const plan = (shop?.plan || 'gratuit').toLowerCase();
-      const rate = commissionRate(plan, paymentMethod);
+      const rate = effectiveCommissionRate(plan, paymentMethod, await isFounderAt(String(pendingOrder.vendor_id || '')));
       const total_price = Number(pendingOrder.total_price) || 0;
       const commission = total_price * rate;
       const montantVendeur = total_price - commission;
@@ -1789,6 +1789,18 @@ app.post('/api/bazik/webhook/payment', express.raw({ type: '*/*' }), async (req:
   }
 });
 
+// Programme fondateurs : la remise de 90 % vaut pour les commandes passées pendant la période de 90 jours du vendeur.
+// Si la table n'existe pas encore ou si la lecture échoue, le vendeur n'a simplement pas de remise (jamais d'erreur de paiement).
+async function isFounderAt(vendorId: string, at: Date = new Date()): Promise<boolean> {
+  if (!supabase || !vendorId) return false;
+  try {
+    const { data, error } = await supabase.from('founder_program').select('joined_at, expires_at').eq('vendor_id', vendorId).maybeSingle();
+    if (error || !data) return false;
+    const t = at.getTime();
+    return new Date(data.joined_at).getTime() <= t && t < new Date(data.expires_at).getTime();
+  } catch { return false; }
+}
+
 // Helper to calculate vendor payout amount based on order price and vendor shop plan
 async function getMontantVendeurForOrder(order: any): Promise<number> {
   const vendorId = order.vendor_id || order.vendeur_id || order.seller_id;
@@ -1808,7 +1820,8 @@ async function getMontantVendeurForOrder(order: any): Promise<number> {
     console.error('Error fetching shop plan for vendor payout:', err);
   }
 
-  const rate = commissionRate(plan, order.payment_method);
+  const orderAt = order.created_at ? new Date(order.created_at) : new Date();
+  const rate = effectiveCommissionRate(plan, order.payment_method, await isFounderAt(String(vendorId), orderAt));
   const totalPrice = Number(order.total_price || order.total || 0);
   const commission = totalPrice * rate;
   return totalPrice - commission;
@@ -2984,6 +2997,48 @@ if (supabase) app.get('/api/public/vendor-stats/:id', async (req, res) => {
     vendorStatsCache.set(id, { t: Date.now(), v });
     res.set('Cache-Control', 'public, max-age=120').json(v);
   } catch { res.status(500).json({ error: 'Statistiques indisponibles.' }); }
+});
+
+// ── Programme fondateurs ──
+// Compteur public des places (aucun nom de vendeur n'est exposé).
+if (supabase) app.get('/api/public/founder-spots', async (_req, res) => {
+  try {
+    const { data, error } = await supabase!.rpc('founder_spots');
+    if (error) return res.json({ total: FOUNDER_TOTAL, taken: 0, remaining: FOUNDER_TOTAL, perCategory: {}, available: false });
+    const perCategory: Record<string, { quota: number; taken: number }> = {};
+    FOUNDER_CATEGORIES.forEach(c => { perCategory[c] = { quota: FOUNDER_PER_CATEGORY, taken: 0 }; });
+    let taken = 0;
+    (data || []).forEach((r: any) => { taken += Number(r.taken) || 0; if (perCategory[r.category]) perCategory[r.category].taken = Number(r.taken) || 0; });
+    res.set('Cache-Control', 'public, max-age=30').json({ total: FOUNDER_TOTAL, taken, remaining: Math.max(0, FOUNDER_TOTAL - taken), perCategory, available: true });
+  } catch { res.status(500).json({ error: 'Compteur indisponible.' }); }
+});
+
+// Statut du vendeur connecté dans le programme.
+if (supabase) app.get('/api/founder/me', async (req, res) => {
+  const user = await getAuthedUser(req);
+  if (!user) return res.status(401).json({ error: 'Connexion requise.' });
+  try {
+    const { data } = await supabase!.from('founder_program').select('category, joined_at, expires_at').eq('vendor_id', user.id).maybeSingle();
+    res.set('Cache-Control', 'no-store').json({ member: !!data, ...(data || {}) });
+  } catch { res.json({ member: false }); }
+});
+
+// Réservation d'une place : conditions et quotas vérifiés dans la base, de façon atomique.
+if (supabase) app.post('/api/founder/claim', async (req, res) => {
+  const user = await getAuthedUser(req);
+  if (!user) return res.status(401).json({ error: 'Connexion requise.' });
+  try {
+    const { data: shop } = await supabase!.from('shops').select('categories').eq('vendor_id', user.id).maybeSingle();
+    if (!shop) return res.status(400).json({ error: "Crée d'abord ta boutique." });
+    const { data, error } = await supabase!.rpc('claim_founder_spot', {
+      p_vendor: user.id, p_category: founderCategory(shop.categories),
+      p_total: FOUNDER_TOTAL, p_per_category: FOUNDER_PER_CATEGORY, p_min_products: FOUNDER_MIN_PRODUCTS,
+    });
+    if (error) return res.status(503).json({ error: "Le programme n'est pas encore ouvert." });
+    const code = String(data);
+    if (code === 'ok') return res.json({ ok: true });
+    res.status(409).json({ ok: false, code, error: FOUNDER_MESSAGES[code] || 'Inscription impossible.' });
+  } catch { res.status(500).json({ error: 'Inscription impossible pour le moment.' }); }
 });
 // Page admin « Paiements » (remboursements, virements en attente, export, journal) : réservée à public.is_admin().
 if (supabase) registerAdminPaymentsRoutes(app, {
