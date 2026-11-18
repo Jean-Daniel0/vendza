@@ -13,7 +13,7 @@ import { runCartReminders, runLowStockAlerts } from './server/cartAlerts';
 import { effectiveCommissionRate, founderCategory, FOUNDER_TOTAL, FOUNDER_PER_CATEGORY, FOUNDER_MIN_PRODUCTS, FOUNDER_CATEGORIES, FOUNDER_MESSAGES } from './src/lib/founder';
 import { priceVendorOrder, promoPercent, isUnderpaid, isUnderpaidUsd, usdCents, cardFeeCents, belowCardMinimum, applyFxMargin, DbProduct } from './server/pricing';
 import { normalizePlan, normalizeBilling, planPriceHtg, decideActivation, stripePaidHtg, newSubscriptionRef, isUuid, isSubscriptionRef } from './server/subscriptions';
-import { resolveShippingFee } from './src/lib/shipping';
+import { resolveShippingFee, firstOrderShippingSubsidy } from './src/lib/shipping';
 import { registerSeoRoutes, runIndexNow } from './server/seoRoutes';
 import { registerSellerexRoutes, sellerexHostMiddleware } from './server/sellerexRoutes';
 import { registerAdminPaymentsRoutes } from './server/adminPayments';
@@ -1186,8 +1186,10 @@ const creerCommandeApresPaiement = async (
       const plan = (shop?.plan || 'gratuit').toLowerCase();
       const rate = effectiveCommissionRate(plan, paymentMethod, await isFounderAt(String(pendingOrder.vendor_id || '')));
       const total_price = Number(pendingOrder.total_price) || 0;
-      const commission = total_price * rate;
-      const montantVendeur = total_price - commission;
+      // Base de calcul = ce que le client a payé + la part de livraison offerte par Vendza : le vendeur reçoit comme si le client avait tout payé.
+      const baseVendeur = total_price + (Number(pendingOrder.shipping_subsidy) || 0);
+      const commission = baseVendeur * rate;
+      const montantVendeur = baseVendeur - commission;
 
       console.log(`[Webhook Sub] SubRefId=${subRefId}, Plan=${plan}, Rate=${rate}, Total=${total_price}, Comm=${commission}, VendorAmount=${montantVendeur}`);
 
@@ -1274,6 +1276,7 @@ const creerCommandeApresPaiement = async (
         frais_livraison: Number(pendingOrder.shipping_fee) || 0,
         shipping_fee: Number(pendingOrder.shipping_fee) || 0,
         discount: Number(pendingOrder.discount) || 0,
+        ...(Number(pendingOrder.shipping_subsidy) > 0 ? { shipping_subsidy: Number(pendingOrder.shipping_subsidy) } : {}),
         delivery_commune: pendingOrder.delivery_commune || '',
         delivery_address: pendingOrder.delivery_address || '',
         departement: pendingOrder.delivery_address || pendingOrder.departement || 'Ouest',
@@ -1894,6 +1897,31 @@ app.post('/api/moncash/verify', async (req, res) => {
   }
 });
 
+// Livraison offerte sur la 1re commande. N'est active que si la migration a été lancée (colonne shipping_subsidy présente
+// sur pending_orders ET orders) : sans elle, le vendeur serait mal versé. Résultat « prêt » mis en cache ; sinon on retente après 60 s.
+let shipSubsidyReady = false; let shipSubsidyCheckedAt = 0;
+async function firstOrderShippingReady(): Promise<boolean> {
+  if (shipSubsidyReady) return true;
+  if (!supabase || Date.now() - shipSubsidyCheckedAt < 60_000) return false;
+  shipSubsidyCheckedAt = Date.now();
+  try {
+    const [a, b] = await Promise.all([
+      supabase.from('pending_orders').select('shipping_subsidy').limit(1),
+      supabase.from('orders').select('shipping_subsidy').limit(1),
+    ]);
+    shipSubsidyReady = !a.error && !b.error;
+  } catch { shipSubsidyReady = false; }
+  return shipSubsidyReady;
+}
+// 1re commande = aucune commande passée avec ce compte. En cas de doute (erreur de lecture), pas de livraison offerte.
+async function isFirstOrderBuyer(buyerId: string): Promise<boolean> {
+  if (!supabase || !buyerId) return false;
+  try {
+    const r = await supabase.from('orders').select('id', { count: 'exact', head: true }).or(`buyer_id.eq.${buyerId},client_id.eq.${buyerId},customer_id.eq.${buyerId},user_id.eq.${buyerId}`);
+    return !r.error && (r.count ?? 1) === 0;
+  } catch { return false; }
+}
+
 // Programme fondateurs : la remise de 90 % vaut pour les commandes passées pendant la période de 90 jours du vendeur.
 // Si la table n'existe pas encore ou si la lecture échoue, le vendeur n'a simplement pas de remise (jamais d'erreur de paiement).
 async function isFounderAt(vendorId: string, at: Date = new Date()): Promise<boolean> {
@@ -1927,7 +1955,7 @@ async function getMontantVendeurForOrder(order: any): Promise<number> {
 
   const orderAt = order.created_at ? new Date(order.created_at) : new Date();
   const rate = effectiveCommissionRate(plan, order.payment_method, await isFounderAt(String(vendorId), orderAt));
-  const totalPrice = Number(order.total_price || order.total || 0);
+  const totalPrice = Number(order.total_price || order.total || 0) + (Number(order.shipping_subsidy) || 0);
   const commission = totalPrice * rate;
   return totalPrice - commission;
 }
@@ -2401,6 +2429,7 @@ app.post('/api/orders/pending', async (req, res) => {
   let total_price = clientTotal;
   let shipping_fee = clientShipping;
   let discount_amount = 0;
+  let shippingSubsidy = 0;
 
   if (!reference_id) {
     return res.status(400).json({ error: "reference_id est manquant" });
@@ -2432,9 +2461,13 @@ app.post('/api/orders/pending', async (req, res) => {
         return res.status(400).json({ error: priced.error });
       }
       items = priced.items;
-      total_price = priced.total;
       shipping_fee = priced.shipping;
       discount_amount = priced.discount;
+      // Livraison offerte sur la 1re commande : le client paie moins, Vendza prend la différence à sa charge (le vendeur reste versé en entier).
+      if (priced.shipping > 0 && await firstOrderShippingReady() && await isFirstOrderBuyer(caller.id)) {
+        shippingSubsidy = Math.min(priced.shipping, firstOrderShippingSubsidy(priced.shipping));
+      }
+      total_price = priced.total - shippingSubsidy;
     } else if (isValidUuid(String(vendor_id || ''))) {
       return res.status(400).json({ error: "Commande invalide : aucun produit." });
     }
@@ -2532,6 +2565,7 @@ app.post('/api/orders/pending', async (req, res) => {
     total_price: Number(total_price) || 0,
     shipping_fee: Number(shipping_fee) || 0,
     discount: discount_amount,
+    ...(shippingSubsidy > 0 ? { shipping_subsidy: shippingSubsidy } : {}),
     checkout_group_id: String(req.body.checkout_group_id || reference_id),
     delivery_commune: delivery_commune || '',
     delivery_address: delivery_address || '',
@@ -3102,6 +3136,14 @@ if (supabase) app.get('/api/public/vendor-stats/:id', async (req, res) => {
     vendorStatsCache.set(id, { t: Date.now(), v });
     res.set('Cache-Control', 'public, max-age=120').json(v);
   } catch { res.status(500).json({ error: 'Statistiques indisponibles.' }); }
+});
+
+// Le panier demande si la livraison offerte de la 1re commande s'applique à ce compte (affichage seulement : le serveur recalcule à la commande).
+if (supabase) app.get('/api/shipping/first-order', async (req, res) => {
+  const user = await getAuthedUser(req);
+  if (!user) return res.json({ eligible: false });
+  const eligible = (await firstOrderShippingReady()) && (await isFirstOrderBuyer(user.id));
+  res.set('Cache-Control', 'no-store').json({ eligible });
 });
 
 // ── Programme fondateurs ──

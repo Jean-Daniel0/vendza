@@ -227,9 +227,15 @@ export function registerAdminPaymentsRoutes(app: Express, deps: Deps) {
     const user = await needAdmin(req, res); if (!user) return;
     try {
       const rate = getLiveRate ? await withTimeout(getLiveRate(), 130, 4000) : 130;
-      const sum = (rows: any[] | null) => (rows || []).reduce((t, o) => t + (Number(o.total_price) || 0), 0);
-      const { data: done } = await supabase.from('orders').select('total_price').eq('status', 'completed').or('vendor_credited.is.null,vendor_credited.eq.false').limit(2000);
-      const { data: held } = await supabase.from('orders').select('total_price').eq('status', 'payee').or('vendor_credited.is.null,vendor_credited.eq.false').limit(2000);
+      // Ce qu'on doit aux vendeurs = ce que le client a payé + la part de livraison offerte par Vendza (colonne ajoutée par la migration 20261109 ; sans elle, on retombe sur le total payé).
+      const sum = (rows: any[] | null) => (rows || []).reduce((t, o) => t + (Number(o.total_price) || 0) + (Number(o.shipping_subsidy) || 0), 0);
+      const owedRows = async (status: string) => {
+        const q = (cols: string) => supabase.from('orders').select(cols).eq('status', status).or('vendor_credited.is.null,vendor_credited.eq.false').limit(2000);
+        const withSub = await q('total_price, shipping_subsidy');
+        return withSub.error ? (await q('total_price')).data : withSub.data;
+      };
+      const done = await owedRows('completed');
+      const held = await owedRows('payee');
       let bazikHtg: number | null = null;
       if (getBazikBalance) { const b = await withTimeout(getBazikBalance(), { ok: false as const, status: 0 }); if (b.ok) bazikHtg = extractBalance(b.data); }
       const st = getStripeBalance ? await withTimeout(getStripeBalance(), { ok: false as const }) : ({ ok: false } as const);
