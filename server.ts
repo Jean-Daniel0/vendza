@@ -21,6 +21,8 @@ import { createAdminGuard, auditMiddleware, classifyAdminPath, adminHeaders, isV
 import { registerAdminRoutes } from './server/adminRoutes';
 import { normalizeMoncashNumber } from './server/moncash';
 import { reconcileMoncashPayments } from './server/bazikReconcile';
+import { loadEmailConfig } from './server/email';
+import { notifyOrderConfirmed, notifyDeliveryConfirmed, notifyPayoutSent, notifyPayoutFailed, notifyRefundPaid, notifyWelcome } from './server/emailEvents';
 import { moncashConfig, shouldUseDirect, makeMoncashOrderId, createMoncashClient, confirmMoncashPayment } from './server/moncashDirect';
 import { isSellerexHostname, sellerexHtml } from './server/sellerexCore';
 import { corsOriginFor } from './server/cors';
@@ -66,6 +68,10 @@ const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABA
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey;
 const isSupabaseConfigured = !!(supabaseUrl && supabaseKey);
 const supabase = isSupabaseConfigured ? createClient(supabaseUrl, supabaseKey) : null;
+
+// E-mails transactionnels (Resend). Désactivés tant que RESEND_API_KEY et EMAIL_FROM ne sont pas définis sur Render.
+const emailDeps = () => ({ db: supabase, cfg: loadEmailConfig(), adminEmail: (process.env.ADMIN_NOTIFY_EMAIL || '').trim() || undefined });
+const fireEmail = (p: Promise<unknown>) => { p.catch((e: any) => console.warn('[Email] ignoré:', e?.message)); };
 
 // Route de santé pour la surveillance externe : 200 si le serveur et la base répondent, 503 sinon. Aucune donnée sensible.
 app.get('/healthz', async (_req, res) => {
@@ -1511,6 +1517,11 @@ const creerCommandeApresPaiement = async (
       } catch (pushErr: any) {
         console.error("[Webhook Push Error] Failed to send push notification from backend webhook:", pushErr.message);
       }
+
+      // 8b. E-mails : reçu à l'acheteur, nouvelle commande au vendeur (jamais bloquant, jamais en double)
+      try {
+        if (supabase) fireEmail(notifyOrderConfirmed(emailDeps(), { ...orderPayload, ...(orderStored || {}) }, cleanBuyerId, cleanVendorId));
+      } catch (mailErr: any) { console.warn('[Webhook Email] ignoré:', mailErr?.message); }
     }
 
     // Also clean up any parent pending order reference if it exists
@@ -2020,11 +2031,8 @@ app.post('/api/bazik/webhook/transfer', express.raw({ type: '*/*' }), async (req
             })
             .eq('id', orderId);
 
-          if (updateErr) {
-            console.error(`[Bazik Transfer Webhook] Error updating vendor_credited in DB:`, updateErr.message);
-          } else {
-            console.log(`[Bazik Transfer Webhook] Vendor credited updated to true in DB for order: ${orderId}`);
-          }
+
+          if (!updateErr && supabase) fireEmail(notifyPayoutSent(emailDeps(), orderId, vendorId, finalAmount));
 
           if (vendorId) {
             // Update vendor wallet (transfer from pending_balance to available_balance)
@@ -2088,6 +2096,8 @@ app.post('/api/bazik/webhook/transfer', express.raw({ type: '*/*' }), async (req
           .select('vendor_id, vendor_credited')
           .eq('id', orderId)
           .maybeSingle();
+
+        if (supabase) fireEmail(notifyPayoutFailed(emailDeps(), String(orderId), failureReason));
 
         // Le virement a échoué chez Bazik (aucun argent envoyé) : on libère le verrou anti double-virement, sinon la relance
         // serait refusée pour toujours. Jamais si la commande est déjà créditée (notification périmée ou rejouée).
@@ -2394,6 +2404,15 @@ app.get('/api/orders/:orderId/delivery-code', async (req, res) => {
   return res.status(r.status).json(r.body);
 });
 
+// E-mail de bienvenue : une seule fois par compte (la clé anti-doublon est l'identifiant du compte). Réservé au titulaire de la session.
+app.post('/api/email/welcome', async (req, res) => {
+  const caller = await getAuthedUser(req);
+  if (!caller) return res.status(401).json({ error: 'Authentification requise.' });
+  if (!supabase) return res.json({ ok: true, sent: false });
+  const out = await notifyWelcome(emailDeps(), caller.id, req.body?.vendor === true);
+  return res.json({ ok: true, sent: out === 'sent' });
+});
+
 // L'ACHETEUR confirme la réception en scannant le QR du vendeur (code de livraison obligatoire) : transition atomique + virement au vendeur.
 app.post('/api/orders/confirm-delivery', async (req, res) => {
   const { orderId, code } = req.body || {};
@@ -2406,6 +2425,7 @@ app.post('/api/orders/confirm-delivery', async (req, res) => {
       { db: supabase, payout: (order: any) => executeVendorPayout(order) },
       { orderId, callerId: caller.id, code }
     );
+    if (r.status === 200 && supabase) fireEmail(notifyDeliveryConfirmed(emailDeps(), orderId));
     return res.status(r.status).json(r.body);
   } catch (err: any) {
     console.error('[Confirm Delivery Exception]', err.message);
@@ -3189,7 +3209,8 @@ if (supabase) app.post('/api/founder/claim', async (req, res) => {
 });
 // Page admin « Paiements » (remboursements, virements en attente, export, journal) : réservée à public.is_admin().
 if (supabase) registerAdminPaymentsRoutes(app, {
-  supabase, getAuthedUser, guard: adminGuard,
+  supabase, getAuthedUser,
+  onRefundPaid: (r: { id: string; buyer_id?: string | null; amount: number; reference?: string; method?: 'moncash' | 'card' }) => fireEmail(notifyRefundPaid(emailDeps(), r.id, r.buyer_id, r.amount, r.reference, r.method)), guard: adminGuard,
   makeUserClient: (token: string) => createClient(supabaseUrl, supabaseAnonKey, {
     global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false },
   }),

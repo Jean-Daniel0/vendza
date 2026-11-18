@@ -142,6 +142,8 @@ type Deps = {
   getBazikBalance?: () => Promise<{ ok: true; data: any } | { ok: false; status: number }>;
   /** Vérifie chez Bazik les paiements MonCash récents sans commande (notification perdue) et crée les commandes manquantes. */
   reconcilePayments?: () => Promise<Record<string, unknown> & { fulfilled: string[] }>;
+  /** Appelé après un remboursement marqué payé (e-mail à l'acheteur). */
+  onRefundPaid?: (r: { id: string; buyer_id?: string | null; amount: number; reference?: string; method?: 'moncash' | 'card' }) => void;
   /** GET /transfers/{id} de Bazik (lecture seule). */
   getTransfer?: (transactionId: string) => Promise<{ ok: true; data: any } | { ok: false; status: number }>;
   /** Remboursement sur la carte via Stripe (clé d'idempotence = identifiant du remboursement : un seul remboursement possible par demande). */
@@ -154,7 +156,7 @@ type Deps = {
 };
 
 export function registerAdminPaymentsRoutes(app: Express, deps: Deps) {
-  const { supabase, getAuthedUser, makeUserClient, getBazikBalance, reconcilePayments, getTransfer, refundCard, getLiveRate, getStripeBalance, guard } = deps;
+  const { supabase, getAuthedUser, makeUserClient, getBazikBalance, reconcilePayments, getTransfer, onRefundPaid, refundCard, getLiveRate, getStripeBalance, guard } = deps;
   const base = '/api/admin/payments';
 
   // Une seule source de vérité pour « qui est admin » : la fonction public.is_admin() de la base (la même que pour les règles RLS).
@@ -334,7 +336,7 @@ export function registerAdminPaymentsRoutes(app: Express, deps: Deps) {
       ? { status: 'paid', paid_at: new Date().toISOString(), note: [v.value.reference && `MonCash ${v.value.reference}`, v.value.note].filter(Boolean).join(' — ') }
       : { status: 'rejected', note: v.value.note };
     // Transition atomique : seule une demande encore « pending » peut être tranchée (deux clics, ou deux admins : un seul gagne).
-    const { data: row, error } = await supabase.from('refunds').update(patch).eq('id', id).eq('status', 'pending').select('id, order_id, amount').maybeSingle();
+    const { data: row, error } = await supabase.from('refunds').update(patch).eq('id', id).eq('status', 'pending').select('id, order_id, amount, buyer_id').maybeSingle();
     if (error) return res.status(500).json({ error: 'Mise à jour impossible.' });
     if (!row) return res.status(409).json({ error: 'Cette demande a déjà été traitée (ou n\'existe pas).' });
     const { error: logErr } = await supabase.from('admin_payment_log').insert({
@@ -342,6 +344,7 @@ export function registerAdminPaymentsRoutes(app: Express, deps: Deps) {
       refund_id: row.id, order_id: row.order_id, amount: row.amount, reference: v.value.reference || null, note: v.value.note || null,
     });
     if (logErr) console.error('[AdminPayments] journal non écrit pour le remboursement', row.id, logErr.message);
+    if (kind === 'paid') { try { onRefundPaid?.({ id: row.id, buyer_id: row.buyer_id, amount: Number(row.amount) || 0, reference: v.value.reference }); } catch { /* l'e-mail ne bloque jamais */ } }
     res.json({ ok: true, logged: !logErr });
   };
   // Remboursement sur la carte du client (commandes payées par Stripe)
@@ -372,6 +375,7 @@ export function registerAdminPaymentsRoutes(app: Express, deps: Deps) {
     // Tant que la migration 20261104 n'est pas appliquée, la base refuse la nouvelle action : on journalise comme « remboursement payé »
     if (logErr) ({ error: logErr } = await supabase.from('admin_payment_log').insert({ ...logRow, action: 'refund_paid' }));
     if (logErr) console.error('[AdminPayments] journal non écrit pour le remboursement carte', refund.id, logErr.message);
+    if (row) { try { onRefundPaid?.({ id: refund.id, buyer_id: refund.buyer_id, amount: Number(refund.amount) || 0, method: 'card' }); } catch { /* l'e-mail ne bloque jamais */ } }
     res.json({ ok: true, usd: Number(usd), stripe_refund_id: r.id, already: !row, logged: !logErr });
   });
   app.post(`${base}/refunds/:id/paid`, decide('paid'));
