@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShoppingBag, MapPin, Tag, ArrowRight, Home, Trash2, ShieldCheck, Ticket, CreditCard, Smartphone } from 'lucide-react';
 import { CartItem, UserProfile, Product, Order } from '../types';
 import { HAITIAN_ZONES } from '../data';
 import { isLowStock } from '../lib/cartSync';
-import { resolveShippingFee, ShippingConfig } from '../lib/shipping';
+import { resolveShippingFee, ShippingConfig, firstOrderShippingSubsidy } from '../lib/shipping';
+import { apiFetchAuthed } from '../lib/api';
 
 import { EIcon, RichText } from './EIcon';
 interface CartViewProps {
@@ -42,6 +43,14 @@ export const CartView: React.FC<CartViewProps> = ({
   const [showSummary, setShowSummary] = useState<boolean>(false);
   const [pendingPaymentMethod, setPendingPaymentMethod] = useState<'stripe' | 'moncash' | null>(null);
 
+  // Livraison offerte sur la 1re commande : le serveur dit si ce compte y a droit (il recalcule tout à la commande).
+  const [firstOrder, setFirstOrder] = useState<boolean>(false);
+  useEffect(() => {
+    let alive = true;
+    apiFetchAuthed('/api/shipping/first-order').then(r => r.json()).then(d => { if (alive) setFirstOrder(d?.eligible === true); }).catch(() => {});
+    return () => { alive = false; };
+  }, [user?.id]);
+
   const cartTotalQty = cart.reduce((acc, item) => acc + item.quantity, 0);
   
   // Calculate raw subtotal
@@ -58,6 +67,7 @@ export const CartView: React.FC<CartViewProps> = ({
   const vendorGroups: VendorGroup[] = Object.keys(groupMap).map(k => groupMap[k]);
   vendorGroups.forEach(g => { g.fee = selectedCommune ? resolveShippingFee(vendorShipping[g.vendorId], selectedDept, selectedCommune) : 0; });
   const shippingFee = vendorGroups.reduce((sum, g) => sum + g.fee, 0);
+  const shippingSubsidy = firstOrder ? vendorGroups.reduce((sum, g) => sum + Math.min(g.fee, firstOrderShippingSubsidy(g.fee)), 0) : 0;
 
   // Promo validating list
   const applyPromo = () => {
@@ -83,7 +93,7 @@ export const CartView: React.FC<CartViewProps> = ({
 
   // Même arrondi que le serveur : promotion calculée vendeur par vendeur
   const discountAmount = vendorGroups.reduce((sum, g) => sum + Math.round((g.subtotal * discountPercent) / 100), 0);
-  const finalTotal = subtotal + shippingFee - discountAmount;
+  const finalTotal = subtotal + shippingFee - shippingSubsidy - discountAmount;
 
   // Handle order checkout
   const handleCheckout = (paymentMethod: 'stripe' | 'moncash') => {
@@ -235,6 +245,12 @@ export const CartView: React.FC<CartViewProps> = ({
                   <span className="font-mono">{g.fee ? `${g.fee.toLocaleString('fr-FR')} Gdes` : 'Gratuit'}</span>
                 </div>
               ))}
+              {shippingSubsidy > 0 && (
+                <div className="flex justify-between text-emerald-600 font-bold">
+                  <span>Livraison offerte (1re commande)</span>
+                  <span className="font-mono">-{shippingSubsidy.toLocaleString('fr-FR')} Gdes</span>
+                </div>
+              )}
               {discountAmount > 0 && (
                 <div className="flex justify-between text-emerald-600 font-bold">
                   <span>Code coupon appliqué</span>

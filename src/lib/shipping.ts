@@ -31,3 +31,13 @@ export function sanitizeFees(input: Record<string, unknown>): Record<string, num
   Object.entries(input || {}).slice(0, 60).forEach(([k, v]) => { const n = clean(v); if (n !== null && k.trim()) out[k.trim()] = n; });
   return out;
 }
+
+// Livraison offerte sur la 1re commande d'un client : Vendza prend en charge les 250 premières gourdes de livraison
+// et la moitié du reste. Le vendeur reçoit toujours la livraison en entier ; seul le client paie moins.
+export const FIRST_ORDER_FREE_SHIPPING = 250;
+export const FIRST_ORDER_SHARE_ABOVE = 0.5;
+export function firstOrderShippingSubsidy(fee: number): number {
+  const f = Math.max(0, Math.round(Number(fee) || 0));
+  if (f <= FIRST_ORDER_FREE_SHIPPING) return f;
+  return Math.round(FIRST_ORDER_FREE_SHIPPING + (f - FIRST_ORDER_FREE_SHIPPING) * FIRST_ORDER_SHARE_ABOVE);
+}
