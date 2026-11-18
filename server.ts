@@ -21,6 +21,7 @@ import { createAdminGuard, auditMiddleware, classifyAdminPath, adminHeaders, isV
 import { registerAdminRoutes } from './server/adminRoutes';
 import { normalizeMoncashNumber } from './server/moncash';
 import { reconcileMoncashPayments } from './server/bazikReconcile';
+import { moncashConfig, shouldUseDirect, makeMoncashOrderId, createMoncashClient, confirmMoncashPayment } from './server/moncashDirect';
 import { isSellerexHostname, sellerexHtml } from './server/sellerexCore';
 import { corsOriginFor } from './server/cors';
 import { runEscrowAutoRelease } from './server/escrowRelease';
@@ -119,8 +120,7 @@ if (isSupabaseConfigured && supabase) {
   })();
 }
 
-// ====================================================================
-// REAL-TIME MESSAGE LISTENER FOR SECURE ONESIGNAL PUSH NOTIFICATIONS
+// =============================================================// REAL-TIME MESSAGE LISTENER FOR SECURE ONESIGNAL PUSH NOTIFICATIONS
 // ====================================================================
 if (isSupabaseConfigured && supabase) {
   console.log("[Server Realtime Push] Initializing message database listener...");
@@ -300,6 +300,22 @@ function isProduction(): boolean {
 }
 function allowUnsignedWebhooks(): boolean {
   return process.env.ALLOW_UNSIGNED_WEBHOOKS === 'true';
+}
+
+// L'appelant est-il admin ? Même source de vérité que les pages admin : la fonction public.is_admin() de la base, posée avec SON jeton.
+async function isAdminRequest(req: express.Request): Promise<boolean> {
+  try {
+    const user = await getAuthedUser(req);
+    if (!user) return false;
+    const token = String(req.headers.authorization || '').slice(7).trim();
+    const client = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data, error } = await client.rpc('is_admin');
+    return !error && data === true;
+  } catch {
+    return false;
+  }
 }
 
 // Authentifie l'appelant via le jeton Supabase (Authorization: Bearer <access_token>)
@@ -1575,6 +1591,26 @@ app.post('/api/bazik/create-payment', async (req, res) => {
     return res.status(400).json({ error: "MonCash est limité à 75 000 HTG par paiement. Payez par carte bancaire, ou répartissez votre panier en plusieurs commandes." });
   }
 
+  // MonCash direct (sans Bazik) : interrupteur MONCASH_PROVIDER. En sandbox, réservé à l'admin ; les clients restent sur Bazik.
+  // Les abonnements passent toujours par Bazik pour l'instant.
+  {
+    const mc = moncashConfig();
+    if (mc.provider === 'direct' && !isSubscription) {
+      const adminCaller = mc.mode === 'live' ? false : await isAdminRequest(req);
+      if (shouldUseDirect({ provider: mc.provider, mode: mc.mode, isAdmin: adminCaller, isSubscription })) {
+        try {
+          const moncashOrderId = makeMoncashOrderId(String(orderId));
+          const { redirectUrl } = await createMoncashClient(mc).createPayment({ amount: numericAmount, orderId: moncashOrderId });
+          console.log(`[MonCash direct] Paiement créé (${mc.mode}) pour la commande ${orderId} : ${numericAmount} HTG`);
+          return res.json({ payment_url: redirectUrl, expires_at: null, reference_id: orderId, provider: 'moncash_direct', mode: mc.mode });
+        } catch (err: any) {
+          console.error('[MonCash direct] Création du paiement impossible :', err?.message);
+          return res.status(502).json({ error: "Le paiement MonCash est momentanément indisponible. Réessayez dans un instant." });
+        }
+      }
+    }
+  }
+
   // Check if Bazik is configured
   const secretKey = process.env.BAZIK_SECRET_KEY || '';
   const isPlaceholderKey = !secretKey || secretKey === "sk_proj_..." || secretKey.trim() === "";
@@ -1786,6 +1822,75 @@ app.post('/api/bazik/webhook/payment', express.raw({ type: '*/*' }), async (req:
   } catch (err: any) {
     console.error('[Bazik Payment Webhook Exception]', err.message);
     return res.status(200).send('Handled with exception: ' + err.message);
+  }
+});
+
+// ---------- MonCash direct : notification (Return Url) et vérification ----------
+// L'appelant n'est jamais cru sur parole : on redemande le paiement à MonCash et la commande est lue dans SA réponse.
+const pickField = (src: any, names: string[]): string => {
+  for (const n of names) {
+    const v = src?.[n];
+    if (typeof v === 'string' && v.trim()) return v.trim().slice(0, 120);
+    if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+  }
+  return '';
+};
+
+async function confirmAndCreateMoncashOrder(input: { transactionId?: string; orderRef?: string }): Promise<{ status: 'paid' | 'unpaid' | 'invalid' | 'already'; orderId?: string }> {
+  const mc = moncashConfig();
+  const result = await confirmMoncashPayment(createMoncashClient(mc), input);
+  if (result.status !== 'paid') return { status: result.status };
+  // Paiement de test : méthode distincte, ce qui BLOQUE tout versement au vendeur (voir assertPaymentVerified).
+  const method = mc.mode === 'sandbox' ? 'moncash_sandbox' : 'moncash';
+  if (isSupabaseConfigured && supabase) {
+    const { data: existing } = await supabase.from('orders').select('id').eq('payment_reference', result.rootOrderId).limit(1);
+    if (existing && existing.length > 0) return { status: 'already', orderId: result.rootOrderId };
+  }
+  await creerCommandeApresPaiement(result.rootOrderId, method, result.transactionId, result.amount);
+  return { status: 'paid', orderId: result.rootOrderId };
+}
+
+const moncashHits = new Map<string, number[]>();
+function moncashRateLimited(ip: string, max = 30, windowMs = 60_000): boolean {
+  const now = Date.now();
+  const recent = (moncashHits.get(ip) || []).filter(t => now - t < windowMs);
+  recent.push(now); moncashHits.set(ip, recent);
+  if (moncashHits.size > 5000) for (const [k, v] of moncashHits) if (!v.some(t => now - t < windowMs)) moncashHits.delete(k);
+  return recent.length > max;
+}
+
+// MonCash appelle cette adresse (Return Url du portail). Le contenu exact n'étant pas garanti, on accepte corps JSON/formulaire ET paramètres d'adresse.
+app.all('/api/moncash/notify', async (req, res) => {
+  if (moncashConfig().provider !== 'direct') return res.status(200).send('ok');
+  const ip = String(req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim();
+  if (moncashRateLimited(ip, 60)) return res.status(429).send('Trop de requêtes');
+  try {
+    const src = { ...(req.query as any), ...(req.body && typeof req.body === 'object' ? req.body : {}) };
+    console.log('[MonCash notify] reçu, champs :', Object.keys(src).slice(0, 15).join(','));
+    const transactionId = pickField(src, ['transactionId', 'transaction_id', 'transactionID']);
+    const orderRef = pickField(src, ['orderId', 'order_id', 'reference']);
+    const r = await confirmAndCreateMoncashOrder({ transactionId, orderRef });
+    console.log('[MonCash notify] résultat :', r.status, r.orderId || '');
+    return res.status(200).send('ok');
+  } catch (err: any) {
+    console.error('[MonCash notify] erreur :', err?.message);
+    return res.status(500).send('Erreur temporaire');
+  }
+});
+
+// Appelée par la page de succès avec le transactionId reçu dans l'adresse (si MonCash l'ajoute) : même vérification, au cas où la notification tarde.
+app.post('/api/moncash/verify', async (req, res) => {
+  if (moncashConfig().provider !== 'direct') return res.json({ status: 'disabled' });
+  const ip = String(req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim();
+  if (moncashRateLimited(ip, 20)) return res.status(429).json({ error: 'Trop de requêtes' });
+  try {
+    const transactionId = pickField(req.body, ['transactionId', 'transaction_id']);
+    if (!transactionId) return res.status(400).json({ error: 'transactionId requis' });
+    const r = await confirmAndCreateMoncashOrder({ transactionId });
+    return res.json({ status: r.status });
+  } catch (err: any) {
+    console.error('[MonCash verify] erreur :', err?.message);
+    return res.status(502).json({ error: 'Vérification momentanément indisponible.' });
   }
 });
 
