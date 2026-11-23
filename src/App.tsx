@@ -32,6 +32,7 @@ import { BecomeSellerView } from './components/BecomeSellerView';
 import { TicketDetailView } from './components/TicketDetailView';
 import { CheckoutReturn } from './components/CheckoutReturn';
 import { InstallBanner } from './components/InstallBanner';
+import { FounderPromoPopup } from './components/FounderPromoPopup';
 import { PWAUpdater } from './components/PWAUpdater';
 
 import { Product, CartItem, Order, Review, Message, UserProfile } from './types';
@@ -4299,6 +4300,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
       
       {/* Dynamic PWA Custom Install Banner */}
       <InstallBanner />
+      <FounderPromoPopup userId={currentUser?.id} isVendor={currentUser?.type === 'vendeur' || currentUser?.user_type === 'vendeur'} onOpen={() => navigateTo('vendor-dashboard')} />
       <PWAUpdater />
 
       {/* App Header layout block */}
@@ -4677,6 +4679,7 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
               initialRecipientNom={activeChatRecipientNom}
               initialProductId={activeChatProductId}
               onProductMentioned={() => setActiveChatProductId(null)}
+              onOpenFounder={() => navigateTo('vendor-dashboard')}
             />
           )}
 
