@@ -38,6 +38,15 @@ services:
         description: "Clé secrète Bazik"
       - key: BAZIK_WEBHOOK_SECRET
         sync: false
+      # E-mails transactionnels (Resend). Sans RESEND_API_KEY et EMAIL_FROM, aucun e-mail n'est envoyé.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: EMAIL_REPLY_TO
+        sync: false
+      - key: ADMIN_NOTIFY_EMAIL
+        sync: false
         description: "Secret webhook Bazik depuis Dashboard → Developers → Credentials"
       - key: BAZIK_ENV
         value: sandbox
