@@ -11,6 +11,7 @@ import { LogoLoader } from './components/LogoLoader';
 import { usePushStatus } from './lib/pushStatus';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
+import { SettingsView } from './components/SettingsView';
 import { MarketplaceHome, ProductGridCard } from './components/MarketplaceHome';
 import { ProductDetail } from './components/ProductDetail';
 import { CartView } from './components/CartView';
@@ -1960,7 +1961,7 @@ export default function App() {
 
   // Handle active navigation
   const navigateTo = (view: string) => {
-    const protectedViews = ['client-dashboard', 'vendor-dashboard', 'create-product', 'subscription', 'scanner', 'inbox'];
+    const protectedViews = ['client-dashboard', 'vendor-dashboard', 'create-product', 'subscription', 'scanner', 'inbox', 'settings'];
     
     // Automatically log in or adapt user role to prevent any restriction alerts
     if (protectedViews.includes(view)) {
@@ -4609,6 +4610,20 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
                 />
               ) : null;
             })()
+          )}
+
+          {currentView === 'settings' && currentUser && (
+            <SettingsView
+              user={currentUser}
+              onNavigate={navigateTo}
+              onEditProfile={() => {
+                if (currentUser.userType === 'vendeur') { navigateTo('shop-settings'); return; }
+                setDashboardTab('profile');
+                navigateTo('client-dashboard');
+              }}
+              onPrefsChanged={(patch) => setCurrentUser(u => (u ? ({ ...u, ...patch } as any) : u))}
+              onLogout={handleLogout}
+            />
           )}
 
           {currentView === 'shop-settings' && currentUser && (

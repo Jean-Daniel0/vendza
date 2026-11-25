@@ -3,7 +3,7 @@ import {
   Home, ShoppingBag, Receipt, ShieldCheck, 
   LayoutDashboard, Package, FolderPlus, CreditCard, 
   MessageSquare, User2, LogIn, LogOut, X, MapPin, 
-  TrendingUp, RefreshCw, Store, Database, HelpCircle
+  TrendingUp, RefreshCw, Store, Database, HelpCircle, Settings
 } from 'lucide-react';
 import { UserProfile, CartItem } from '../types';
 
@@ -365,6 +365,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             </div>
           )}
+        {user && (
+          <div className="px-2 pb-3">
+            <button
+              onClick={() => menuClick('settings')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition cursor-pointer ${
+                currentView === 'settings'
+                  ? 'bg-slate-100 text-slate-800 font-bold'
+                  : 'text-[#5a6480] hover:bg-slate-50'
+              }`}
+            >
+              <Settings size={15} className={currentView === 'settings' ? 'text-slate-700' : 'text-slate-400'} />
+              <span>Paramètres</span>
+            </button>
+          </div>
+        )}
+
         </div>
 
         {/* Global Footer inside Sidebar */}

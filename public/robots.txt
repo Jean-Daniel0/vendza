@@ -3,5 +3,6 @@ Allow: /
 Disallow: /api/
 Disallow: /checkout/
 Disallow: /panier/
+Disallow: /parametres
 
 Sitemap: https://www.vendza.store/sitemap.xml

@@ -39,6 +39,7 @@ export function routeFromPath(pathname: string): { view: string; clientTab?: 'da
     case '/client/profil': return { view: 'client-dashboard', clientTab: 'profile' };
     case '/vendeur/tableau-de-bord-vendeur': return { view: 'vendor-dashboard' };
     case '/vendeur/profil': return { view: 'shop-settings' };
+    case '/parametres': return { view: 'settings' };
     default: return null;
   }
 }
@@ -48,6 +49,7 @@ export function pathForView(view: string, clientTab: 'dashboard' | 'profile' = '
   if (view === 'client-dashboard') return clientTab === 'profile' ? '/client/profil' : '/client/tableau-de-bord-client';
   if (view === 'vendor-dashboard') return '/vendeur/tableau-de-bord-vendeur';
   if (view === 'shop-settings') return '/vendeur/profil';
+  if (view === 'settings') return '/parametres';
   return null;
 }
 
