@@ -24,8 +24,8 @@ export function useFounderOffer(userId?: string, isVendor?: boolean) {
 export const FounderInviteCard: React.FC<{ remaining: number; onCta: () => void; ctaLabel?: string; busy?: boolean; onClose?: () => void }> = ({ remaining, onCta, ctaLabel = 'Réserver ma place', busy, onClose }) => (
   <div className="relative overflow-hidden rounded-2xl bg-[#0c1445] text-white shadow-lg" style={{ containerType: 'inline-size' }}>
     <img src="/images/programme-fondateurs.webp" alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-    <div className="absolute inset-0 bg-gradient-to-r from-[#0c1445]/90 via-[#0c1445]/60 to-transparent sm:from-transparent sm:via-transparent" />
-    <div className="relative flex min-h-[190px] flex-col justify-center gap-2 p-4 sm:min-h-0 sm:w-[58%] sm:p-6 sm:py-8">
+    <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(12,20,69,0.96)_0%,rgba(12,20,69,0.88)_55%,rgba(12,20,69,0.35)_72%,transparent_90%)] sm:bg-[linear-gradient(to_right,rgba(12,20,69,0.9)_0%,rgba(12,20,69,0.75)_48%,transparent_68%)]" />
+    <div className="relative flex min-h-[190px] w-[68%] flex-col justify-center gap-2 p-4 sm:min-h-0 sm:w-[52%] sm:p-6 sm:py-8">
       <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-amber-300">Programme fondateurs</p>
       <h3 className="text-lg font-black leading-tight sm:text-2xl">Rejoins les {FOUNDER_TOTAL} premiers vendeurs de Vendza</h3>
       <p className="text-xs text-blue-100 sm:text-sm">Commission réduite de 90 % pendant {FOUNDER_DAYS} jours. Il reste <b className="text-amber-300">{remaining} place{remaining > 1 ? 's' : ''}</b> sur {FOUNDER_TOTAL}.</p>

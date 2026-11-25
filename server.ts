@@ -19,6 +19,7 @@ import { registerSellerexRoutes, sellerexHostMiddleware } from './server/sellere
 import { registerAdminPaymentsRoutes } from './server/adminPayments';
 import { createAdminGuard, auditMiddleware, classifyAdminPath, adminHeaders, isValidAdminSlug } from './server/adminSecurity';
 import { registerAdminRoutes } from './server/adminRoutes';
+import { registerFounderAdminRoutes } from './server/founderAdmin';
 import { normalizeMoncashNumber } from './server/moncash';
 import { reconcileMoncashPayments } from './server/bazikReconcile';
 import { loadEmailConfig } from './server/email';
@@ -3123,6 +3124,7 @@ app.use((req, res, next) => {
 app.use(['/api/admin', '/api/sellerex/admin'], auditMiddleware(async (row) => { if (supabase) await supabase.from('admin_audit_log').insert([row]); }));
 if (supabase) registerSellerexRoutes(app, { supabase, getAuthedUser, adminGuard });
 if (supabase) registerAdminRoutes(app, { supabase, guard: adminGuard });
+if (supabase) registerFounderAdminRoutes(app, { supabase, guard: adminGuard, send: (ids, t, m, c) => sendOneSignalPushMany(ids, t, m, c) });
 
 // Taux du jour pour l'affichage des prix en dollars : même taux (marge de change incluse) que celui facturé par Stripe
 app.get('/api/usd-rate', async (_req, res) => {
