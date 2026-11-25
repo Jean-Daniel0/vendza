@@ -8,7 +8,7 @@ const WholesalersSection = lazy(() => import('../sellerex/AdminSection'));
 
 const IDLE_MS = 30 * 60 * 1000; // déconnexion après 30 minutes sans activité
 type Gate = 'boot' | 'login' | 'checking' | 'denied' | 'enroll' | 'challenge' | 'ready';
-type Tab = 'overview' | 'payments' | 'identities' | 'disputes' | 'promos' | 'wholesalers' | 'audit';
+type Tab = 'overview' | 'payments' | 'identities' | 'disputes' | 'promos' | 'founders' | 'wholesalers' | 'audit';
 const auth = () => (supabase as any).auth;
 const htg = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} HTG`;
 const when = (d: string | null) => (d ? new Date(d).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '');
@@ -213,6 +213,82 @@ function Promos() {
   );
 }
 
+function Founders() {
+  const [period, setPeriod] = useState<'7' | '30' | 'all'>('all');
+  const [d, setD] = useState<any>(null); const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false); const [msg, setMsg] = useState('');
+  useEffect(() => { setD(null); getJson(`/api/admin/founders?period=${period}`).then(r => r.ok ? setD(r.j) : setErr('Impossible de charger le programme fondateurs.')); }, [period]);
+  const invite = async (simulate: boolean) => {
+    if (!simulate && !window.confirm('Envoyer la notification d’invitation à tous les vendeurs non membres ? Chaque vendeur ne la reçoit qu’une fois.')) return;
+    setBusy(true); setMsg(''); setErr('');
+    const r = await getJson('/api/admin/founders/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ simulate }) });
+    setBusy(false);
+    if (!r.ok) { setErr(r.j.error || 'Envoi impossible.'); return; }
+    const j = r.j;
+    setMsg(j.status === 'skipped' ? `Rien à envoyer : ${j.reason}.`
+      : `${j.status === 'simulation' ? 'Simulation : ' : 'Envoyé à '}${j.recipients} vendeur(s)${j.status === 'simulation' ? ' recevraient l’invitation' : ''}${j.alreadyInvited ? ` (${j.alreadyInvited} déjà invité(s))` : ''}.`);
+  };
+  const inviteEmail = async (simulate: boolean) => {
+    if (!simulate && !window.confirm('Envoyer l’invitation par e-mail aux vendeurs non membres qui ont activé les promotions ? Chaque vendeur ne la reçoit qu’une fois (50 par envoi).')) return;
+    setBusy(true); setMsg(''); setErr('');
+    const r = await getJson('/api/admin/founders/invite-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ simulate }) });
+    setBusy(false);
+    if (!r.ok) { setErr(r.j.error || 'Envoi impossible.'); return; }
+    const j = r.j;
+    const extra = `${j.optedOut ? ` ${j.optedOut} sans promotions activées (exclus).` : ''}${j.alreadySent ? ` ${j.alreadySent} déjà invité(s).` : ''}${j.remaining ? ` Il en reste ${j.remaining} : relancez l’envoi.` : ''}`;
+    setMsg(j.status === 'skipped' ? `E-mail : rien envoyé. ${j.reason}.${extra}`
+      : j.status === 'simulation' ? `Simulation e-mail : ${j.recipients} vendeur(s) recevraient l’invitation.${j.emailsEnabled ? '' : ' (E-mails désactivés pour l’instant.)'}${extra}`
+      : `E-mail envoyé à ${j.recipients} vendeur(s)${j.failed ? `, ${j.failed} échec(s)` : ''}.${extra}`);
+  };
+  if (err && !d) return <p role="alert" className="text-sm text-red-700">{err}</p>;
+  if (!d) return <Loading />;
+  const periods: Array<['7' | '30' | 'all', string]> = [['7', '7 jours'], ['30', '30 jours'], ['all', 'Depuis le début']];
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Card title="Places prises" value={`${d.taken} / ${d.total}`} />
+        <Card title="Places restantes" value={d.remaining} />
+        <Card title="Coût estimé des remises" value={htg(d.cost.total)} tone={d.cost.total ? 'warn' : undefined} />
+      </div>
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Période">
+        {periods.map(([k, l]) => <button key={k} aria-pressed={period === k} onClick={() => setPeriod(k)} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${period === k ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white text-slate-700'}`}>{l}</button>)}
+      </div>
+      <p className="rounded-2xl border border-slate-200 bg-white p-4 text-xs text-slate-600">
+        Coût = commission évitée = (total payé + livraison offerte) × taux de base × 0,9, sur {d.cost.orders} commande(s) payée(s) de la période ({htg(d.cost.sales)} de ventes), passées pendant les 90 jours du vendeur. C’est une estimation à partir du forfait actuel du vendeur.
+        {d.truncated && ' Calcul limité aux 5 000 commandes les plus récentes.'}
+      </p>
+      <p className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-xs text-amber-900">
+        Attention : si les frais Bazik montent à {Math.round(d.cost.bazik_fee * 100)} %, une commission de 1 à 2 % fait perdre de l’argent à Vendza sur ces ventes MonCash. Scénario sur la période : environ {htg(d.cost.bazik_scenario)} de perte (hypothèse, pas une mesure).
+      </p>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm">
+        <p className="mb-2 font-bold">Places par catégorie</p>
+        <ul className="grid grid-cols-2 gap-1 text-slate-600 sm:grid-cols-3">{d.perCategory.map((c: any) => <li key={c.category}>{c.category} : <b>{c.taken} / {c.quota}</b></li>)}</ul>
+      </div>
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+        <table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr><th className="p-2">Boutique</th><th className="p-2">Catégorie</th><th className="p-2">Jours restants</th><th className="p-2">Commandes</th><th className="p-2">Remise estimée</th></tr></thead>
+          <tbody className="divide-y divide-slate-100">{d.members.map((m: any) => <tr key={m.vendor_id}><td className="p-2">{m.shop_name || m.vendor_id.slice(0, 8)}</td><td className="p-2">{m.category}</td><td className="p-2">{m.active ? m.days_left : 'Terminé'}</td><td className="p-2">{m.orders}</td><td className="p-2">{htg(m.cost)}</td></tr>)}</tbody></table>
+        {d.members.length === 0 && <p className="p-3 text-sm text-slate-500">Aucun membre pour le moment.</p>}
+      </div>
+      <div className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 text-sm">
+        <p className="font-bold">Invitation par notification</p>
+        <p className="text-xs text-slate-500">Envoyée une seule fois à chaque vendeur non membre. La simulation compte les destinataires sans rien envoyer.</p>
+        {err && <p role="alert" className="text-sm text-red-700">{err}</p>}
+        {msg && <p role="status" className="text-sm text-emerald-800">{msg}</p>}
+        <div className="flex flex-wrap gap-2">
+          <button disabled={busy} onClick={() => invite(true)} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-50">Simulation</button>
+          <button disabled={busy} onClick={() => invite(false)} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-60">Envoyer l’invitation</button>
+        </div>
+        <p className="pt-2 font-bold">Invitation par e-mail</p>
+        <p className="text-xs text-slate-500">Seulement les vendeurs non membres qui ont activé les promotions, une seule fois chacun, avec lien de désinscription.</p>
+        <div className="flex flex-wrap gap-2">
+          <button disabled={busy} onClick={() => inviteEmail(true)} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-50">Simulation e-mail</button>
+          <button disabled={busy} onClick={() => inviteEmail(false)} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-60">Envoyer l’e-mail</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AuditLog() {
   const [rows, setRows] = useState<any[] | null>(null); const [na, setNa] = useState(false);
   useEffect(() => { getJson('/api/admin/audit').then(r => { setRows(r.j.log || []); setNa(!!r.j.unavailable); }); }, []);
@@ -267,7 +343,7 @@ export default function AdminApp() {
     return () => { evts.forEach(e => window.removeEventListener(e, reset)); window.clearTimeout(timer.current); };
   }, [gate, signOut]);
 
-  const tabs: Array<[Tab, string]> = [['overview', 'Accueil'], ['payments', 'Paiements'], ['identities', 'Identités'], ['disputes', 'Litiges'], ['promos', 'Promotions'], ['wholesalers', 'Grossistes Sellerex'], ['audit', 'Journal']];
+  const tabs: Array<[Tab, string]> = [['overview', 'Accueil'], ['payments', 'Paiements'], ['identities', 'Identités'], ['disputes', 'Litiges'], ['promos', 'Promotions'], ['founders', 'Fondateurs'], ['wholesalers', 'Grossistes Sellerex'], ['audit', 'Journal']];
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 pb-10 text-slate-900">
@@ -292,7 +368,7 @@ export default function AdminApp() {
             </nav>
             <Suspense fallback={<Loading />}>
               {tab === 'overview' ? <Overview /> : tab === 'payments' ? <PaymentsPage /> : tab === 'identities' ? <Identities />
-                : tab === 'disputes' ? <Disputes /> : tab === 'promos' ? <Promos /> : tab === 'wholesalers' ? <WholesalersSection /> : <AuditLog />}
+                : tab === 'disputes' ? <Disputes /> : tab === 'promos' ? <Promos /> : tab === 'founders' ? <Founders /> : tab === 'wholesalers' ? <WholesalersSection /> : <AuditLog />}
             </Suspense>
           </div>)}
     </div>

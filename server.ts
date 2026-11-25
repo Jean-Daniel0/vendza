@@ -19,6 +19,8 @@ import { registerSellerexRoutes, sellerexHostMiddleware } from './server/sellere
 import { registerAdminPaymentsRoutes } from './server/adminPayments';
 import { createAdminGuard, auditMiddleware, classifyAdminPath, adminHeaders, isValidAdminSlug } from './server/adminSecurity';
 import { registerAdminRoutes } from './server/adminRoutes';
+import { registerFounderAdminRoutes } from './server/founderAdmin';
+import { registerUnsubscribeRoutes } from './server/unsubscribe';
 import { normalizeMoncashNumber } from './server/moncash';
 import { reconcileMoncashPayments } from './server/bazikReconcile';
 import { loadEmailConfig } from './server/email';
@@ -71,6 +73,8 @@ const supabase = isSupabaseConfigured ? createClient(supabaseUrl, supabaseKey) :
 
 // E-mails transactionnels (Resend). Désactivés tant que RESEND_API_KEY et EMAIL_FROM ne sont pas définis sur Render.
 const emailDeps = () => ({ db: supabase, cfg: loadEmailConfig(), adminEmail: (process.env.ADMIN_NOTIFY_EMAIL || '').trim() || undefined });
+// Clé de signature des liens de désinscription (jamais affichée ni envoyée) : UNSUBSCRIBE_SECRET, sinon la clé serveur Supabase.
+const unsubscribeSecret = process.env.UNSUBSCRIBE_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const fireEmail = (p: Promise<unknown>) => { p.catch((e: any) => console.warn('[Email] ignoré:', e?.message)); };
 
 // Route de santé pour la surveillance externe : 200 si le serveur et la base répondent, 503 sinon. Aucune donnée sensible.
@@ -3123,6 +3127,8 @@ app.use((req, res, next) => {
 app.use(['/api/admin', '/api/sellerex/admin'], auditMiddleware(async (row) => { if (supabase) await supabase.from('admin_audit_log').insert([row]); }));
 if (supabase) registerSellerexRoutes(app, { supabase, getAuthedUser, adminGuard });
 if (supabase) registerAdminRoutes(app, { supabase, guard: adminGuard });
+if (supabase) registerFounderAdminRoutes(app, { supabase, guard: adminGuard, send: (ids, t, m, c) => sendOneSignalPushMany(ids, t, m, c), emailDeps, unsubscribeSecret });
+if (supabase) registerUnsubscribeRoutes(app, { supabase, secret: unsubscribeSecret });
 
 // Taux du jour pour l'affichage des prix en dollars : même taux (marge de change incluse) que celui facturé par Stripe
 app.get('/api/usd-rate', async (_req, res) => {

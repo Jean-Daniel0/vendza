@@ -662,7 +662,7 @@ export const VendorDashboard: React.FC<VendorDashboardProps> = ({
       {/* ==================== 1. TAB: DASHBOARD ==================== */}
       {activeTab === 'dashboard' && (
         <div className="v-dash-container space-y-6">
-          <FounderCard />
+          <FounderCard userId={user?.id} />
           {/* Custom scoped style injector to render the provided mockup design exactly */}
           <style dangerouslySetInnerHTML={{ __html: `
             .v-dash-container {

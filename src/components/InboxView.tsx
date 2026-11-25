@@ -7,6 +7,7 @@ import { derivePartner } from '../lib/inboxPartner';
 import { productRefTag } from '../lib/chatText';
 
 import { EIcon } from './EIcon';
+import { FounderInviteCard, useFounderOffer } from './FounderInviteCard';
 interface InboxViewProps {
   messages: Message[];
   user: UserProfile | null;
@@ -18,6 +19,7 @@ interface InboxViewProps {
   initialRecipientId?: string | null;
   initialRecipientNom?: string | null;
   initialProductId?: string | null;
+  onOpenFounder?: () => void;
 }
 
 const formatMessageTime = (timeStr: string, createdAtStr?: string) => {
@@ -65,8 +67,10 @@ export const InboxView: React.FC<InboxViewProps> = ({
   initialRecipientId,
   initialRecipientNom,
   initialProductId,
-  onProductMentioned
+  onProductMentioned,
+  onOpenFounder
 }) => {
+  const founderOffer = useFounderOffer(user?.id, user?.type === 'vendeur' || (user as any)?.user_type === 'vendeur');
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
   const [selectedRecipientId, setSelectedRecipientId] = useState<string>(initialRecipientId || '99999999-9999-4999-9999-999999999999');
@@ -456,6 +460,12 @@ export const InboxView: React.FC<InboxViewProps> = ({
             <div className="bg-slate-50 border-b border-slate-100 p-2 text-[10px] text-slate-500 flex items-center justify-center gap-1.5 font-sans">
               <span className="w-2 h-2 border border-slate-300 border-t-slate-600 rounded-full animate-spin" />
               Actualisation en cours...
+            </div>
+          )}
+
+          {founderOffer.open && founderOffer.spots && onOpenFounder && (
+            <div className="border-b border-slate-100 p-2.5">
+              <FounderInviteCard remaining={founderOffer.spots.remaining} ctaLabel="Découvrir l'offre" onCta={onOpenFounder} />
             </div>
           )}
 
