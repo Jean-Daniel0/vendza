@@ -43,6 +43,9 @@ services:
         sync: false
       - key: EMAIL_FROM
         sync: false
+      # Clé de signature des liens de désinscription (facultatif : à défaut, la clé serveur Supabase sert de clé de signature)
+      - key: UNSUBSCRIBE_SECRET
+        sync: false
       - key: EMAIL_REPLY_TO
         sync: false
       - key: ADMIN_NOTIFY_EMAIL

@@ -28,7 +28,7 @@ export function normalizeItems(raw: unknown): MailItem[] {
 }
 
 const BRAND = '#0f766e';
-function layout(siteUrl: string, title: string, bodyHtml: string, cta?: { label: string; path: string }): string {
+function layout(siteUrl: string, title: string, bodyHtml: string, cta?: { label: string; path: string }, footerHtml = ''): string {
   const button = cta ? `<p style="margin:24px 0 0"><a href="${esc(siteUrl + cta.path)}" style="display:inline-block;background:${BRAND};color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 22px;border-radius:12px">${esc(cta.label)}</a></p>` : '';
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title></head>
 <body style="margin:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a">
@@ -36,7 +36,7 @@ function layout(siteUrl: string, title: string, bodyHtml: string, cta?: { label:
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden">
 <tr><td style="background:${BRAND};padding:18px 24px;color:#ffffff;font-size:22px;font-weight:bold;letter-spacing:.5px">Vendza</td></tr>
 <tr><td style="padding:24px;font-size:15px;line-height:1.55"><h1 style="margin:0 0 14px;font-size:19px">${esc(title)}</h1>${bodyHtml}${button}</td></tr>
-<tr><td style="padding:16px 24px;background:#f8fafc;color:#64748b;font-size:12px;line-height:1.5">Vendza, la marketplace haïtienne. Vos paiements sont protégés jusqu'à la livraison.<br><a href="${esc(siteUrl)}" style="color:#64748b">${esc(siteUrl.replace(/^https?:\/\//, ''))}</a></td></tr>
+<tr><td style="padding:16px 24px;background:#f8fafc;color:#64748b;font-size:12px;line-height:1.5">Vendza, la marketplace haïtienne. Vos paiements sont protégés jusqu'à la livraison.<br><a href="${esc(siteUrl)}" style="color:#64748b">${esc(siteUrl.replace(/^https?:\/\//, ''))}</a>${footerHtml}</td></tr>
 </table></td></tr></table></body></html>`;
 }
 
@@ -115,10 +115,26 @@ export function welcome(d: { siteUrl: string; name?: string; vendor?: boolean })
   return { subject: 'Bienvenue sur Vendza', html, text: `${helloT(d.name)}\n\nVotre compte est créé. Complétez votre profil pour ${d.vendor ? 'commencer à vendre' : 'commander plus vite'} : ${d.siteUrl}` };
 }
 
+/** Invitation au programme fondateurs. Image de fond en JPEG (lue partout) ; le texte est posé en HTML, jamais dans l'image. */
+export function founderInvite(d: { siteUrl: string; name?: string; remaining: number; unsubscribeUrl: string; total?: number; days?: number; minProducts?: number }): Rendered {
+  const total = d.total ?? 50, days = d.days ?? 90, minProducts = d.minProducts ?? 5;
+  const img = `${d.siteUrl}/images/programme-fondateurs-email.jpg`;
+  const places = `${d.remaining} place${d.remaining > 1 ? 's' : ''} sur ${total}`;
+  const hero = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#0c1445" background="${esc(img)}" style="background-color:#0c1445;background-image:linear-gradient(to right,rgba(12,20,69,0.97) 0%,rgba(12,20,69,0.9) 55%,rgba(12,20,69,0.3) 75%,rgba(12,20,69,0) 90%),url('${esc(img)}');background-position:right center;background-size:cover;background-repeat:no-repeat;border-radius:12px"><tr><td width="66%" style="padding:22px 18px;color:#ffffff"><p style="margin:0 0 6px;font-size:11px;font-weight:bold;letter-spacing:2px;color:#fcd34d">PROGRAMME FONDATEURS</p><p style="margin:0 0 8px;font-size:19px;line-height:1.2;font-weight:bold;color:#ffffff">Rejoignez les ${total} premiers vendeurs de Vendza</p><p style="margin:0;font-size:13px;line-height:1.45;color:#dbeafe">Commission réduite de 90 % pendant ${days} jours. Il reste <b style="color:#fcd34d">${esc(places)}</b>.</p></td><td width="34%">&nbsp;</td></tr></table>`;
+  const html = layout(d.siteUrl, 'Une place vous attend',
+    p(hello(d.name)) + hero + `<div style="height:14px"></div>`
+    + p(`Pendant ${days} jours, la commission de Vendza est réduite de 90 % sur vos ventes (par exemple 20 % devient 2 %). Les places sont limitées et réparties à parts égales entre les catégories.`)
+    + p(`Pour en profiter : faites vérifier votre identité et publiez au moins ${minProducts} produits, puis réservez votre place depuis votre tableau de bord.`),
+    { label: 'Réserver ma place', path: '/vendeur/tableau-de-bord-vendeur' },
+    `<br><br>Vous recevez cet e-mail car les promotions sont activées sur votre compte. <a href="${esc(d.unsubscribeUrl)}" style="color:#64748b">Se désinscrire</a>`);
+  const text = `${helloT(d.name)}\n\nProgramme fondateurs : rejoignez les ${total} premiers vendeurs de Vendza. Commission réduite de 90 % pendant ${days} jours. Il reste ${places}.\n\nPour en profiter : faites vérifier votre identité et publiez au moins ${minProducts} produits, puis réservez votre place :\n${d.siteUrl}/vendeur/tableau-de-bord-vendeur\n\nSe désinscrire : ${d.unsubscribeUrl}`;
+  return { subject: `Il reste ${places} au programme fondateurs Vendza`, html, text };
+}
+
 export type SendResult = { ok: true; id?: string } | { ok: false; status: number; error: string };
 
 /** Envoi via Resend. La clé d'idempotence évite un doublon si la même demande est rejouée (webhook rejoué). */
-export async function sendViaResend(cfg: EmailConfig, msg: { to: string; rendered: Rendered; idempotencyKey?: string }, fetchImpl: typeof fetch = fetch): Promise<SendResult> {
+export async function sendViaResend(cfg: EmailConfig, msg: { to: string; rendered: Rendered; idempotencyKey?: string; headers?: Record<string, string> }, fetchImpl: typeof fetch = fetch): Promise<SendResult> {
   const to = oneLine(msg.to);
   if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(to)) return { ok: false, status: 0, error: 'adresse invalide' };
   const ctl = new AbortController();
@@ -127,7 +143,7 @@ export async function sendViaResend(cfg: EmailConfig, msg: { to: string; rendere
     const r = await fetchImpl('https://api.resend.com/emails', {
       method: 'POST', signal: ctl.signal,
       headers: { Authorization: `Bearer ${cfg.apiKey}`, 'Content-Type': 'application/json', ...(msg.idempotencyKey ? { 'Idempotency-Key': msg.idempotencyKey.slice(0, 250) } : {}) },
-      body: JSON.stringify({ from: cfg.from, to: [to], subject: oneLine(msg.rendered.subject), html: msg.rendered.html, text: msg.rendered.text, ...(cfg.replyTo ? { reply_to: cfg.replyTo } : {}) }),
+      body: JSON.stringify({ from: cfg.from, to: [to], subject: oneLine(msg.rendered.subject), html: msg.rendered.html, text: msg.rendered.text, ...(cfg.replyTo ? { reply_to: cfg.replyTo } : {}), ...(msg.headers && Object.keys(msg.headers).length ? { headers: msg.headers } : {}) }),
     });
     const j: any = await r.json().catch(() => ({}));
     if (!r.ok) return { ok: false, status: r.status, error: String(j?.message || j?.name || 'erreur Resend').slice(0, 200) };

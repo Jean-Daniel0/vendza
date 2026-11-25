@@ -228,6 +228,18 @@ function Founders() {
     setMsg(j.status === 'skipped' ? `Rien à envoyer : ${j.reason}.`
       : `${j.status === 'simulation' ? 'Simulation : ' : 'Envoyé à '}${j.recipients} vendeur(s)${j.status === 'simulation' ? ' recevraient l’invitation' : ''}${j.alreadyInvited ? ` (${j.alreadyInvited} déjà invité(s))` : ''}.`);
   };
+  const inviteEmail = async (simulate: boolean) => {
+    if (!simulate && !window.confirm('Envoyer l’invitation par e-mail aux vendeurs non membres qui ont activé les promotions ? Chaque vendeur ne la reçoit qu’une fois (50 par envoi).')) return;
+    setBusy(true); setMsg(''); setErr('');
+    const r = await getJson('/api/admin/founders/invite-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ simulate }) });
+    setBusy(false);
+    if (!r.ok) { setErr(r.j.error || 'Envoi impossible.'); return; }
+    const j = r.j;
+    const extra = `${j.optedOut ? ` ${j.optedOut} sans promotions activées (exclus).` : ''}${j.alreadySent ? ` ${j.alreadySent} déjà invité(s).` : ''}${j.remaining ? ` Il en reste ${j.remaining} : relancez l’envoi.` : ''}`;
+    setMsg(j.status === 'skipped' ? `E-mail : rien envoyé. ${j.reason}.${extra}`
+      : j.status === 'simulation' ? `Simulation e-mail : ${j.recipients} vendeur(s) recevraient l’invitation.${j.emailsEnabled ? '' : ' (E-mails désactivés pour l’instant.)'}${extra}`
+      : `E-mail envoyé à ${j.recipients} vendeur(s)${j.failed ? `, ${j.failed} échec(s)` : ''}.${extra}`);
+  };
   if (err && !d) return <p role="alert" className="text-sm text-red-700">{err}</p>;
   if (!d) return <Loading />;
   const periods: Array<['7' | '30' | 'all', string]> = [['7', '7 jours'], ['30', '30 jours'], ['all', 'Depuis le début']];
@@ -265,6 +277,12 @@ function Founders() {
         <div className="flex flex-wrap gap-2">
           <button disabled={busy} onClick={() => invite(true)} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-50">Simulation</button>
           <button disabled={busy} onClick={() => invite(false)} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-60">Envoyer l’invitation</button>
+        </div>
+        <p className="pt-2 font-bold">Invitation par e-mail</p>
+        <p className="text-xs text-slate-500">Seulement les vendeurs non membres qui ont activé les promotions, une seule fois chacun, avec lien de désinscription.</p>
+        <div className="flex flex-wrap gap-2">
+          <button disabled={busy} onClick={() => inviteEmail(true)} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-50">Simulation e-mail</button>
+          <button disabled={busy} onClick={() => inviteEmail(false)} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-60">Envoyer l’e-mail</button>
         </div>
       </div>
     </div>

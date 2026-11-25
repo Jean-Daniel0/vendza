@@ -1,12 +1,12 @@
 // Événements e-mail de la plateforme. Règle d'or : un e-mail ne doit JAMAIS faire échouer ni ralentir un paiement,
 // une livraison ou un virement : tout est protégé par try/catch, rien n'est jamais « throw ».
-import { EmailConfig, Rendered, SendResult, sendViaResend, normalizeItems, OrderMail, orderConfirmedBuyer, newOrderVendor, deliveryConfirmedBuyer, deliveryConfirmedVendor, payoutSentVendor, payoutFailedAdmin, refundPaidBuyer, welcome } from './email';
+import { EmailConfig, Rendered, SendResult, sendViaResend, normalizeItems, OrderMail, orderConfirmedBuyer, newOrderVendor, deliveryConfirmedBuyer, deliveryConfirmedVendor, payoutSentVendor, payoutFailedAdmin, refundPaidBuyer, welcome, founderInvite } from './email';
 
 export type EmailDeps = {
   db: any;                       // client Supabase (clé service)
   cfg: EmailConfig | null;       // null = e-mails désactivés
   adminEmail?: string;           // alertes internes (ADMIN_NOTIFY_EMAIL)
-  send?: (cfg: EmailConfig, msg: { to: string; rendered: Rendered; idempotencyKey?: string }) => Promise<SendResult>;
+  send?: (cfg: EmailConfig, msg: { to: string; rendered: Rendered; idempotencyKey?: string; headers?: Record<string, string> }) => Promise<SendResult>;
   spacingMs?: number;            // Resend limite le débit : on espace les envois (600 ms par défaut)
 };
 
@@ -35,7 +35,7 @@ async function recipient(db: any, userId: string): Promise<{ email: string; name
   } catch { return null; }
 }
 
-async function deliver(deps: EmailDeps, event: string, dedupeKey: string, userId: string | null, to: string | null, render: (name: string) => Rendered, nameHint = ''): Promise<Outcome> {
+async function deliver(deps: EmailDeps, event: string, dedupeKey: string, userId: string | null, to: string | null, render: (name: string) => Rendered, nameHint = '', headers?: Record<string, string>): Promise<Outcome> {
   try {
     if (!deps.cfg) return 'disabled';
     let address = to, name = nameHint;
@@ -49,7 +49,7 @@ async function deliver(deps: EmailDeps, event: string, dedupeKey: string, userId
     const reserved = !ins?.error;
 
     const send = deps.send || sendViaResend;
-    const res = await enqueue(() => send(deps.cfg!, { to: address!, rendered: render(name), idempotencyKey: dedupeKey }), deps.spacingMs ?? 600);
+    const res = await enqueue(() => send(deps.cfg!, { to: address!, rendered: render(name), idempotencyKey: dedupeKey, ...(headers ? { headers } : {}) }), deps.spacingMs ?? 600);
     if (res.ok === false) {
       console.warn(`[Email] échec ${event} (${res.status}): ${res.error}`);
       if (reserved) { try { await deps.db.from('email_log').delete().eq('dedupe_key', dedupeKey); } catch { /* un rejeu pourra réessayer */ } }
@@ -109,4 +109,11 @@ export async function notifyRefundPaid(deps: EmailDeps, refundId: string, buyerI
 export async function notifyWelcome(deps: EmailDeps, userId: string, vendor: boolean): Promise<Outcome> {
   const cfg = deps.cfg; if (!cfg) return 'disabled';
   return deliver(deps, 'welcome', `welcome:${userId}`, userId, null, n => welcome({ siteUrl: cfg.siteUrl, name: n, vendor }));
+}
+
+/** Invitation fondateurs : un seul e-mail par vendeur, avec lien et en-têtes de désinscription. */
+export async function sendFounderInvite(deps: EmailDeps, userId: string, remaining: number, unsubscribeUrl: string): Promise<Outcome> {
+  const cfg = deps.cfg; if (!cfg) return 'disabled';
+  return deliver(deps, 'founder_invite', `founder_invite:${userId}`, userId, null, n => founderInvite({ siteUrl: cfg.siteUrl, name: n, remaining, unsubscribeUrl }), '',
+    { 'List-Unsubscribe': `<${unsubscribeUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' });
 }

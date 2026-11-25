@@ -3,6 +3,8 @@
 import type { Express } from 'express';
 import { AdminGuard, AuditRow, clientIp } from './adminSecurity';
 import { commissionRate } from '../src/lib/commission';
+import { EmailDeps, sendFounderInvite } from './emailEvents';
+import { unsubscribeUrl } from './unsubscribe';
 import { FOUNDER_CATEGORIES, FOUNDER_PER_CATEGORY, FOUNDER_TOTAL, FOUNDER_DISCOUNT, FOUNDER_DAYS, FOUNDER_MIN_PRODUCTS } from '../src/lib/founder';
 
 const DAY = 86400000;
@@ -95,9 +97,50 @@ export async function runFounderInvite(db: any, send: PushMany, opts: { simulate
   return { status: 'sent' as const, recipients: claimed.length, alreadyInvited };
 }
 
-type Deps = { supabase: any; guard: AdminGuard; send: PushMany };
+export const INVITE_EMAIL_BATCH = 50; // Resend limite le débit : on envoie par lots, un nouveau clic envoie la suite
 
-export function registerFounderAdminRoutes(app: Express, { supabase, guard, send }: Deps) {
+/**
+ * Invitation par e-mail : seulement les vendeurs non membres qui ont activé les promotions (profiles.newsletter = true),
+ * une seule fois par vendeur (email_log). Simulation : compte sans rien envoyer.
+ */
+export async function runFounderInviteEmail(db: any, deps: EmailDeps, secret: string, opts: { simulate: boolean; batch?: number }) {
+  const [{ data: shops, error: e1 }, { data: members, error: e2 }] = await Promise.all([
+    db.from('shops').select('vendor_id').limit(5000),
+    db.from('founder_program').select('vendor_id').limit(1000),
+  ]);
+  if (e1 || e2) throw new Error('lecture impossible');
+  const memberIds = (members || []).map((m: any) => m.vendor_id);
+  if (memberIds.length >= FOUNDER_TOTAL) return { status: 'skipped' as const, reason: `Les ${FOUNDER_TOTAL} places sont prises`, recipients: 0, remaining: 0, optedOut: 0, alreadySent: 0, emailsEnabled: !!deps.cfg };
+  const targets = inviteTargets((shops || []).map((x: any) => x.vendor_id), memberIds);
+  if (!targets.length) return { status: 'skipped' as const, reason: 'Aucun vendeur à inviter', recipients: 0, remaining: 0, optedOut: 0, alreadySent: 0, emailsEnabled: !!deps.cfg };
+
+  const [{ data: profs }, { data: logged }] = await Promise.all([
+    db.from('profiles').select('id, newsletter').in('id', targets),
+    db.from('email_log').select('dedupe_key').in('dedupe_key', targets.map(id => `founder_invite:${id}`)),
+  ]);
+  const consent = new Set((profs || []).filter((p: any) => p.newsletter === true).map((p: any) => p.id));
+  const sentKeys = new Set((logged || []).map((r: any) => r.dedupe_key));
+  const optedOut = targets.filter(id => !consent.has(id)).length;
+  const alreadySent = targets.filter(id => consent.has(id) && sentKeys.has(`founder_invite:${id}`)).length;
+  const todo = targets.filter(id => consent.has(id) && !sentKeys.has(`founder_invite:${id}`));
+  const base = { optedOut, alreadySent, emailsEnabled: !!deps.cfg };
+  if (opts.simulate) return { status: 'simulation' as const, recipients: todo.length, remaining: 0, ...base };
+  if (!deps.cfg) return { status: 'skipped' as const, reason: 'E-mails désactivés (RESEND_API_KEY et EMAIL_FROM absents)', recipients: 0, remaining: todo.length, ...base };
+  if (!secret) return { status: 'skipped' as const, reason: 'Secret de désinscription absent', recipients: 0, remaining: todo.length, ...base };
+
+  const batch = todo.slice(0, opts.batch ?? INVITE_EMAIL_BATCH);
+  const left = Math.max(0, FOUNDER_TOTAL - memberIds.length);
+  let sent = 0, failed = 0;
+  for (const id of batch) {
+    const out = await sendFounderInvite(deps, id, left, unsubscribeUrl(deps.cfg.siteUrl, id, secret));
+    if (out === 'sent') sent++; else if (out === 'failed') failed++;
+  }
+  return { status: 'sent' as const, recipients: sent, failed, remaining: todo.length - batch.length, ...base };
+}
+
+type Deps = { supabase: any; guard: AdminGuard; send: PushMany; emailDeps: () => EmailDeps; unsubscribeSecret: string };
+
+export function registerFounderAdminRoutes(app: Express, { supabase, guard, send, emailDeps, unsubscribeSecret }: Deps) {
   const base = '/api/admin/founders';
   const audit = async (row: AuditRow) => { try { await supabase.from('admin_audit_log').insert([row]); } catch { /* journal seulement */ } };
 
@@ -139,5 +182,15 @@ export function registerFounderAdminRoutes(app: Express, { supabase, guard, send
       await audit({ user_id: user.id, email: user.email || null, action: simulate ? 'fondateurs_invitation_simulation' : 'fondateurs_invitation_envoyee', method: 'POST', path: `${base}/invite`, status: 200, ip: clientIp(req), detail: `${r.status} : ${r.recipients} destinataire(s)` });
       res.json(r);
     } catch { res.status(500).json({ error: "Envoi impossible pour le moment." }); }
+  });
+
+  app.post(`${base}/invite-email`, async (req, res) => {
+    const user = await guard(req, res); if (!user) return;
+    const simulate = req.body?.simulate !== false;
+    try {
+      const r = await runFounderInviteEmail(supabase, emailDeps(), unsubscribeSecret, { simulate });
+      await audit({ user_id: user.id, email: user.email || null, action: simulate ? 'fondateurs_email_simulation' : 'fondateurs_email_envoye', method: 'POST', path: `${base}/invite-email`, status: 200, ip: clientIp(req), detail: `${r.status} : ${r.recipients} destinataire(s)` });
+      res.json(r);
+    } catch { res.status(500).json({ error: 'Envoi impossible pour le moment.' }); }
   });
 }
