@@ -19,6 +19,7 @@ export interface MoncashConfig {
   clientId: string;
   clientSecret: string;
   configured: boolean;
+  sandboxForAll: boolean; // MONCASH_SANDBOX_FOR_ALL : en sandbox, tout le monde passe par MonCash officiel (phase de test sans vrais clients)
 }
 
 type Env = Record<string, string | undefined>;
@@ -29,19 +30,21 @@ export function moncashConfig(env: Env = process.env): MoncashConfig {
   const host = mode === 'live' ? 'https://moncashbutton.digicelgroup.com' : 'https://sandbox.moncashbutton.digicelgroup.com';
   const clientId = String(env.MONCASH_CLIENT_ID || '').trim();
   const clientSecret = String(env.MONCASH_CLIENT_SECRET || '').trim();
-  return { provider, mode, apiBase: `${host}/Api`, gatewayBase: `${host}/Moncash-middleware`, clientId, clientSecret, configured: !!(clientId && clientSecret) };
+  const sandboxForAll = /^(1|true|oui|yes)$/i.test(String(env.MONCASH_SANDBOX_FOR_ALL || '').trim());
+  return { provider, mode, apiBase: `${host}/Api`, gatewayBase: `${host}/Moncash-middleware`, clientId, clientSecret, configured: !!(clientId && clientSecret), sandboxForAll };
 }
 
 /**
  * Qui passe par MonCash direct ?
  *  - provider 'bazik'  → personne ;
- *  - sandbox           → l'admin seulement (un faux paiement ne doit jamais créer une vraie commande pour un client) ;
+ *  - sandbox           → l'admin seulement (un faux paiement ne doit jamais créer une vraie commande pour un client),
+ *                        sauf si MONCASH_SANDBOX_FOR_ALL est activé (phase de test sans vrais clients : tout le monde, secours Bazik inclus) ;
  *  - live              → tout le monde ;
  *  - abonnements       → toujours Bazik pour l'instant.
  */
-export function shouldUseDirect(p: { provider: MoncashProvider; mode: MoncashMode; isAdmin: boolean; isSubscription: boolean }): boolean {
+export function shouldUseDirect(p: { provider: MoncashProvider; mode: MoncashMode; isAdmin: boolean; isSubscription: boolean; sandboxForAll?: boolean }): boolean {
   if (p.provider !== 'direct' || p.isSubscription) return false;
-  return p.mode === 'live' || p.isAdmin;
+  return p.mode === 'live' || p.isAdmin || p.sandboxForAll === true;
 }
 
 // ---------- Références ----------

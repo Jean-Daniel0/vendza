@@ -1614,8 +1614,8 @@ app.post('/api/bazik/create-payment', async (req, res) => {
   {
     const mc = moncashConfig();
     if (mc.provider === 'direct' && !isSubscription) {
-      const adminCaller = mc.mode === 'live' ? false : await isAdminRequest(req);
-      if (shouldUseDirect({ provider: mc.provider, mode: mc.mode, isAdmin: adminCaller, isSubscription })) {
+      const adminCaller = mc.mode === 'live' || mc.sandboxForAll ? false : await isAdminRequest(req);
+      if (shouldUseDirect({ provider: mc.provider, mode: mc.mode, isAdmin: adminCaller, isSubscription, sandboxForAll: mc.sandboxForAll })) {
         const moncashOrderId = makeMoncashOrderId(String(orderId));
         const direct = await tryDirectPayment(createMoncashClient(mc), { amount: numericAmount, orderId: moncashOrderId });
         if (direct.ok) {

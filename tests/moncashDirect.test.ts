@@ -136,5 +136,16 @@ import { tryDirectPayment,
     console.log('  ✓ moncashDirect: en cas d\'échec de MonCash officiel, le serveur retombe sur Bazik sans erreur');
   }
 
+  // --- phase de test : MONCASH_SANDBOX_FOR_ALL ouvre le sandbox à tous, jamais par défaut
+  {
+    assert.equal(moncashConfig({}).sandboxForAll, false); assert.equal(moncashConfig({ MONCASH_SANDBOX_FOR_ALL: 'true' }).sandboxForAll, true); assert.equal(moncashConfig({ MONCASH_SANDBOX_FOR_ALL: 'non' }).sandboxForAll, false);
+    const base = { provider: 'direct' as const, mode: 'sandbox' as const, isSubscription: false };
+    assert.equal(shouldUseDirect({ ...base, isAdmin: false }), false);                                   // défaut : le client reste sur Bazik
+    assert.equal(shouldUseDirect({ ...base, isAdmin: false, sandboxForAll: true }), true);               // phase de test : tout le monde
+    assert.equal(shouldUseDirect({ ...base, provider: 'bazik' as any, isAdmin: true, sandboxForAll: true }), false);   // interrupteur principal respecté
+    assert.equal(shouldUseDirect({ ...base, isAdmin: false, sandboxForAll: true, isSubscription: true }), false);      // abonnements : toujours Bazik
+    console.log('  ✓ moncashDirect: sandbox ouvert à tous seulement avec MONCASH_SANDBOX_FOR_ALL');
+  }
+
   console.log('  ✓ moncashDirect: interrupteur, sandbox réservé à l\'admin, confirmation auprès de MonCash');
 })().catch(e => { console.error(e); process.exit(1); });
