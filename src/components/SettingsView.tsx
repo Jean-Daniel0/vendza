@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import OneSignal from 'react-onesignal';
-import { BellRing, ChevronRight, FileText, KeyRound, LogOut, Mail, ShieldCheck, Store, CreditCard, User2, HelpCircle } from 'lucide-react';
+import { Volume2, BellRing, ChevronRight, FileText, KeyRound, LogOut, Mail, ShieldCheck, Store, CreditCard, User2, HelpCircle } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { UserProfile } from '../types';
-import { PREF_COLUMNS, PrefKey, PushState, hasPasswordLogin, pushState, readPrefs, validatePasswordChange } from '../lib/accountSettings';
+import { isSoundEnabled, setSoundEnabled, previewNotifSound } from '../lib/notifSound';
+import { PREF_COLUMNS, PROFILE_FIELD, PrefKey, PushState, hasPasswordLogin, pushState, readPrefs, validatePasswordChange } from '../lib/accountSettings';
 
 type Props = {
   user: UserProfile;
@@ -43,6 +44,7 @@ export const SettingsView: React.FC<Props> = ({ user, onNavigate, onEditProfile,
   const [notice, setNotice] = useState<{ type: 'ok' | 'error'; text: string } | null>(null);
   const [push, setPush] = useState<PushState>(() => pushState(typeof Notification !== 'undefined' ? Notification.permission : undefined));
   const [pushBusy, setPushBusy] = useState(false);
+  const [sound, setSound] = useState<boolean>(() => isSoundEnabled());
   const [canPassword, setCanPassword] = useState<boolean | null>(null);
   const [pwd, setPwd] = useState({ cur: '', next: '', conf: '' });
   const [pwdBusy, setPwdBusy] = useState(false);
@@ -51,7 +53,7 @@ export const SettingsView: React.FC<Props> = ({ user, onNavigate, onEditProfile,
   // Valeurs réelles depuis la base (jamais une valeur supposée)
   const load = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) { setLoadError(true); return; }
-    const { data, error } = await supabase.from('profiles').select('newsletter, notif_commandes').eq('id', user.id).maybeSingle();
+    const { data, error } = await supabase.from('profiles').select('newsletter, notif_commandes, notif_livraisons, notif_avis').eq('id', user.id).maybeSingle();
     if (error) { setLoadError(true); return; }
     setLoadError(false); setPrefs(readPrefs(data));
   }, [user.id]);
@@ -76,7 +78,7 @@ export const SettingsView: React.FC<Props> = ({ user, onNavigate, onEditProfile,
     const { error } = await supabase.from('profiles').update({ [column]: value, updated_at: new Date().toISOString() }).eq('id', user.id);
     setSaving(null);
     if (error) { setPrefs(p => (p ? { ...p, [key]: before } : p)); setNotice({ type: 'error', text: 'Enregistrement impossible. Réessayez dans un instant.' }); return; }
-    onPrefsChanged({ [column === 'newsletter' ? 'newsletter' : 'notifCommandes']: value });
+    onPrefsChanged({ [PROFILE_FIELD[column]]: value });
     setNotice({ type: 'ok', text: 'Préférence enregistrée.' });
   };
 
@@ -142,7 +144,21 @@ export const SettingsView: React.FC<Props> = ({ user, onNavigate, onEditProfile,
               </div>
               <Switch checked={prefs.cart} disabled={saving === 'cart'} label="Rappels de panier et alertes de stock" onChange={v => toggle('cart', v)} />
             </div>
-            <p className="rounded-xl bg-slate-50 p-2.5 text-[11px] text-slate-500">Les messages sur vos commandes (paiement, livraison, virement) restent toujours actifs : ils protègent votre achat ou votre vente.</p>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold text-slate-800">Suivi de mes commandes</p>
+                <p className="text-[11px] text-slate-500">Réception confirmée, remboursement, paiement reçu. Pour les vendeurs : rappels de livraison et résumé des ventes du jour.</p>
+              </div>
+              <Switch checked={prefs.orders} disabled={saving === 'orders'} label="Suivi de mes commandes" onChange={v => toggle('orders', v)} />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold text-slate-800">Messages et avis</p>
+                <p className="text-[11px] text-slate-500">Un nouveau message de chat, un nouvel avis sur votre boutique ou vos produits.</p>
+              </div>
+              <Switch checked={prefs.messages} disabled={saving === 'messages'} label="Messages et avis" onChange={v => toggle('messages', v)} />
+            </div>
+            <p className="rounded-xl bg-slate-50 p-2.5 text-[11px] text-slate-500">Les confirmations de paiement et les nouvelles commandes restent toujours actives : elles protègent votre achat ou votre vente.</p>
             {notice && <p role={notice.type === 'error' ? 'alert' : 'status'} className={`text-xs ${notice.type === 'error' ? 'text-red-700' : 'text-emerald-700'}`}>{notice.text}</p>}
           </div>
         )}
@@ -158,6 +174,16 @@ export const SettingsView: React.FC<Props> = ({ user, onNavigate, onEditProfile,
         )}
         {push === 'denied' && <p className="text-xs text-amber-700">Bloquées dans votre navigateur. Pour les recevoir, autorisez les notifications pour Vendza dans les réglages du site, puis rechargez la page.</p>}
         {push === 'unsupported' && <p className="text-xs text-slate-500">Ce navigateur ne permet pas les notifications.</p>}
+      </Section>
+
+      <Section icon={<Volume2 size={16} />} title="Son Vendza" hint="Sur cet appareil">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold text-slate-800">Son à l'arrivée d'un message</p>
+            <p className="text-[11px] text-slate-500">Joué quand Vendza est ouvert. Application fermée, votre téléphone ou navigateur utilise son propre son : il n'est pas possible de le remplacer pour une page web.</p>
+          </div>
+          <Switch checked={sound} label="Son Vendza" onChange={v => { setSound(v); setSoundEnabled(v); if (v) previewNotifSound(); }} />
+        </div>
       </Section>
 
       <Section icon={<KeyRound size={16} />} title="Sécurité" hint="Mot de passe">

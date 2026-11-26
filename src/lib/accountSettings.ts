@@ -21,10 +21,12 @@ export function hasPasswordLogin(identities: Array<{ provider?: string }> | null
 export type PushState = 'unsupported' | 'default' | 'granted' | 'denied';
 export const pushState = (perm: unknown): PushState => (perm === 'default' || perm === 'granted' || perm === 'denied' ? perm : 'unsupported');
 
-export const PREF_COLUMNS = { promotions: 'newsletter', cart: 'notif_commandes' } as const;
+export const PREF_COLUMNS = { promotions: 'newsletter', cart: 'notif_commandes', orders: 'notif_livraisons', messages: 'notif_avis' } as const;
+/** Nom du champ correspondant dans le profil gardé par l'application. */
+export const PROFILE_FIELD: Record<(typeof PREF_COLUMNS)[keyof typeof PREF_COLUMNS], string> = { newsletter: 'newsletter', notif_commandes: 'notifCommandes', notif_livraisons: 'notifLivraisons', notif_avis: 'notifAvis' };
 export type PrefKey = keyof typeof PREF_COLUMNS;
 
 /** Valeur lue en base : une colonne absente ou nulle prend la valeur par défaut de la base (promotions : non, rappels : oui). */
 export function readPrefs(row: Record<string, unknown> | null | undefined): Record<PrefKey, boolean> {
-  return { promotions: row?.newsletter === true, cart: row?.notif_commandes !== false };
+  return { promotions: row?.newsletter === true, cart: row?.notif_commandes !== false, orders: row?.notif_livraisons !== false, messages: row?.notif_avis !== false };
 }
