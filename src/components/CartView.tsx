@@ -570,13 +570,8 @@ export const CartView: React.FC<CartViewProps> = ({
 
               {/* Checkout CTA */}
               <div className="payment-options pt-1 w-full space-y-2.5">
-                <button
-                  type="button"
-                  onClick={() => handleCheckout('moncash')}
-                  className="w-full inline-flex items-center justify-center gap-2 py-4 px-4 rounded-xl bg-[#cc0612] hover:bg-[#b0050f] hover:opacity-95 text-white font-extrabold text-xs tracking-wider uppercase transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:scale-[1.01]"
-                >
-                  <Smartphone size={15} />
-                  Payer avec MonCash
+                <button type="button" onClick={() => handleCheckout('moncash')} aria-label="Payer avec MonCash" className="block w-full cursor-pointer border-0 bg-transparent p-0 transition-transform hover:scale-[1.02] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-700 rounded-2xl">
+                  <img src="/images/pay-moncash.png" alt="Payer avec MonCash" width={800} height={267} draggable={false} className="mx-auto block h-auto w-full max-w-[280px]" />
                 </button>
                 <div className="flex items-center justify-center gap-2 my-2 text-slate-300 select-none">
                   <div className="h-px bg-slate-100 flex-1" />

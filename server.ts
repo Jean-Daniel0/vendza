@@ -26,7 +26,7 @@ import { normalizeMoncashNumber } from './server/moncash';
 import { reconcileMoncashPayments } from './server/bazikReconcile';
 import { loadEmailConfig } from './server/email';
 import { notifyOrderConfirmed, notifyDeliveryConfirmed, notifyPayoutSent, notifyPayoutFailed, notifyRefundPaid, notifyWelcome } from './server/emailEvents';
-import { moncashConfig, shouldUseDirect, makeMoncashOrderId, createMoncashClient, confirmMoncashPayment } from './server/moncashDirect';
+import { moncashConfig, shouldUseDirect, makeMoncashOrderId, createMoncashClient, confirmMoncashPayment, tryDirectPayment } from './server/moncashDirect';
 import { isSellerexHostname, sellerexHtml } from './server/sellerexCore';
 import { corsOriginFor } from './server/cors';
 import { runEscrowAutoRelease } from './server/escrowRelease';
@@ -1618,17 +1618,16 @@ app.post('/api/bazik/create-payment', async (req, res) => {
   {
     const mc = moncashConfig();
     if (mc.provider === 'direct' && !isSubscription) {
-      const adminCaller = mc.mode === 'live' ? false : await isAdminRequest(req);
-      if (shouldUseDirect({ provider: mc.provider, mode: mc.mode, isAdmin: adminCaller, isSubscription })) {
-        try {
-          const moncashOrderId = makeMoncashOrderId(String(orderId));
-          const { redirectUrl } = await createMoncashClient(mc).createPayment({ amount: numericAmount, orderId: moncashOrderId });
+      const adminCaller = mc.mode === 'live' || mc.sandboxForAll ? false : await isAdminRequest(req);
+      if (shouldUseDirect({ provider: mc.provider, mode: mc.mode, isAdmin: adminCaller, isSubscription, sandboxForAll: mc.sandboxForAll })) {
+        const moncashOrderId = makeMoncashOrderId(String(orderId));
+        const direct = await tryDirectPayment(createMoncashClient(mc), { amount: numericAmount, orderId: moncashOrderId });
+        if (direct.ok) {
           console.log(`[MonCash direct] Paiement créé (${mc.mode}) pour la commande ${orderId} : ${numericAmount} HTG`);
-          return res.json({ payment_url: redirectUrl, expires_at: null, reference_id: orderId, provider: 'moncash_direct', mode: mc.mode });
-        } catch (err: any) {
-          console.error('[MonCash direct] Création du paiement impossible :', err?.message);
-          return res.status(502).json({ error: "Le paiement MonCash est momentanément indisponible. Réessayez dans un instant." });
+          return res.json({ payment_url: direct.redirectUrl, expires_at: null, reference_id: orderId, provider: 'moncash_direct', mode: mc.mode });
         }
+        // Bazik reste le moyen de secours : le client paie quand même, sans rien voir de ce changement
+        if (direct.ok === false) console.error(`[MonCash direct] Création impossible (${direct.reason}) : bascule sur Bazik pour la commande ${orderId}`);
       }
     }
   }
