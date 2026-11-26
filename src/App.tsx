@@ -5150,13 +5150,7 @@ create policy "Mise à jour publique des commandes"
                 </div>
 
                 {/* 2. Stripe Button */}
-                <button
-                  type="button"
-                  onClick={() => executeInstantCheckout('stripe')}
-                  className="w-full inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-[#635bff] text-white font-extrabold text-xs tracking-wider uppercase transition-all shadow-md hover:shadow-lg cursor-pointer transform hover:scale-[1.01]"
-                >
-                  Payer par Carte
-                </button>
+                <button type="button" onClick={() => executeInstantCheckout('stripe')} aria-label="Payer par carte bancaire" className="block w-full cursor-pointer border-0 bg-transparent p-0 transition-transform hover:scale-[1.02] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-700 rounded-2xl"><img src="/images/pay-card.jpg" alt="Payer par carte bancaire" width={981} height={219} draggable={false} className="mx-auto block h-auto w-full max-w-[280px]" /></button>
 
                 {/* 3. Cancel */}
                 <button
