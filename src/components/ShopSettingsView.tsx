@@ -233,10 +233,6 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
             boutique_nom: formShopName,
             boutique_desc: formShopDesc,
             avatar_url: formAvatar,
-            notif_commandes: prefOrders,
-            notif_livraisons: prefPromo,
-            notif_avis: prefAvis,
-            newsletter: prefNewsletter,
             updated_at: new Date()
           })
           .eq('id', user.id);
@@ -268,11 +264,7 @@ export const ShopSettingsView: React.FC<ShopSettingsViewProps> = ({
           idType: formIdType,
           idNumber: formIdNumber,
           idFile: formIdFile,
-          statutVerification: nextStatut,
-          notifOrders: prefOrders,
-          notifPromo: prefPromo,
-          notifAvis: prefAvis,
-          newsletter: prefNewsletter
+          statutVerification: nextStatut
         });
 
         alert("Vos modifications ont été enregistrées avec succès dans la base de données sécurisée !");
