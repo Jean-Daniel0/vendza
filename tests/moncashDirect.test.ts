@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {
+import { tryDirectPayment,
   moncashConfig, shouldUseDirect, makeMoncashOrderId, rootOrderId,
   createMoncashClient, confirmMoncashPayment, isPaymentSuccessful, MoncashError,
 } from '../server/moncashDirect';
@@ -119,6 +119,22 @@ import {
   assert.equal((await confirmMoncashPayment(client, { orderRef: 'SANSMARQUE' })).status, 'invalid');
   assert.equal((await confirmMoncashPayment(client, {})).status, 'invalid');
   assert.equal((await confirmMoncashPayment(client, { transactionId: '  ', orderRef: '' })).status, 'invalid');
+
+  // --- secours Bazik : tryDirectPayment ne lève jamais d'exception
+  {
+    const ok = await tryDirectPayment({ createPayment: async () => ({ redirectUrl: 'https://x/redirect?token=t' }) }, { amount: 100, orderId: 'a_mc_1' });
+    assert.deepEqual(ok, { ok: true, redirectUrl: 'https://x/redirect?token=t' });
+    const refuse = await tryDirectPayment({ createPayment: async () => { throw new MoncashError('MonCash : jeton refusé (HTTP 401)', 401); } }, { amount: 100, orderId: 'a_mc_1' });
+    assert.equal(refuse.ok, false); assert.ok(refuse.ok === false && refuse.reason.includes('401'));
+    const panne = await tryDirectPayment({ createPayment: async () => { throw new Error('fetch failed'); } }, { amount: 100, orderId: 'a_mc_1' });
+    assert.equal(panne.ok, false);
+    // Avec le vrai client : clés absentes ou montant invalide -> échec propre (le serveur bascule alors sur Bazik)
+    const noKeys = await tryDirectPayment(createMoncashClient(moncashConfig({ MONCASH_PROVIDER: 'direct' }), (async () => { throw new Error('ne doit pas être appelé'); }) as any), { amount: 100, orderId: 'a_mc_1' });
+    assert.equal(noKeys.ok, false);
+    const badAmount = await tryDirectPayment(createMoncashClient(moncashConfig({ MONCASH_PROVIDER: 'direct', MONCASH_CLIENT_ID: 'i', MONCASH_CLIENT_SECRET: 's' }), (async () => { throw new Error('ne doit pas être appelé'); }) as any), { amount: 0, orderId: 'a_mc_1' });
+    assert.equal(badAmount.ok, false);
+    console.log('  ✓ moncashDirect: en cas d\'échec de MonCash officiel, le serveur retombe sur Bazik sans erreur');
+  }
 
   console.log('  ✓ moncashDirect: interrupteur, sandbox réservé à l\'admin, confirmation auprès de MonCash');
 })().catch(e => { console.error(e); process.exit(1); });

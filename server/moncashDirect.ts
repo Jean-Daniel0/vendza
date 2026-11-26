@@ -170,3 +170,19 @@ export async function confirmMoncashPayment(
   if (!Number.isFinite(amount) || amount <= 0) return { status: 'unpaid' };
   return { status: 'paid', rootOrderId: root, moncashReference, transactionId: String(payment.transaction_id ?? tx), amount };
 }
+
+/**
+ * Essaie MonCash direct sans jamais lever d'exception : en cas d'échec (clés refusées, MonCash indisponible, délai dépassé),
+ * l'appelant retombe sur Bazik, qui reste le moyen de paiement de secours. Le client ne voit qu'un seul bouton « MonCash ».
+ */
+export async function tryDirectPayment(
+  client: Pick<MoncashClient, 'createPayment'>,
+  p: { amount: number; orderId: string }
+): Promise<{ ok: true; redirectUrl: string } | { ok: false; reason: string }> {
+  try {
+    const { redirectUrl } = await client.createPayment(p);
+    return { ok: true, redirectUrl };
+  } catch (err: any) {
+    return { ok: false, reason: String(err?.message || 'erreur inconnue').slice(0, 200) };
+  }
+}
