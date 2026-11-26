@@ -21,6 +21,7 @@ import { createAdminGuard, auditMiddleware, classifyAdminPath, adminHeaders, isV
 import { registerAdminRoutes } from './server/adminRoutes';
 import { registerFounderAdminRoutes } from './server/founderAdmin';
 import { registerUnsubscribeRoutes } from './server/unsubscribe';
+import { runNewToday, runPopular, runVendorSummary, runDeliveryReminder, notifyDeliveredPush, notifyPayoutPush, notifyRefundPush, notifyReviewPush, allowedFor } from './server/notifyPlus';
 import { normalizeMoncashNumber } from './server/moncash';
 import { reconcileMoncashPayments } from './server/bazikReconcile';
 import { loadEmailConfig } from './server/email';
@@ -163,6 +164,9 @@ if (isSupabaseConfigured && supabase) {
           if (senderName === "Un utilisateur" && (m.sender_nom || m.senderNom)) {
             senderName = m.sender_nom || m.senderNom;
           }
+
+          // L'utilisateur peut couper les notifications de messages et d'avis dans Paramètres
+          try { if (!(await allowedFor(supabase, [m.recipient_id], 'notif_avis')).has(m.recipient_id)) return; } catch { /* en cas de doute, on notifie */ }
 
           const title = `Message de ${senderName}`;
           const text = m.text || "Vous avez reçu un nouveau message.";
@@ -2036,6 +2040,7 @@ app.post('/api/bazik/webhook/transfer', express.raw({ type: '*/*' }), async (req
 
 
           if (!updateErr && supabase) fireEmail(notifyPayoutSent(emailDeps(), orderId, vendorId, finalAmount));
+          if (!updateErr && supabase) fireEmail(notifyPayoutPush(supabase, sendOneSignalPushMany, String(orderId), vendorId, finalAmount));
 
           if (vendorId) {
             // Update vendor wallet (transfer from pending_balance to available_balance)
@@ -2416,6 +2421,17 @@ app.post('/api/email/welcome', async (req, res) => {
   return res.json({ ok: true, sent: out === 'sent' });
 });
 
+// Nouvel avis : le navigateur écrit l'avis, puis demande au serveur de prévenir le vendeur (le serveur relit l'avis en base : l'auteur doit être l'appelant).
+app.post('/api/reviews/notify', async (req, res) => {
+  const reviewId = String(req.body?.reviewId || '');
+  if (!isValidUuid(reviewId)) return res.status(400).json({ error: 'reviewId invalide.' });
+  const caller = await getAuthedUser(req);
+  if (!caller) return res.status(401).json({ error: 'Authentification requise.' });
+  if (!supabase) return res.json({ ok: true, sent: false });
+  const out = await notifyReviewPush(supabase, sendOneSignalPushMany, caller.id, reviewId);
+  return res.json({ ok: true, sent: out === 'sent' });
+});
+
 // L'ACHETEUR confirme la réception en scannant le QR du vendeur (code de livraison obligatoire) : transition atomique + virement au vendeur.
 app.post('/api/orders/confirm-delivery', async (req, res) => {
   const { orderId, code } = req.body || {};
@@ -2429,6 +2445,7 @@ app.post('/api/orders/confirm-delivery', async (req, res) => {
       { orderId, callerId: caller.id, code }
     );
     if (r.status === 200 && supabase) fireEmail(notifyDeliveryConfirmed(emailDeps(), orderId));
+    if (r.status === 200 && supabase) fireEmail(notifyDeliveredPush(supabase, sendOneSignalPushMany, orderId));
     return res.status(r.status).json(r.body);
   } catch (err: any) {
     console.error('[Confirm Delivery Exception]', err.message);
@@ -3215,7 +3232,7 @@ if (supabase) app.post('/api/founder/claim', async (req, res) => {
 // Page admin « Paiements » (remboursements, virements en attente, export, journal) : réservée à public.is_admin().
 if (supabase) registerAdminPaymentsRoutes(app, {
   supabase, getAuthedUser,
-  onRefundPaid: (r: { id: string; buyer_id?: string | null; amount: number; reference?: string; method?: 'moncash' | 'card' }) => fireEmail(notifyRefundPaid(emailDeps(), r.id, r.buyer_id, r.amount, r.reference, r.method)), guard: adminGuard,
+  onRefundPaid: (r: { id: string; buyer_id?: string | null; amount: number; reference?: string; method?: 'moncash' | 'card' }) => { fireEmail(notifyRefundPaid(emailDeps(), r.id, r.buyer_id, r.amount, r.reference, r.method)); fireEmail(notifyRefundPush(supabase, sendOneSignalPushMany, r.id, r.buyer_id, r.amount)); }, guard: adminGuard,
   makeUserClient: (token: string) => createClient(supabaseUrl, supabaseAnonKey, {
     global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false },
   }),
@@ -3546,6 +3563,10 @@ async function runCampaign(task: string) {
   if (task === 'recommendations') return runRecommendations(supabase, sendOneSignalPushMany);
   if (task === 'cart-reminders') return runCartReminders(supabase, sendOneSignalPushMany);
   if (task === 'low-stock') return runLowStockAlerts(supabase, sendOneSignalPushMany);
+  if (task === 'new-today') return runNewToday(supabase, sendOneSignalPushMany);
+  if (task === 'popular') return runPopular(supabase, sendOneSignalPushMany);
+  if (task === 'vendor-summary') return runVendorSummary(supabase, sendOneSignalPushMany);
+  if (task === 'delivery-reminder') return runDeliveryReminder(supabase, sendOneSignalPushMany);
   if (task === 'escrow-release') return runEscrowAutoRelease({ db: supabase, send: sendOneSignalPushMany, payout: (order: any) => executeVendorPayout(order) });
   if (task === 'indexnow') return runIndexNow(supabase, false);
   if (task === 'indexnow-all') return runIndexNow(supabase, true);
@@ -3556,7 +3577,7 @@ app.post('/api/internal/cron/run', async (req, res) => {
   try {
     if (!(await cronSecretOk(req.header('x-cron-secret')))) return res.status(401).json({ error: 'Non autorisé' });
     const task = String(req.query.task || '');
-    if (!['flash-sale', 'recommendations', 'cart-reminders', 'low-stock', 'escrow-release', 'indexnow', 'indexnow-all'].includes(task)) return res.status(400).json({ error: 'task invalide' });
+    if (!['flash-sale', 'recommendations', 'cart-reminders', 'low-stock', 'new-today', 'popular', 'vendor-summary', 'delivery-reminder', 'escrow-release', 'indexnow', 'indexnow-all'].includes(task)) return res.status(400).json({ error: 'task invalide' });
     const result = await runCampaign(task);
     console.log('[cron]', task, JSON.stringify(result));
     return res.json(result);
@@ -3570,6 +3591,12 @@ app.post('/api/internal/cron/run', async (req, res) => {
 setInterval(() => {
   runCampaign('flash-sale').catch(e => console.warn('[cron-local] flash-sale:', e?.message));
   if (haitiClock(new Date()).hour === 17) runCampaign('recommendations').catch(e => console.warn('[cron-local] reco:', e?.message));
+  // Messages de la journée : chaque tâche ne s'envoie qu'une fois par jour (clé dans notification_log) et ne s'exécute que dans sa plage horaire
+  const hh = haitiClock(new Date()).hour;
+  if (hh === 9) runCampaign('new-today').catch(e => console.warn('[cron-local] new-today:', e?.message));
+  if (hh === 10) runCampaign('delivery-reminder').catch(e => console.warn('[cron-local] delivery-reminder:', e?.message));
+  if (hh === 12) runCampaign('popular').catch(e => console.warn('[cron-local] popular:', e?.message));
+  if (hh === 18) runCampaign('vendor-summary').catch(e => console.warn('[cron-local] vendor-summary:', e?.message));
 }, 15 * 60 * 1000);
 
 // ============================================

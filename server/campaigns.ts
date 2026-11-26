@@ -1,5 +1,6 @@
 // Envoi des campagnes : annonce Ventes Flash quotidienne + suggestions personnalisées.
 // Uniquement vers les clients qui ont activé « Promotions & ventes flash » (profiles.newsletter = true).
+import { takePromoSlots } from './notifyPlus';
 import { flashSummary, buildFlashMessage, pickRecommendation, buildRecommendationMessage, haitiClock, isFlashWindow, ProductLite, Interest } from './marketing';
 
 export type PushMany = (userIds: string[], title: string, message: string, category: string) => Promise<unknown>;
@@ -33,7 +34,7 @@ export async function runFlashSale(db: any, send: PushMany, now = new Date()): P
 
   const { title, message } = buildFlashMessage(summary);
   await db.from('platform_messages').insert({ title, message, audience: 'all', is_active: true });
-  const ids = await optedInUserIds(db);
+  const ids = await takePromoSlots(db, await optedInUserIds(db), haitiClock(now).dateKey); // plafond : 4 messages promo par personne et par jour
   for (let i = 0; i < ids.length; i += 1000) await send(ids.slice(i, i + 1000), title, message, 'promo');
   return { status: 'sent', recipients: ids.length, details: { ...summary } };
 }
@@ -57,6 +58,7 @@ export async function runRecommendations(db: any, send: PushMany, now = new Date
     const rec = pickRecommendation(interests, products, { userId, now });
     if (!rec) continue;
     if (!(await claim(db, `reco-${userId}-${dateKey}`))) continue;
+    if ((await takePromoSlots(db, [userId], dateKey)).length === 0) continue;
     const { title, message } = buildRecommendationMessage(rec);
     await send([userId], title, message, 'promo');
     await db.from('platform_messages').insert({ title, message, audience: userId, is_active: true });

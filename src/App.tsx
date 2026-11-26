@@ -11,6 +11,8 @@ import { LogoLoader } from './components/LogoLoader';
 import { usePushStatus } from './lib/pushStatus';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
+import { SettingsView } from './components/SettingsView';
+import { playNotifSound, isFreshIncoming } from './lib/notifSound';
 import { MarketplaceHome, ProductGridCard } from './components/MarketplaceHome';
 import { ProductDetail } from './components/ProductDetail';
 import { CartView } from './components/CartView';
@@ -383,6 +385,14 @@ export default function App() {
   }, []);
 
   const { status: pushStatus, enable: enablePush } = usePushStatus(oneSignalInitDone, oneSignalInitError);
+
+  // Son Vendza quand une notification arrive alors que l'application est ouverte
+  useEffect(() => {
+    if (!oneSignalInitDone) return;
+    const onForeground = () => { playNotifSound(); };
+    try { OneSignal.Notifications.addEventListener('foregroundWillDisplay', onForeground); } catch { /* SDK indisponible */ }
+    return () => { try { OneSignal.Notifications.removeEventListener('foregroundWillDisplay', onForeground); } catch { /* ignoré */ } };
+  }, [oneSignalInitDone]);
 
   // Synchronize OneSignal logged-in user alias
   useEffect(() => {
@@ -1710,6 +1720,7 @@ export default function App() {
 
             if (isRelevant) {
               setMessages(prev => mergeIncoming(prev, [mappedMsg]));
+              if (payload.eventType === 'INSERT' && isFreshIncoming(mappedMsg, currentUser.id, Date.now())) playNotifSound();
             }
           }
         }
@@ -1960,7 +1971,7 @@ export default function App() {
 
   // Handle active navigation
   const navigateTo = (view: string) => {
-    const protectedViews = ['client-dashboard', 'vendor-dashboard', 'create-product', 'subscription', 'scanner', 'inbox'];
+    const protectedViews = ['client-dashboard', 'vendor-dashboard', 'create-product', 'subscription', 'scanner', 'inbox', 'settings'];
     
     // Automatically log in or adapt user role to prevent any restriction alerts
     if (protectedViews.includes(view)) {
@@ -4258,10 +4269,13 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
         dbReview.user_id = currentUser.id;
       }
 
-      supabase.from('reviews').insert([dbReview]).then(({ error }) => {
+      supabase.from('reviews').insert([dbReview]).select('id').maybeSingle().then(({ data, error }) => {
         if (error) {
           console.error("Error creating review in Supabase:", error.message);
+          return;
         }
+        // Le vendeur est prévenu par notification (jamais bloquant : si ça échoue, l'avis reste enregistré)
+        if (data?.id) apiFetchAuthed('/api/reviews/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reviewId: data.id }) }).catch(() => {});
       });
     }
   };
@@ -4609,6 +4623,20 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
                 />
               ) : null;
             })()
+          )}
+
+          {currentView === 'settings' && currentUser && (
+            <SettingsView
+              user={currentUser}
+              onNavigate={navigateTo}
+              onEditProfile={() => {
+                if (currentUser.userType === 'vendeur') { navigateTo('shop-settings'); return; }
+                setDashboardTab('profile');
+                navigateTo('client-dashboard');
+              }}
+              onPrefsChanged={(patch) => setCurrentUser(u => (u ? ({ ...u, ...patch } as any) : u))}
+              onLogout={handleLogout}
+            />
           )}
 
           {currentView === 'shop-settings' && currentUser && (

@@ -11,6 +11,7 @@ import { QRCodeRenderer } from './QRCodeRenderer';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
 import { EIcon, RichText } from './EIcon';
+import { validatePasswordChange } from '../lib/accountSettings';
 interface ClientDashboardProps {
   orders: Order[];
   user: UserProfile | null;
@@ -246,10 +247,6 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
             departement: formDept,
             commune: formCommune,
             avatar_url: formAvatar,
-            notif_commandes: prefOrders,
-            notif_livraisons: prefPromo,
-            notif_avis: prefMessages,
-            newsletter: prefNewsletter,
             updated_at: new Date()
           })
           .eq('id', user.id);
@@ -270,11 +267,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
           departement: formDept,
           commune: formCommune,
           avatar: formAvatar,
-          banner: formBanner,
-          notifCommandes: prefOrders,
-          notifLivraisons: prefPromo,
-          notifAvis: prefMessages,
-          newsletter: prefNewsletter
+          banner: formBanner
         });
 
         alert("Vos modifications ont été enregistrées avec succès dans la base de données sécurisée !");
@@ -300,25 +293,21 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
     }
   };
 
-  const handleUpdatePassword = (e: React.FormEvent) => {
+  const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pwdCurrent) {
-      setPwdStatus({ type: 'error', text: 'Veuillez saisir votre mot de passe actuel.' });
-      return;
-    }
-    if (pwdNew.length < 6) {
-      setPwdStatus({ type: 'error', text: 'Le nouveau mot de passe doit contenir au moins 6 caractères.' });
-      return;
-    }
-    if (pwdNew !== pwdConf) {
-      setPwdStatus({ type: 'error', text: 'Les deux mots de passe ne correspondent pas.' });
-      return;
-    }
-
-    setPwdStatus({ type: 'success', text: 'Mot de passe synchronisé avec succès !' });
-    setPwdCurrent('');
-    setPwdNew('');
-    setPwdConf('');
+    const check = validatePasswordChange(pwdCurrent, pwdNew, pwdConf);
+    if (check.ok === false) { setPwdStatus({ type: 'error', text: check.error }); return; }
+    if (!isSupabaseConfigured || !supabase || !user.email) { setPwdStatus({ type: 'error', text: 'Changement impossible pour le moment.' }); return; }
+    try {
+      const auth = (supabase as any).auth;
+      // Le mot de passe actuel est vérifié, puis réellement remplacé (plus de faux message de succès)
+      const { error: bad } = await auth.signInWithPassword({ email: user.email, password: pwdCurrent });
+      if (bad) { setPwdStatus({ type: 'error', text: 'Mot de passe actuel incorrect.' }); return; }
+      const { error } = await auth.updateUser({ password: pwdNew });
+      if (error) { setPwdStatus({ type: 'error', text: 'Le nouveau mot de passe a été refusé. Choisissez-en un plus solide.' }); return; }
+      setPwdStatus({ type: 'success', text: 'Mot de passe modifié.' });
+      setPwdCurrent(''); setPwdNew(''); setPwdConf('');
+    } catch { setPwdStatus({ type: 'error', text: 'Changement impossible pour le moment.' }); }
     setTimeout(() => setPwdStatus({ type: '', text: '' }), 5000);
   };
 
@@ -1385,84 +1374,13 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                 </form>
               </div>
 
-              {/* Preferences toggles block matching original styled Switch rows */}
-              <div className="bg-white border border-slate-100 rounded-3xl p-5 shadow-2xs space-y-4">
-                <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-                  <div className="w-7 h-7 bg-violet-50 text-violet-600 flex items-center justify-center rounded-lg">
-                    <Bell size={14} />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Notifications</h3>
-                    <p className="text-[9px] text-slate-400">Gérez vos préférences alertes</p>
-                  </div>
+              {/* Les préférences de notification et de promotion sont réunies dans la page Paramètres */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Notifications et e-mails</h3>
+                  <p className="text-[11px] text-slate-500">Promotions, rappels de panier, notifications et mot de passe se gèrent dans Paramètres.</p>
                 </div>
-
-                <div className="space-y-3.5">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="space-y-0.5">
-                      <span className="block text-xs font-bold text-slate-700">Mises à jour de commandes</span>
-                      <span className="block text-[9.5px] text-slate-400 leading-tight">Statut, expédition, validation</span>
-                    </div>
-                    <button 
-                      onClick={() => setPrefOrders(!prefOrders)}
-                      className={`w-9 h-5 rounded-full p-0.5 transition-colors relative cursor-pointer ${prefOrders ? 'bg-teal-600' : 'bg-slate-200'}`}
-                    >
-                      <div className={`w-4 h-4 rounded-full bg-white shadow-xs transition-transform transform ${prefOrders ? 'translate-x-4' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="space-y-0.5">
-                      <span className="block text-xs font-bold text-slate-700">Promotions &amp; ventes flash</span>
-                      <span className="block text-[9.5px] text-slate-400 leading-tight">Coupons et offres limitées</span>
-                    </div>
-                    <button 
-                      onClick={() => setPrefPromo(!prefPromo)}
-                      className={`w-9 h-5 rounded-full p-0.5 transition-colors relative cursor-pointer ${prefPromo ? 'bg-teal-600' : 'bg-slate-200'}`}
-                    >
-                      <div className={`w-4 h-4 rounded-full bg-white shadow-xs transition-transform transform ${prefPromo ? 'translate-x-4' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="space-y-0.5">
-                      <span className="block text-xs font-bold text-slate-700">Nouveaux produits</span>
-                      <span className="block text-[9.5px] text-slate-400 leading-tight">Selon vos boutiques préférées</span>
-                    </div>
-                    <button 
-                      onClick={() => setPrefProducts(!prefProducts)}
-                      className={`w-9 h-5 rounded-full p-0.5 transition-colors relative cursor-pointer ${prefProducts ? 'bg-teal-600' : 'bg-slate-200'}`}
-                    >
-                      <div className={`w-4 h-4 rounded-full bg-white shadow-xs transition-transform transform ${prefProducts ? 'translate-x-4' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="space-y-0.5">
-                      <span className="block text-xs font-bold text-slate-700">Messages de vendeurs</span>
-                      <span className="block text-[9.5px] text-slate-400 leading-tight">Alertes instantanées de clavardage</span>
-                    </div>
-                    <button 
-                      onClick={() => setPrefMessages(!prefMessages)}
-                      className={`w-9 h-5 rounded-full p-0.5 transition-colors relative cursor-pointer ${prefMessages ? 'bg-teal-600' : 'bg-slate-200'}`}
-                    >
-                      <div className={`w-4 h-4 rounded-full bg-white shadow-xs transition-transform transform ${prefMessages ? 'translate-x-4' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="space-y-0.5">
-                      <span className="block text-xs font-bold text-slate-700">Newsletter Vendza</span>
-                      <span className="block text-[9.5px] text-slate-400 leading-tight">Bons plans et nouvelles de commerce</span>
-                    </div>
-                    <button 
-                      onClick={() => setPrefNewsletter(!prefNewsletter)}
-                      className={`w-9 h-5 rounded-full p-0.5 transition-colors relative cursor-pointer ${prefNewsletter ? 'bg-teal-600' : 'bg-slate-200'}`}
-                    >
-                      <div className={`w-4 h-4 rounded-full bg-white shadow-xs transition-transform transform ${prefNewsletter ? 'translate-x-4' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
-                </div>
+                <button type="button" onClick={() => onNavigate('settings')} className="shrink-0 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white">Ouvrir</button>
               </div>
             </div>
           </div>
