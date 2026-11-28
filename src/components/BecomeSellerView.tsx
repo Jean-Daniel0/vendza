@@ -619,7 +619,7 @@ export const BecomeSellerView: React.FC<BecomeSellerViewProps> = ({
                   setMoncashNom(e.target.value);
                   if (errors.moncashNom) setErrors(prev => { const n = {...prev}; delete n.moncashNom; return n; });
                 }}
-                placeholder="Ex : Michel Jean Daniel"
+                placeholder="Ex : Marie Joseph"
                 className={`w-full p-3 border rounded-xl bg-slate-50 focus:bg-white text-xs font-semibold focus:outline-none focus:border-blue-600 ${errors.moncashNom ? 'border-red-500' : 'border-slate-100'}`}
               />
               {errors.moncashNom && <p className="text-[9.5px] font-bold text-red-600">{errors.moncashNom}</p>}

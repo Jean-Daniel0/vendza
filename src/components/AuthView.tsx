@@ -732,7 +732,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="Jean-Daniel"
+                  placeholder="Votre prénom"
                   className="w-full py-2 px-3 border border-slate-200 rounded-lg text-xs"
                   value={prenom}
                   onChange={e => setPrenom(e.target.value)}
