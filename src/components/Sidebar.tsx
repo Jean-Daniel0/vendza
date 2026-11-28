@@ -3,7 +3,7 @@ import {
   Home, ShoppingBag, Receipt, ShieldCheck, 
   LayoutDashboard, Package, FolderPlus, CreditCard, 
   MessageSquare, User2, LogIn, LogOut, X, MapPin, 
-  TrendingUp, RefreshCw, Store, Database, HelpCircle, Settings
+  TrendingUp, RefreshCw, Store, Database, HelpCircle, Settings, Gift
 } from 'lucide-react';
 import { UserProfile, CartItem } from '../types';
 
@@ -365,6 +365,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             </div>
           )}
+        {user && user.userType === 'vendeur' && (
+          <div className="px-2 pb-1">
+            <button
+              onClick={() => menuClick('referrals')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition cursor-pointer ${
+                currentView === 'referrals' ? 'bg-teal-50 text-teal-700 font-bold' : 'text-[#5a6480] hover:bg-slate-50'
+              }`}
+            >
+              <Gift size={15} className={currentView === 'referrals' ? 'text-teal-600' : 'text-slate-400'} />
+              <span>Parrainage</span>
+            </button>
+          </div>
+        )}
         {user && (
           <div className="px-2 pb-3">
             <button

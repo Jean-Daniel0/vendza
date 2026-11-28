@@ -354,6 +354,17 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onBack }) => {
               Le paiement est libéré au vendeur de manière automatique et instantanée dès que le client scanne le QR code de validation de livraison. En cas de litige résolu en faveur du vendeur, le paiement est libéré dans les <strong>24 heures</strong> suivant la décision de Vendza.
             </p>
 
+            <h4 className="font-bold text-slate-800 text-xs sm:text-sm mt-3">Programme de parrainage (vendeurs)</h4>
+            <p>
+              Un vendeur peut inviter un autre vendeur avec son lien personnel de parrainage. Le parrain reçoit <strong>15 %</strong> de la commission nette réellement encaissée par Vendza sur les ventes de son filleul pendant <strong>6 mois</strong> à compter de la première vente livrée de celui-ci, puis <strong>1,5 %</strong> ensuite. La commission nette est la commission de Vendza après déduction des frais de paiement.
+            </p>
+            <p>
+              Un gain n'est compté qu'après confirmation de la livraison et libération des fonds au vendeur. Il est annulé en cas de remboursement ou de litige tranché en faveur de l'acheteur. Après les 6 premiers mois, les gains s'arrêtent si le filleul reste 90 jours sans vente. Le retrait se fait par MonCash à partir de <strong>2 500 Gdes</strong>.
+            </p>
+            <p>
+              Sont refusés : l'auto-parrainage, et tout parrainage entre deux comptes partageant le même numéro de téléphone ou le même numéro MonCash. Un filleul n'a qu'un seul parrain, et seuls les comptes créés avec le lien (valable 30 jours) sont concernés. Vendza peut bloquer un parrainage en cas de fraude ou d'abus. Ce programme est indépendant du programme fondateurs et peut s'y ajouter. Toute modification de ces règles est annoncée avec un préavis de 30 jours.
+            </p>
+
             <h4 className="font-bold text-slate-800 text-xs sm:text-sm mt-3">Modification des tarifs</h4>
             <p>
               Vendza se réserve le droit de modifier ses tarifs de commission et d'abonnement. Tout changement de tarif sera communiqué aux utilisateurs concernés avec un préavis de <strong>30 jours</strong> par email et notification sur la plateforme.

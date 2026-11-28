@@ -4,8 +4,10 @@ import App from './App.tsx';
 import './index.css';
 import { initializeSupabaseConfig } from './lib/supabaseClient';
 import { isSellerexHost } from './lib/host';
+import { captureReferral } from './lib/referralCapture';
 
 async function init() {
+  try { captureReferral(window.location.search, localStorage); } catch { /* jamais bloquant */ }
   await initializeSupabaseConfig();
   // Sous-domaine Sellerex : code chargé à part (chunk séparé), les autres noms d'hôte restent inchangés.
   // Page d'administration unique : adresse secrète « /gestion-… » (chunk séparé). Le serveur ne sert cette adresse qu'avec la bonne valeur secrète

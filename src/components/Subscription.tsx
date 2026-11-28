@@ -291,6 +291,10 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                   : "Votre visibilité et vos zones de livraison sont limitées. Mettez à niveau pour réduire vos commissions."}
             </p>
 
+            <p className="text-[10px] text-slate-400 leading-relaxed max-w-xl">
+              Parrainez d'autres vendeurs avec votre lien personnel (menu « Parrainage ») : 15 % de la commission nette encaissée par Vendza sur leurs ventes pendant 6 mois, puis 1,5 %. Conditions dans les Conditions d'Utilisation.
+            </p>
+
             {formattedExpiresAt() && (
               <p className="text-[10px] text-teal-300 font-mono">
                 <EIcon name="Calendar" /> Date d'expiration ou renouvellement : <strong>{formattedExpiresAt()}</strong>

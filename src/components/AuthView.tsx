@@ -8,6 +8,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 
 import { EIcon, RichText } from './EIcon';
 import { requestWelcomeEmail } from '../lib/welcomeEmail';
+import { attachPendingReferral } from '../lib/referralCapture';
 interface AuthViewProps {
   // mode = 'signup' : nouvel inscrit (profil à compléter) ; 'login' : connexion normale.
   // La redirection (tableau de bord ou profil) est faite par l'application, pas ici.
@@ -376,7 +377,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
         // Step 3.5 — Stocker le profil dans le state global ; l'application choisit la page d'arrivée
         // (un seul changement de vue : plus de second appel de navigation qui renvoyait vers « auth »).
         onLogin(loggedUser, { mode: justCreated ? 'signup' : 'login' });
-        requestWelcomeEmail(loggedUser.userType === 'vendeur');
+        requestWelcomeEmail(loggedUser.userType === 'vendeur'); attachPendingReferral();
       }
     } catch (err: any) {
       console.error("[Vendza Supabase Login Exception]", err);
@@ -531,7 +532,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
 
         // Inscription : l'application envoie vers le profil à compléter.
         onLogin(loggedUser, { mode: 'signup' });
-        requestWelcomeEmail(loggedUser.userType === 'vendeur');
+        requestWelcomeEmail(loggedUser.userType === 'vendeur'); attachPendingReferral();
       }
     } catch (err: any) {
       console.error("[Vendza Supabase SignUp Exception]", err);

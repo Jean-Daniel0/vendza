@@ -11,6 +11,7 @@ import { LogoLoader } from './components/LogoLoader';
 import { usePushStatus } from './lib/pushStatus';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
+import { ReferralView } from './components/ReferralView';
 import { SettingsView } from './components/SettingsView';
 import { playNotifSound, isFreshIncoming } from './lib/notifSound';
 import { MarketplaceHome, ProductGridCard } from './components/MarketplaceHome';
@@ -1971,7 +1972,7 @@ export default function App() {
 
   // Handle active navigation
   const navigateTo = (view: string) => {
-    const protectedViews = ['client-dashboard', 'vendor-dashboard', 'create-product', 'subscription', 'scanner', 'inbox', 'settings'];
+    const protectedViews = ['client-dashboard', 'vendor-dashboard', 'create-product', 'subscription', 'scanner', 'inbox', 'settings', 'referrals'];
     
     // Automatically log in or adapt user role to prevent any restriction alerts
     if (protectedViews.includes(view)) {
@@ -4623,6 +4624,10 @@ Vous retrouverez votre code QR unique sur votre "Reçu de Commande" depuis votre
                 />
               ) : null;
             })()
+          )}
+
+          {currentView === 'referrals' && currentUser && currentUser.userType === 'vendeur' && (
+            <ReferralView onNavigate={navigateTo} />
           )}
 
           {currentView === 'settings' && currentUser && (
