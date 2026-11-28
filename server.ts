@@ -20,6 +20,8 @@ import { registerAdminPaymentsRoutes } from './server/adminPayments';
 import { createAdminGuard, auditMiddleware, classifyAdminPath, adminHeaders, isValidAdminSlug } from './server/adminSecurity';
 import { registerAdminRoutes } from './server/adminRoutes';
 import { registerFounderAdminRoutes } from './server/founderAdmin';
+import { registerReferralRoutes } from './server/referralRoutes';
+import { creditReferralForOrder, reverseReferralForOrder, sweepReferralEarnings } from './server/referral';
 import { registerUnsubscribeRoutes } from './server/unsubscribe';
 import { runNewToday, runPopular, runVendorSummary, runDeliveryReminder, notifyDeliveredPush, notifyPayoutPush, notifyRefundPush, notifyReviewPush, allowedFor } from './server/notifyPlus';
 import { normalizeMoncashNumber } from './server/moncash';
@@ -2039,6 +2041,7 @@ app.post('/api/bazik/webhook/transfer', express.raw({ type: '*/*' }), async (req
             .eq('id', orderId);
 
 
+          if (!updateErr) fireReferralCredit(String(orderId));
           if (!updateErr && supabase) fireEmail(notifyPayoutSent(emailDeps(), orderId, vendorId, finalAmount));
           if (!updateErr && supabase) fireEmail(notifyPayoutPush(supabase, sendOneSignalPushMany, String(orderId), vendorId, finalAmount));
 
@@ -2241,6 +2244,7 @@ async function executeVendorPayout(
             vendor_credited_at: new Date().toISOString()
           })
           .eq('id', orderId);
+        fireReferralCredit(String(orderId));
 
         if (vendorId) {
           // Update wallet
@@ -3144,6 +3148,17 @@ app.use(['/api/admin', '/api/sellerex/admin'], auditMiddleware(async (row) => { 
 if (supabase) registerSellerexRoutes(app, { supabase, getAuthedUser, adminGuard });
 if (supabase) registerAdminRoutes(app, { supabase, guard: adminGuard });
 if (supabase) registerFounderAdminRoutes(app, { supabase, guard: adminGuard, send: (ids, t, m, c) => sendOneSignalPushMany(ids, t, m, c), emailDeps, unsubscribeSecret });
+// Parrainage : commission réellement due à Vendza sur une commande (même calcul que le versement vendeur)
+async function referralCommissionFor(order: any): Promise<number> {
+  const vendorId = String(order.vendor_id || order.vendeur_id || order.seller_id || '');
+  let plan = 'gratuit';
+  try { const { data: shop } = await supabase!.from('shops').select('plan').eq('vendor_id', vendorId).maybeSingle(); if (shop?.plan) plan = String(shop.plan).toLowerCase(); } catch { /* plan gratuit par défaut */ }
+  const rate = effectiveCommissionRate(plan, order.payment_method, await isFounderAt(vendorId, order.created_at ? new Date(order.created_at) : new Date()));
+  return ((Number(order.total_price || order.total || 0)) + (Number(order.shipping_subsidy) || 0)) * rate;
+}
+const referralDeps = () => ({ db: supabase!, commissionFor: referralCommissionFor });
+const fireReferralCredit = (orderId: string) => { (async () => { try { const { data: o } = await supabase!.from('orders').select('*').eq('id', orderId).maybeSingle(); if (o) await creditReferralForOrder(referralDeps(), o); } catch (e: any) { console.warn('[Parrainage] gain non enregistré :', e?.message); } })(); };
+if (supabase) registerReferralRoutes(app, { supabase, getAuthedUser, guard: adminGuard, commissionFor: referralCommissionFor });
 if (supabase) registerUnsubscribeRoutes(app, { supabase, secret: unsubscribeSecret });
 
 // Taux du jour pour l'affichage des prix en dollars : même taux (marge de change incluse) que celui facturé par Stripe
@@ -3232,7 +3247,7 @@ if (supabase) app.post('/api/founder/claim', async (req, res) => {
 // Page admin « Paiements » (remboursements, virements en attente, export, journal) : réservée à public.is_admin().
 if (supabase) registerAdminPaymentsRoutes(app, {
   supabase, getAuthedUser,
-  onRefundPaid: (r: { id: string; buyer_id?: string | null; amount: number; reference?: string; method?: 'moncash' | 'card' }) => { fireEmail(notifyRefundPaid(emailDeps(), r.id, r.buyer_id, r.amount, r.reference, r.method)); fireEmail(notifyRefundPush(supabase, sendOneSignalPushMany, r.id, r.buyer_id, r.amount)); }, guard: adminGuard,
+  onRefundPaid: (r: { id: string; order_id?: string | null; buyer_id?: string | null; amount: number; reference?: string; method?: 'moncash' | 'card' }) => { if (r.order_id) reverseReferralForOrder(supabase, String(r.order_id)).catch(e => console.warn('[Parrainage] annulation :', e?.message)); fireEmail(notifyRefundPaid(emailDeps(), r.id, r.buyer_id, r.amount, r.reference, r.method)); fireEmail(notifyRefundPush(supabase, sendOneSignalPushMany, r.id, r.buyer_id, r.amount)); }, guard: adminGuard,
   makeUserClient: (token: string) => createClient(supabaseUrl, supabaseAnonKey, {
     global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false },
   }),
@@ -3566,6 +3581,7 @@ async function runCampaign(task: string) {
   if (task === 'new-today') return runNewToday(supabase, sendOneSignalPushMany);
   if (task === 'popular') return runPopular(supabase, sendOneSignalPushMany);
   if (task === 'vendor-summary') return runVendorSummary(supabase, sendOneSignalPushMany);
+  if (task === 'referral-sweep') return sweepReferralEarnings(referralDeps());
   if (task === 'delivery-reminder') return runDeliveryReminder(supabase, sendOneSignalPushMany);
   if (task === 'escrow-release') return runEscrowAutoRelease({ db: supabase, send: sendOneSignalPushMany, payout: (order: any) => executeVendorPayout(order) });
   if (task === 'indexnow') return runIndexNow(supabase, false);
@@ -3577,7 +3593,7 @@ app.post('/api/internal/cron/run', async (req, res) => {
   try {
     if (!(await cronSecretOk(req.header('x-cron-secret')))) return res.status(401).json({ error: 'Non autorisé' });
     const task = String(req.query.task || '');
-    if (!['flash-sale', 'recommendations', 'cart-reminders', 'low-stock', 'new-today', 'popular', 'vendor-summary', 'delivery-reminder', 'escrow-release', 'indexnow', 'indexnow-all'].includes(task)) return res.status(400).json({ error: 'task invalide' });
+    if (!['flash-sale', 'recommendations', 'cart-reminders', 'low-stock', 'new-today', 'popular', 'vendor-summary', 'delivery-reminder', 'referral-sweep', 'escrow-release', 'indexnow', 'indexnow-all'].includes(task)) return res.status(400).json({ error: 'task invalide' });
     const result = await runCampaign(task);
     console.log('[cron]', task, JSON.stringify(result));
     return res.json(result);
@@ -3596,6 +3612,7 @@ setInterval(() => {
   if (hh === 9) runCampaign('new-today').catch(e => console.warn('[cron-local] new-today:', e?.message));
   if (hh === 10) runCampaign('delivery-reminder').catch(e => console.warn('[cron-local] delivery-reminder:', e?.message));
   if (hh === 12) runCampaign('popular').catch(e => console.warn('[cron-local] popular:', e?.message));
+  if (hh === 3) runCampaign('referral-sweep').catch(e => console.warn('[cron-local] referral-sweep:', e?.message));
   if (hh === 18) runCampaign('vendor-summary').catch(e => console.warn('[cron-local] vendor-summary:', e?.message));
 }, 15 * 60 * 1000);
 
